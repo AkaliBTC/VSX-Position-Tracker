@@ -35,13 +35,32 @@ const fetchBinance = async (ticker) => {
 const fetchYahoo = async (ticker) => {
   const sym = encodeURIComponent(ticker.toUpperCase().trim());
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
-  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  try {
-    const res = await fetch(proxy);
-    if (!res.ok) throw new Error();
-    const meta = JSON.parse((await res.json()).contents)?.chart?.result?.[0]?.meta;
-    return meta?.regularMarketPrice || meta?.chartPreviousClose || meta?.previousClose || null;
-  } catch { return null; }
+
+  const proxies = [
+    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+  ];
+
+  for (const proxy of proxies) {
+    try {
+      const res = await fetch(proxy, { signal: AbortSignal.timeout(6000) });
+      if (!res.ok) continue;
+      const raw = await res.json();
+      // allorigins wraps in {contents}, codetabs returns directly
+      const text = raw.contents ?? JSON.stringify(raw);
+      const data = JSON.parse(text);
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+      const price =
+        meta.regularMarketPrice ||
+        meta.postMarketPrice ||
+        meta.preMarketPrice ||
+        meta.chartPreviousClose ||
+        meta.previousClose;
+      if (price && price > 0) return price;
+    } catch { continue; }
+  }
+  return null;
 };
 
 const fetchPrice = (source, ticker) =>
@@ -606,3 +625,6 @@ export default function App() {
           isRefreshing={!!refreshing[activeTab]}
         />
       </div>
+    </div>
+  );
+}
