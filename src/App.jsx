@@ -1,15 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 
-const FINNHUB_KEY = "d7qdf9hr01qi8jan1cr0d7qdf9hr01qi8jan1crg";
 const STORAGE_KEY = "position_monitor_v1";
 
 // ─── TABS ──────────────────────────────────────────────────────────────────────
 const TABS = [
   { id: "crypto",      label: "Crypto",      icon: "◈", source: "binance" },
-  { id: "stocks",      label: "Stocks",      icon: "▸", source: "finnhub" },
+  { id: "stocks",      label: "Stocks",      icon: "▸", source: "yahoo"   },
   { id: "indices",     label: "Indices",     icon: "◎", source: "yahoo"   },
   { id: "commodities", label: "Commodities", icon: "◆", source: "yahoo"   },
-  { id: "etfs",        label: "ETFs",        icon: "▣", source: "finnhub" },
+  { id: "etfs",        label: "ETFs",        icon: "▣", source: "yahoo"   },
 ];
 
 const PLACEHOLDERS = {
@@ -17,8 +16,10 @@ const PLACEHOLDERS = {
 };
 
 const HINTS = {
+  stocks:      "US: MSFT · DE: BASF.DE · IT: ENI.MI · FR: MC.PA · CH: NESN.SW · JP: 7203.T",
   indices:     "S&P500: ^GSPC · Nasdaq: ^IXIC · Dow: ^DJI · DAX: ^GDAXI · Nikkei: ^N225 · HSI: ^HSI · VIX: ^VIX",
   commodities: "Gold: GC=F · Silver: SI=F · Oil WTI: CL=F · Brent: BZ=F · Nat Gas: NG=F · Copper: HG=F · Wheat: ZW=F",
+  etfs:        "US: SPY · QQQ · GLD · TLT · EU: EXS1.DE · IS3N.DE",
 };
 
 // ─── STORAGE ───────────────────────────────────────────────────────────────────
@@ -48,17 +49,6 @@ const fetchBinance = async (ticker) => {
   } catch { return null; }
 };
 
-const fetchFinnhub = async (ticker) => {
-  try {
-    const res = await fetch(
-      `https://finnhub.io/api/v1/quote?symbol=${ticker.toUpperCase().trim()}&token=${FINNHUB_KEY}`
-    );
-    if (!res.ok) throw new Error();
-    const d = await res.json();
-    return d.c && d.c !== 0 ? d.c : null;
-  } catch { return null; }
-};
-
 const fetchYahoo = async (ticker) => {
   const sym = encodeURIComponent(ticker.toUpperCase().trim());
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1m&range=1d`;
@@ -75,7 +65,6 @@ const fetchYahoo = async (ticker) => {
 
 const fetchPrice = (source, ticker) => {
   if (source === "binance") return fetchBinance(ticker);
-  if (source === "finnhub") return fetchFinnhub(ticker);
   if (source === "yahoo")   return fetchYahoo(ticker);
   return Promise.resolve(null);
 };
@@ -130,7 +119,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
 
   const sourceLabel = {
     binance: "⚡ Binance · 15s auto",
-    finnhub: "⚡ Finnhub · 30s auto",
     yahoo:   "⚡ Yahoo Finance · 30s auto",
   }[tab.source];
 
