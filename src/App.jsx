@@ -34,7 +34,7 @@ const fetchBinance = async (ticker) => {
 
 const fetchYahoo = async (ticker) => {
   const sym = encodeURIComponent(ticker.toUpperCase().trim());
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1m&range=1d`;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
   const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
   try {
     const res = await fetch(proxy);
@@ -42,14 +42,7 @@ const fetchYahoo = async (ticker) => {
     const outer = await res.json();
     const data = JSON.parse(outer.contents);
     const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta) throw new Error();
-    const price =
-      meta.regularMarketPrice ||
-      meta.postMarketPrice ||
-      meta.preMarketPrice ||
-      meta.chartPreviousClose ||
-      meta.previousClose;
-    return price && price > 0 ? price : null;
+    return meta?.regularMarketPrice || meta?.chartPreviousClose || meta?.previousClose || null;
   } catch { return null; }
 };
 
