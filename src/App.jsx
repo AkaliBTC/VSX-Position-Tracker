@@ -88,11 +88,11 @@ const calcPnL = (direction, entry, current) => {
     : ((entry - current) / entry) * 100;
 };
 
-const calcRisk = (direction, entry, sl) => {
-  if (!entry || !sl || isNaN(entry) || isNaN(sl)) return null;
+const calcRisk = (direction, current, sl) => {
+  if (!current || !sl || isNaN(current) || isNaN(sl)) return null;
   return direction === "LONG"
-    ? ((entry - sl) / entry) * 100
-    : ((sl - entry) / entry) * 100;
+    ? ((current - sl) / current) * 100
+    : ((sl - current) / current) * 100;
 };
 
 const fmtPrice = (p) => {
@@ -153,8 +153,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
               <th>DIR</th>
               <th>ENTRY</th>
               <th>STOP LOSS</th>
-              <th>RISK %</th>
-              <th>DATE</th>
+              <th>SL DIST %</th>
+              <th>ENTRY DATE</th>
               <th>LIVE PRICE</th>
               <th>PNL %</th>
               <th></th>
@@ -171,7 +171,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
               const entry = parseFloat(p.entry);
               const sl    = parseFloat(p.sl);
               const pnl   = calcPnL(p.direction, entry, p.currentPrice);
-              const risk  = calcRisk(p.direction, entry, sl);
+              const risk  = calcRisk(p.direction, p.currentPrice, sl);
 
               return (
                 <tr key={p.id}>
