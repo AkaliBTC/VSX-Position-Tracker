@@ -34,33 +34,23 @@ const fetchBinance = async (ticker) => {
 
 const fetchYahoo = async (ticker) => {
   const sym = encodeURIComponent(ticker.toUpperCase().trim());
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
-
-  const proxies = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-  ];
-
-  for (const proxy of proxies) {
-    try {
-      const res = await fetch(proxy, { signal: AbortSignal.timeout(6000) });
-      if (!res.ok) continue;
-      const raw = await res.json();
-      // allorigins wraps in {contents}, codetabs returns directly
-      const text = raw.contents ?? JSON.stringify(raw);
-      const data = JSON.parse(text);
-      const meta = data?.chart?.result?.[0]?.meta;
-      if (!meta) continue;
-      const price =
-        meta.regularMarketPrice ||
-        meta.postMarketPrice ||
-        meta.preMarketPrice ||
-        meta.chartPreviousClose ||
-        meta.previousClose;
-      if (price && price > 0) return price;
-    } catch { continue; }
-  }
-  return null;
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1m&range=1d`;
+  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+  try {
+    const res = await fetch(proxy);
+    if (!res.ok) throw new Error();
+    const outer = await res.json();
+    const data = JSON.parse(outer.contents);
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta) throw new Error();
+    const price =
+      meta.regularMarketPrice ||
+      meta.postMarketPrice ||
+      meta.preMarketPrice ||
+      meta.chartPreviousClose ||
+      meta.previousClose;
+    return price && price > 0 ? price : null;
+  } catch { return null; }
 };
 
 const fetchPrice = (source, ticker) =>
