@@ -72,7 +72,7 @@ const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
 
 const VSXLogo = ({ size = 72 }) => (
   <img
-    src="https://i.postimg.cc/yxGPjMcs/Golden-Logo-png-1.png"
+    src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png"
     width={size}
     height={size}
     alt="VisionX Logo"
@@ -606,6 +606,3 @@ export default function App() {
           isRefreshing={!!refreshing[activeTab]}
         />
       </div>
-    </div>
-  );
-}
