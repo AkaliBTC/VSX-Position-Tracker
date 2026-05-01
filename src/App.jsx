@@ -33,7 +33,9 @@ const fetchBinance = async (ticker) => {
 };
 
 const fetchYahoo = async (ticker) => {
-  const sym = encodeURIComponent(ticker.toUpperCase().trim());
+  const raw = ticker.toUpperCase().trim();
+  // Don't encode = sign — Yahoo futures tickers like ES=F break if = is encoded
+  const sym = raw.replace(/[^A-Z0-9=^.]/g, (c) => encodeURIComponent(c));
   const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
   const yahooUrl2 = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
 
