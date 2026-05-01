@@ -70,13 +70,13 @@ const newRow = () => ({
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
 
-const VSXLogo = ({ size = 44 }) => (
+const VSXLogo = ({ size = 52 }) => (
   <img
     src="https://i.postimg.cc/yxGPjMcs/Golden-Logo-png-1.png"
     width={size}
     height={size}
     alt="VisionX Logo"
-    style={{ objectFit: "contain", display: "block" }}
+    style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 12px rgba(212,175,55,0.4))" }}
   />
 );
 
@@ -253,23 +253,25 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
 
         :root {
-          --black:   #121212;
-          --black2:  #181818;
-          --black3:  #1e1e1e;
-          --border:  #272727;
+          --black:   #0a0a0a;
+          --black2:  #111111;
+          --black3:  #1a1a1a;
+          --border:  #222222;
+          --border2: #2a2a2a;
           --gold1:   #b99c64;
           --gold2:   #d4af37;
           --gold3:   #c59958;
           --gold4:   #f8e49b;
           --white:   #fdfdfd;
-          --text:    #e2e2e2;
-          --text-dim:#555;
+          --text:    #e8e8e8;
+          --text-dim:#666;
           --text-mute:#333;
           --green:   #22c55e;
           --red:     #ef4444;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background: var(--black); }
 
         .app {
           min-height: 100vh;
@@ -278,180 +280,221 @@ export default function App() {
           color: var(--text);
         }
 
-        /* HEADER */
+        /* ── HEADER ── */
         .header {
-          height: 70px; padding: 0 48px;
+          height: 80px; padding: 0 56px;
           display: flex; align-items: center; justify-content: space-between;
-          background: var(--black);
+          background: rgba(10,10,10,0.85);
+          backdrop-filter: blur(24px);
+          -webkit-backdrop-filter: blur(24px);
           border-bottom: 1px solid var(--border);
           position: sticky; top: 0; z-index: 100;
-          backdrop-filter: blur(12px);
+          transition: background 0.3s;
         }
 
-        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-area { display: flex; align-items: center; gap: 16px; }
         .logo-divider {
-          width: 1px; height: 32px;
-          background: linear-gradient(180deg, transparent, var(--gold1), transparent);
-          opacity: 0.5; margin: 0 4px;
+          width: 1px; height: 40px;
+          background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent);
+          margin: 0 6px;
         }
+        .logo-wordmark { display: flex; flex-direction: column; gap: 1px; }
         .logo-name {
           font-family: 'Bebas Neue', sans-serif;
-          font-size: 20px; letter-spacing: 0.22em;
+          font-size: 24px; letter-spacing: 0.25em;
           color: var(--white); line-height: 1;
+          background: linear-gradient(135deg, #fff 0%, #e8e8e8 100%);
+          -webkit-background-clip: text; -webkit-text-fill-color: transparent;
         }
         .logo-sub {
-          font-size: 8px; letter-spacing: 0.35em;
+          font-size: 8px; letter-spacing: 0.4em;
           color: var(--gold1); line-height: 1.6;
           font-family: 'Inter', sans-serif; font-weight: 400;
+          text-transform: uppercase;
         }
 
         .header-right { display: flex; align-items: center; gap: 0; }
 
         .stat-block {
-          padding: 0 28px;
+          padding: 0 32px;
           border-left: 1px solid var(--border);
           text-align: right;
         }
         .stat-label {
           font-family: 'Inter', sans-serif;
           font-size: 8px; font-weight: 500;
-          letter-spacing: 0.2em; color: var(--text-dim);
-          text-transform: uppercase; margin-bottom: 3px;
+          letter-spacing: 0.22em; color: var(--text-dim);
+          text-transform: uppercase; margin-bottom: 4px;
         }
         .stat-val {
           font-family: 'Bebas Neue', sans-serif;
-          font-size: 22px; letter-spacing: 0.04em; line-height: 1;
+          font-size: 26px; letter-spacing: 0.04em; line-height: 1;
+          transition: color 0.4s;
         }
 
         .status-block {
-          padding: 0 0 0 28px;
+          padding: 0 0 0 32px;
           border-left: 1px solid var(--border);
           display: flex; flex-direction: column;
-          align-items: flex-end; gap: 4px;
+          align-items: flex-end; gap: 5px;
         }
         .live-badge {
-          display: flex; align-items: center; gap: 6px;
-          padding: 4px 10px;
-          border: 1px solid rgba(34,197,94,0.25);
-          background: rgba(34,197,94,0.05);
+          display: flex; align-items: center; gap: 7px;
+          padding: 5px 14px;
+          border: 1px solid rgba(34,197,94,0.2);
+          background: rgba(34,197,94,0.06);
+          border-radius: 20px;
           font-family: 'Inter', sans-serif;
           font-size: 8px; font-weight: 600;
           letter-spacing: 0.22em; color: var(--green);
+          transition: all 0.3s;
         }
+        .live-badge:hover { background: rgba(34,197,94,0.1); }
         .live-dot {
-          width: 5px; height: 5px; border-radius: 50%;
-          background: var(--green); box-shadow: 0 0 8px var(--green);
+          width: 6px; height: 6px; border-radius: 50%;
+          background: var(--green); box-shadow: 0 0 10px var(--green);
           animation: glow 2s ease-in-out infinite;
         }
         @keyframes glow {
-          0%,100% { opacity: 1; }
-          50%      { opacity: 0.25; }
+          0%,100% { opacity: 1; box-shadow: 0 0 10px var(--green); }
+          50%      { opacity: 0.3; box-shadow: 0 0 3px var(--green); }
         }
         .save-flash {
           font-size: 8px; letter-spacing: 0.18em;
-          color: var(--gold2); transition: opacity 0.3s;
+          color: var(--gold2); transition: opacity 0.4s;
           font-family: 'Inter', sans-serif;
         }
         .save-flash.on  { opacity: 1; }
         .save-flash.off { opacity: 0; }
         .refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; }
 
-        /* TABS */
+        /* ── TABS ── */
         .tabs-wrap {
           display: flex; background: var(--black);
           border-bottom: 1px solid var(--border);
-          padding: 0 48px;
+          padding: 0 56px;
+          gap: 4px;
         }
         .tab {
-          padding: 16px 22px;
+          padding: 18px 20px;
           font-family: 'Inter', sans-serif;
           font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
           text-transform: uppercase; color: var(--text-dim);
           cursor: pointer; border: none; background: transparent;
           border-bottom: 1px solid transparent;
-          transition: all 0.18s; position: relative; bottom: -1px;
-          display: flex; align-items: center; gap: 8px;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative; bottom: -1px;
+          display: flex; align-items: center; gap: 9px;
         }
         .tab:hover { color: var(--text); }
         .tab.active { color: var(--gold4); border-bottom-color: var(--gold2); }
+
         .tab-count {
-          font-size: 9px; padding: 1px 7px;
-          border: 1px solid var(--border);
+          font-size: 9px; padding: 2px 8px;
+          border: 1px solid var(--border2);
           border-radius: 20px; color: var(--text-dim);
           font-family: 'DM Mono', monospace;
           background: var(--black3);
+          transition: all 0.25s;
         }
         .tab.active .tab-count {
-          border-color: rgba(212,175,55,0.35);
+          border-color: rgba(212,175,55,0.3);
           color: var(--gold2);
           background: rgba(212,175,55,0.08);
         }
         .live-pip {
           width: 4px; height: 4px; border-radius: 50%;
-          background: var(--green); box-shadow: 0 0 4px var(--green);
+          background: var(--green); box-shadow: 0 0 5px var(--green);
           animation: glow 2s ease-in-out infinite;
         }
 
-        /* CONTENT */
-        .content { padding: 32px 48px; }
+        /* ── CONTENT ── */
+        .content { padding: 36px 56px; }
 
         .hint-bar {
-          display: flex; align-items: center; gap: 16px;
+          display: flex; align-items: center; gap: 20px;
           font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em;
-          margin-bottom: 20px; padding: 10px 16px;
-          border: 1px solid var(--border); background: var(--black2);
+          margin-bottom: 24px; padding: 12px 20px;
+          border: 1px solid var(--border);
+          background: var(--black2);
+          border-radius: 8px;
+          transition: border-color 0.3s;
         }
+        .hint-bar:hover { border-color: var(--border2); }
         .hint-label {
           font-family: 'Inter', sans-serif;
           font-size: 8px; font-weight: 600; letter-spacing: 0.25em;
           color: var(--gold2); white-space: nowrap;
-          padding-right: 16px; border-right: 1px solid var(--border);
+          padding-right: 20px; border-right: 1px solid var(--border);
         }
 
+        /* ── TOOLBAR ── */
         .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 
         .btn {
-          padding: 9px 20px;
+          padding: 10px 22px;
           font-family: 'Inter', sans-serif;
           font-size: 10px; font-weight: 600; letter-spacing: 0.15em;
-          border: none; cursor: pointer; transition: all 0.15s; text-transform: uppercase;
+          border: none; cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          text-transform: uppercase; border-radius: 6px;
         }
-        .btn-add { background: var(--gold2); color: var(--black); }
-        .btn-add:hover { background: var(--gold4); }
+        .btn-add {
+          background: linear-gradient(135deg, var(--gold2), var(--gold3));
+          color: var(--black);
+          box-shadow: 0 0 20px rgba(212,175,55,0.2);
+        }
+        .btn-add:hover {
+          background: linear-gradient(135deg, var(--gold4), var(--gold2));
+          box-shadow: 0 0 30px rgba(212,175,55,0.35);
+          transform: translateY(-1px);
+        }
         .btn-refresh {
           background: transparent; color: var(--text-dim);
-          border: 1px solid var(--border);
+          border: 1px solid var(--border); border-radius: 6px;
         }
-        .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: #444; }
+        .btn-refresh:hover:not(:disabled) {
+          color: var(--text); border-color: var(--border2);
+          background: var(--black2);
+        }
         .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
         .source-badge {
           font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em;
           font-family: 'Inter', sans-serif; margin-left: 4px;
         }
 
-        /* TABLE */
-        .table-wrap { border: 1px solid var(--border); overflow-x: auto; background: var(--black2); }
+        /* ── TABLE ── */
+        .table-wrap {
+          border: 1px solid var(--border);
+          overflow-x: auto; background: var(--black2);
+          border-radius: 12px;
+          overflow: hidden;
+        }
         table { width: 100%; border-collapse: collapse; min-width: 860px; }
         thead tr { background: var(--black3); border-bottom: 1px solid var(--border); }
         th {
-          padding: 12px 16px;
+          padding: 14px 18px;
           font-family: 'Inter', sans-serif;
-          font-size: 8px; font-weight: 600; letter-spacing: 0.25em;
+          font-size: 8px; font-weight: 600; letter-spacing: 0.28em;
           color: var(--text-dim); text-align: left; white-space: nowrap;
         }
         th:first-child { color: var(--gold1); }
-        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+
+        tbody tr {
+          border-bottom: 1px solid var(--border);
+          transition: background 0.2s;
+        }
         tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover { background: rgba(255,255,255,0.018); }
-        td { padding: 12px 16px; }
+        tbody tr:hover { background: rgba(255,255,255,0.025); }
+        td { padding: 14px 18px; }
 
         .cell-input {
           background: transparent; border: none; color: var(--text);
           font-family: 'DM Mono', monospace; font-size: 13px;
-          outline: none; padding: 2px 4px; width: 100%;
-          transition: background 0.15s;
+          outline: none; padding: 4px 6px; width: 100%;
+          transition: background 0.2s; border-radius: 4px;
         }
-        .cell-input:focus { background: rgba(212,175,55,0.04); }
+        .cell-input:focus { background: rgba(212,175,55,0.05); }
         .cell-input::placeholder { color: var(--text-mute); }
 
         .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 90px; }
@@ -461,11 +504,14 @@ export default function App() {
         .dir-sel {
           border: none; font-family: 'Inter', sans-serif;
           font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
-          cursor: pointer; padding: 5px 12px; outline: none;
+          cursor: pointer; padding: 5px 14px; outline: none;
           -webkit-appearance: none; text-transform: uppercase;
+          border-radius: 4px; transition: all 0.2s;
         }
         .dir-long  { background: rgba(34,197,94,0.1);  color: var(--green); }
         .dir-short { background: rgba(239,68,68,0.1);  color: var(--red);   }
+        .dir-long:hover  { background: rgba(34,197,94,0.18); }
+        .dir-short:hover { background: rgba(239,68,68,0.18); }
 
         .dist-val  { color: var(--gold3); font-size: 12px; }
         .price-val { color: var(--white); }
@@ -479,12 +525,13 @@ export default function App() {
 
         .del-btn {
           background: none; border: none; color: var(--text-mute);
-          cursor: pointer; font-size: 12px; padding: 4px 8px; transition: color 0.15s;
+          cursor: pointer; font-size: 12px; padding: 4px 8px;
+          transition: color 0.2s; border-radius: 4px;
         }
-        .del-btn:hover { color: var(--red); }
+        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); }
 
         .empty-cell {
-          text-align: center; padding: 64px;
+          text-align: center; padding: 72px;
           font-family: 'Inter', sans-serif;
           color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em;
         }
@@ -496,7 +543,7 @@ export default function App() {
       {/* HEADER */}
       <div className="header">
         <div className="logo-area">
-          <VSXLogo size={42} />
+          <VSXLogo size={56} />
           <div className="logo-divider" />
           <div>
             <div className="logo-name">VISIONX</div>
