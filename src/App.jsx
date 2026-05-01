@@ -252,7 +252,7 @@ export default function App() {
   return (
     <div className="app">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
 
         :root {
           --black:   #0a0a0a;
@@ -278,7 +278,7 @@ export default function App() {
         .app {
           min-height: 100vh;
           background: var(--black);
-          font-family: 'DM Mono', monospace;
+          font-family: 'Montserrat', sans-serif;
           color: var(--text);
         }
 
@@ -311,7 +311,7 @@ export default function App() {
         .logo-sub {
           font-size: 8px; letter-spacing: 0.4em;
           color: var(--gold1); line-height: 1.6;
-          font-family: 'Inter', sans-serif; font-weight: 400;
+          font-family: 'Montserrat', sans-serif; font-weight: 500;
           text-transform: uppercase;
         }
 
@@ -321,18 +321,23 @@ export default function App() {
           padding: 0 32px;
           border-left: 1px solid var(--border);
           text-align: right;
+          transition: background 0.25s;
+          cursor: default;
         }
+        .stat-block:hover { background: rgba(255,255,255,0.02); }
+
         .stat-label {
-          font-family: 'Inter', sans-serif;
-          font-size: 8px; font-weight: 500;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 8px; font-weight: 600;
           letter-spacing: 0.22em; color: var(--text-dim);
           text-transform: uppercase; margin-bottom: 4px;
         }
         .stat-val {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 26px; letter-spacing: 0.04em; line-height: 1;
-          transition: color 0.4s;
+          transition: color 0.4s, transform 0.2s;
         }
+        .stat-block:hover .stat-val { transform: scale(1.03); }
 
         .status-block {
           padding: 0 0 0 32px;
@@ -346,12 +351,12 @@ export default function App() {
           border: 1px solid rgba(34,197,94,0.2);
           background: rgba(34,197,94,0.06);
           border-radius: 20px;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Montserrat', sans-serif;
           font-size: 8px; font-weight: 600;
           letter-spacing: 0.22em; color: var(--green);
           transition: all 0.3s;
         }
-        .live-badge:hover { background: rgba(34,197,94,0.1); }
+        .live-badge:hover { background: rgba(34,197,94,0.12); transform: scale(1.02); }
         .live-dot {
           width: 6px; height: 6px; border-radius: 50%;
           background: var(--green); box-shadow: 0 0 10px var(--green);
@@ -364,7 +369,7 @@ export default function App() {
         .save-flash {
           font-size: 8px; letter-spacing: 0.18em;
           color: var(--gold2); transition: opacity 0.4s;
-          font-family: 'Inter', sans-serif;
+          font-family: 'Montserrat', sans-serif; font-weight: 500;
         }
         .save-flash.on  { opacity: 1; }
         .save-flash.off { opacity: 0; }
@@ -374,13 +379,12 @@ export default function App() {
         .tabs-wrap {
           display: flex; background: var(--black);
           border-bottom: 1px solid var(--border);
-          padding: 0 56px;
-          gap: 4px;
+          padding: 0 56px; gap: 4px;
         }
         .tab {
           padding: 18px 20px;
-          font-family: 'Inter', sans-serif;
-          font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 10px; font-weight: 600; letter-spacing: 0.18em;
           text-transform: uppercase; color: var(--text-dim);
           cursor: pointer; border: none; background: transparent;
           border-bottom: 1px solid transparent;
@@ -388,7 +392,7 @@ export default function App() {
           position: relative; bottom: -1px;
           display: flex; align-items: center; gap: 9px;
         }
-        .tab:hover { color: var(--text); }
+        .tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
         .tab.active { color: var(--gold4); border-bottom-color: var(--gold2); }
 
         .tab-count {
@@ -420,12 +424,13 @@ export default function App() {
           border: 1px solid var(--border);
           background: var(--black2);
           border-radius: 8px;
-          transition: border-color 0.3s;
+          transition: border-color 0.3s, background 0.3s;
+          font-family: 'DM Mono', monospace;
         }
-        .hint-bar:hover { border-color: var(--border2); }
+        .hint-bar:hover { border-color: var(--gold1); background: rgba(212,175,55,0.03); }
         .hint-label {
-          font-family: 'Inter', sans-serif;
-          font-size: 8px; font-weight: 600; letter-spacing: 0.25em;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 8px; font-weight: 700; letter-spacing: 0.25em;
           color: var(--gold2); white-space: nowrap;
           padding-right: 20px; border-right: 1px solid var(--border);
         }
@@ -435,8 +440,8 @@ export default function App() {
 
         .btn {
           padding: 10px 22px;
-          font-family: 'Inter', sans-serif;
-          font-size: 10px; font-weight: 600; letter-spacing: 0.15em;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
           border: none; cursor: pointer;
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
           text-transform: uppercase; border-radius: 6px;
@@ -448,46 +453,57 @@ export default function App() {
         }
         .btn-add:hover {
           background: linear-gradient(135deg, var(--gold4), var(--gold2));
-          box-shadow: 0 0 30px rgba(212,175,55,0.35);
-          transform: translateY(-1px);
+          box-shadow: 0 0 35px rgba(212,175,55,0.4);
+          transform: translateY(-2px) scale(1.02);
         }
+        .btn-add:active { transform: translateY(0) scale(0.98); }
+
         .btn-refresh {
           background: transparent; color: var(--text-dim);
           border: 1px solid var(--border); border-radius: 6px;
         }
         .btn-refresh:hover:not(:disabled) {
           color: var(--text); border-color: var(--border2);
-          background: var(--black2);
+          background: var(--black2); transform: translateY(-1px);
         }
+        .btn-refresh:active { transform: translateY(0); }
         .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
         .source-badge {
           font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em;
-          font-family: 'Inter', sans-serif; margin-left: 4px;
+          font-family: 'Montserrat', sans-serif; font-weight: 500; margin-left: 4px;
         }
 
         /* ── TABLE ── */
         .table-wrap {
           border: 1px solid var(--border);
           overflow-x: auto; background: var(--black2);
-          border-radius: 12px;
-          overflow: hidden;
+          border-radius: 12px; overflow: hidden;
+          transition: border-color 0.3s;
         }
+        .table-wrap:hover { border-color: var(--border2); }
+
         table { width: 100%; border-collapse: collapse; min-width: 860px; }
         thead tr { background: var(--black3); border-bottom: 1px solid var(--border); }
         th {
           padding: 14px 18px;
-          font-family: 'Inter', sans-serif;
-          font-size: 8px; font-weight: 600; letter-spacing: 0.28em;
+          font-family: 'Montserrat', sans-serif;
+          font-size: 8px; font-weight: 700; letter-spacing: 0.28em;
           color: var(--text-dim); text-align: left; white-space: nowrap;
         }
         th:first-child { color: var(--gold1); }
 
         tbody tr {
           border-bottom: 1px solid var(--border);
-          transition: background 0.2s;
+          transition: background 0.2s, transform 0.15s;
+          cursor: default;
         }
         tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover { background: rgba(255,255,255,0.025); }
+        tbody tr:hover {
+          background: rgba(212,175,55,0.03);
+        }
+        tbody tr:hover .ticker-inp { color: var(--gold4); }
+        tbody tr:hover .pnl-pos { text-shadow: 0 0 12px rgba(34,197,94,0.4); }
+        tbody tr:hover .pnl-neg { text-shadow: 0 0 12px rgba(239,68,68,0.4); }
         td { padding: 14px 18px; }
 
         .cell-input {
@@ -499,12 +515,12 @@ export default function App() {
         .cell-input:focus { background: rgba(212,175,55,0.05); }
         .cell-input::placeholder { color: var(--text-mute); }
 
-        .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 90px; }
+        .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 90px; transition: color 0.2s; }
         .num-inp    { width: 100px; }
         .date-inp   { width: 130px; color-scheme: dark; }
 
         .dir-sel {
-          border: none; font-family: 'Inter', sans-serif;
+          border: none; font-family: 'Montserrat', sans-serif;
           font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
           cursor: pointer; padding: 5px 14px; outline: none;
           -webkit-appearance: none; text-transform: uppercase;
@@ -512,30 +528,30 @@ export default function App() {
         }
         .dir-long  { background: rgba(34,197,94,0.1);  color: var(--green); }
         .dir-short { background: rgba(239,68,68,0.1);  color: var(--red);   }
-        .dir-long:hover  { background: rgba(34,197,94,0.18); }
-        .dir-short:hover { background: rgba(239,68,68,0.18); }
+        .dir-long:hover  { background: rgba(34,197,94,0.2); transform: scale(1.04); }
+        .dir-short:hover { background: rgba(239,68,68,0.2); transform: scale(1.04); }
 
-        .dist-val  { color: var(--gold3); font-size: 12px; }
-        .price-val { color: var(--white); }
+        .dist-val  { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; }
+        .price-val { color: var(--white); font-family: 'DM Mono', monospace; }
         .fetching  { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
         .price-err { color: var(--red); font-size: 10px; letter-spacing: 0.1em; }
         .price-dim { color: var(--text-mute); }
 
-        .pnl-pos  { color: var(--green); font-weight: 500; }
-        .pnl-neg  { color: var(--red);   font-weight: 500; }
-        .pnl-zero { color: var(--text-dim); }
+        .pnl-pos  { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
+        .pnl-neg  { color: var(--red);   font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
+        .pnl-zero { color: var(--text-dim); font-family: 'DM Mono', monospace; }
 
         .del-btn {
           background: none; border: none; color: var(--text-mute);
-          cursor: pointer; font-size: 12px; padding: 4px 8px;
-          transition: color 0.2s; border-radius: 4px;
+          cursor: pointer; font-size: 12px; padding: 6px 10px;
+          transition: all 0.2s; border-radius: 4px;
         }
-        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); }
+        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); transform: scale(1.1); }
 
         .empty-cell {
           text-align: center; padding: 72px;
-          font-family: 'Inter', sans-serif;
-          color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em;
+          font-family: 'Montserrat', sans-serif;
+          color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em; font-weight: 500;
         }
 
         .spin { display: inline-block; animation: spin 0.7s linear infinite; }
@@ -559,7 +575,7 @@ export default function App() {
             <div className="stat-val" style={{ color: "var(--gold2)" }}>{totalPositions}</div>
           </div>
           <div className="stat-block">
-            <div className="stat-label">Tab Avg PnL</div>
+            <div className="stat-label">Pack Avg PnL</div>
             <div className="stat-val" style={{
               color: tabPnl === null ? "var(--text-dim)" : tabPnl >= 0 ? "var(--green)" : "var(--red)"
             }}>
