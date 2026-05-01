@@ -70,13 +70,13 @@ const newRow = () => ({
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
 
-const VSXLogo = ({ size = 52 }) => (
+const VSXLogo = ({ size = 72 }) => (
   <img
     src="https://i.postimg.cc/yxGPjMcs/Golden-Logo-png-1.png"
     width={size}
     height={size}
     alt="VisionX Logo"
-    style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 12px rgba(212,175,55,0.4))" }}
+    style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))" }}
   />
 );
 
@@ -282,7 +282,7 @@ export default function App() {
 
         /* ── HEADER ── */
         .header {
-          height: 80px; padding: 0 56px;
+          height: 100px; padding: 0 56px;
           display: flex; align-items: center; justify-content: space-between;
           background: rgba(10,10,10,0.85);
           backdrop-filter: blur(24px);
@@ -301,7 +301,7 @@ export default function App() {
         .logo-wordmark { display: flex; flex-direction: column; gap: 1px; }
         .logo-name {
           font-family: 'Bebas Neue', sans-serif;
-          font-size: 24px; letter-spacing: 0.25em;
+          font-size: 32px; letter-spacing: 0.25em;
           color: var(--white); line-height: 1;
           background: linear-gradient(135deg, #fff 0%, #e8e8e8 100%);
           -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -543,7 +543,7 @@ export default function App() {
       {/* HEADER */}
       <div className="header">
         <div className="logo-area">
-          <VSXLogo size={56} />
+          <VSXLogo size={72} />
           <div className="logo-divider" />
           <div>
             <div className="logo-name">VISIONX</div>
