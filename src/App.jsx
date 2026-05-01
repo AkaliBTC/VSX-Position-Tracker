@@ -34,15 +34,19 @@ const fetchBinance = async (ticker) => {
 
 const fetchYahoo = async (ticker) => {
   const raw = ticker.toUpperCase().trim();
-  // Don't encode = sign — Yahoo futures tickers like ES=F break if = is encoded
-  const sym = raw.replace(/[^A-Z0-9=^.]/g, (c) => encodeURIComponent(c));
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
-  const yahooUrl2 = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
+  const yahooBase = `https://query1.finance.yahoo.com/v8/finance/chart/`;
+  const yahooBase2 = `https://query2.finance.yahoo.com/v8/finance/chart/`;
+  const params = `?interval=1d&range=5d`;
+
+  // Build URLs with ticker NOT encoded so ES=F stays as ES=F
+  const url1 = yahooBase + raw + params;
+  const url2 = yahooBase2 + raw + params;
 
   const attempts = [
-    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
-    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl2)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
-    () => fetch(`https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }),
+    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url1)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url2)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+    () => fetch(`https://corsproxy.io/?${encodeURIComponent(url1)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }),
+    () => fetch(`https://corsproxy.io/?${encodeURIComponent(url2)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }),
   ];
 
   for (const attempt of attempts) {
