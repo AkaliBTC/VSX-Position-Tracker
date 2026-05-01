@@ -34,16 +34,25 @@ const fetchBinance = async (ticker) => {
 
 const fetchYahoo = async (ticker) => {
   const sym = encodeURIComponent(ticker.toUpperCase().trim());
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
-  const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-  try {
-    const res = await fetch(proxy);
-    if (!res.ok) throw new Error();
-    const outer = await res.json();
-    const data = JSON.parse(outer.contents);
-    const meta = data?.chart?.result?.[0]?.meta;
-    return meta?.regularMarketPrice || meta?.chartPreviousClose || meta?.previousClose || null;
-  } catch { return null; }
+  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
+  const yahooUrl2 = `https://query2.finance.yahoo.com/v8/finance/chart/${sym}?interval=1d&range=5d`;
+
+  const attempts = [
+    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(yahooUrl2)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+    () => fetch(`https://corsproxy.io/?${encodeURIComponent(yahooUrl)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }),
+  ];
+
+  for (const attempt of attempts) {
+    try {
+      const data = await attempt();
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta) continue;
+      const price = meta.regularMarketPrice || meta.chartPreviousClose || meta.previousClose;
+      if (price && price > 0) return price;
+    } catch { continue; }
+  }
+  return null;
 };
 
 const fetchPrice = (source, ticker) =>
