@@ -44,70 +44,83 @@ const fetchBinance = async (ticker) => {
   return null;
 };
 
-const fetchYahoo = async (ticker) => {
+// ── YAHOO PROXIES ─────────────────────────────────────────────────────────────
+const PROXIES = [
+  (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+  (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+  (u) => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+  (u) => fetch(`https://yacdn.org/proxy/${u}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+];
+
+// ── YAHOO SINGLE: fallback for individual ticker ──────────────────────────────
+const fetchYahooSingle = async (ticker) => {
   const raw = ticker.toUpperCase().trim();
-
-  // ── Endpoint builders ──────────────────────────────────────────────────────
-  const chartUrl1  = `https://query1.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`;
-  const chartUrl2  = `https://query2.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`;
-  const quoteUrl1  = `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${raw}`;
-  const quoteUrl2  = `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${raw}`;
-  const summaryUrl1 = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`;
-  const summaryUrl2 = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`;
-
-  const proxies = [
-    (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
-    (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    (u) => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    (u) => fetch(`https://yacdn.org/proxy/${u}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+  const pairs = [
+    [`https://query1.finance.yahoo.com/v6/finance/quote?symbols=${raw}`, (d) => { const r = d?.quoteResponse?.result?.[0]; return r?.regularMarketPrice || r?.ask || null; }],
+    [`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${raw}`, (d) => { const r = d?.quoteResponse?.result?.[0]; return r?.regularMarketPrice || r?.ask || null; }],
+    [`https://query1.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`, (d) => { const m = d?.chart?.result?.[0]?.meta; return m?.regularMarketPrice || m?.chartPreviousClose || null; }],
+    [`https://query2.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`, (d) => { const m = d?.chart?.result?.[0]?.meta; return m?.regularMarketPrice || m?.chartPreviousClose || null; }],
+    [`https://query1.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`, (d) => d?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw || null],
+    [`https://query2.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`, (d) => d?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw || null],
   ];
-
-  // ── Helper: extract price from chart response ──────────────────────────────
-  const fromChart = (data) => {
-    const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta) return null;
-    const p = meta.regularMarketPrice || meta.chartPreviousClose || meta.previousClose;
-    return p && p > 0 ? p : null;
-  };
-
-  // ── Helper: extract price from v6 quote response ───────────────────────────
-  const fromQuote = (data) => {
-    const r = data?.quoteResponse?.result?.[0];
-    if (!r) return null;
-    const p = r.regularMarketPrice || r.ask || r.bid;
-    return p && p > 0 ? p : null;
-  };
-
-  // ── Helper: extract price from quoteSummary response ──────────────────────
-  const fromSummary = (data) => {
-    const p = data?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw;
-    return p && p > 0 ? p : null;
-  };
-
-  // ── Try all combinations: chart → quote → summary, across both proxies ─────
-  const attempts = [
-    // v8 chart (most data, primary)
-    ...proxies.map(px => async () => fromChart(await px(chartUrl1))),
-    ...proxies.map(px => async () => fromChart(await px(chartUrl2))),
-    // v6 quote (lighter, often works when chart is blocked)
-    ...proxies.map(px => async () => fromQuote(await px(quoteUrl1))),
-    ...proxies.map(px => async () => fromQuote(await px(quoteUrl2))),
-    // v10 quoteSummary (last resort)
-    ...proxies.map(px => async () => fromSummary(await px(summaryUrl1))),
-    ...proxies.map(px => async () => fromSummary(await px(summaryUrl2))),
-  ];
-
-  for (const attempt of attempts) {
-    try {
-      const price = await attempt();
-      if (price) return price;
-    } catch { continue; }
+  for (const [url, extract] of pairs) {
+    for (const px of PROXIES) {
+      try {
+        const data = await px(url);
+        const price = extract(data);
+        if (price && price > 0) return price;
+      } catch { continue; }
+    }
   }
   return null;
 };
 
-const fetchPrice = (source, ticker) =>
-  source === "binance" ? fetchBinance(ticker) : fetchYahoo(ticker);
+// ── YAHOO BATCH: sequential chunks of 10 to avoid proxy collisions ────────────
+const fetchYahooBatch = async (tickers) => {
+  const BATCH_SIZE = 10;
+  const results = {};
+  tickers.forEach(t => { results[t] = null; });
+
+  const chunks = [];
+  for (let i = 0; i < tickers.length; i += BATCH_SIZE)
+    chunks.push(tickers.slice(i, i + BATCH_SIZE));
+
+  // Sequential — not parallel — to prevent proxy rate-limit collisions
+  for (const chunk of chunks) {
+    const symbols = chunk.join(",");
+    let items = null;
+
+    for (const base of ["query1", "query2"]) {
+      const url = `https://${base}.finance.yahoo.com/v6/finance/quote?symbols=${symbols}`;
+      for (const px of PROXIES) {
+        try {
+          const data = await px(url);
+          const res = data?.quoteResponse?.result;
+          if (res?.length) { items = res; break; }
+        } catch { continue; }
+        if (items) break;
+      }
+      if (items) break;
+    }
+
+    if (items) {
+      items.forEach(item => {
+        const price = item.regularMarketPrice || item.ask || item.bid;
+        if (item.symbol && price && price > 0) results[item.symbol] = price;
+      });
+      // Any ticker in this chunk that batch missed → single fallback
+      for (const ticker of chunk) {
+        if (results[ticker] === null)
+          results[ticker] = await fetchYahooSingle(ticker);
+      }
+    } else {
+      // Whole batch failed → individual fallbacks
+      for (const ticker of chunk)
+        results[ticker] = await fetchYahooSingle(ticker);
+    }
+  }
+  return results;
+};
 
 const calcPnL = (dir, entry, cur) => {
   if (!entry || !cur || isNaN(entry) || isNaN(cur)) return null;
@@ -144,6 +157,10 @@ const VSXLogo = ({ size = 72 }) => (
 
 // ── TABLE ─────────────────────────────────────────────────────────────────────
 function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }) {
+  const [sortKey, setSortKey] = useState(null);
+  const [sortDir, setSortDir] = useState("asc");
+  const [search, setSearch] = useState("");
+
   const update = (id, f, v) =>
     setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => {
@@ -151,6 +168,46 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
       setPositions((prev) => prev.filter((p) => p.id !== id));
   };
   const add = () => setPositions((prev) => [...prev, newRow()]);
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const SortTh = ({ label, k }) => (
+    <th onClick={() => handleSort(k)} style={{ cursor: "pointer", userSelect: "none" }}>
+      {label}
+      <span style={{ marginLeft: 4, opacity: sortKey === k ? 1 : 0.25, fontSize: 9 }}>
+        {sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "▲"}
+      </span>
+    </th>
+  );
+
+  const filtered = positions.filter(p => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return (
+      p.ticker.toLowerCase().includes(q) ||
+      p.direction.toLowerCase().includes(q) ||
+      p.date.includes(q)
+    );
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (!sortKey) return 0;
+    let va, vb;
+    if (sortKey === "ticker")    { va = a.ticker; vb = b.ticker; }
+    else if (sortKey === "date") { va = a.date;   vb = b.date; }
+    else if (sortKey === "entry"){ va = parseFloat(a.entry) || 0; vb = parseFloat(b.entry) || 0; }
+    else if (sortKey === "pnl")  {
+      va = calcPnL(a.direction, parseFloat(a.entry), a.currentPrice) ?? -Infinity;
+      vb = calcPnL(b.direction, parseFloat(b.entry), b.currentPrice) ?? -Infinity;
+    }
+    else if (sortKey === "dir")  { va = a.direction; vb = b.direction; }
+    if (va < vb) return sortDir === "asc" ? -1 : 1;
+    if (va > vb) return sortDir === "asc" ? 1 : -1;
+    return 0;
+  });
 
   return (
     <div>
@@ -165,6 +222,12 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
         <button className="btn btn-refresh" onClick={onRefresh} disabled={isRefreshing}>
           {isRefreshing ? <span className="spin">↻</span> : "↻"} REFRESH
         </button>
+        <input
+          className="search-inp"
+          placeholder="Search ticker, date, direction…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
         <span className="source-badge">
           {tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 30s AUTO"}
         </span>
@@ -173,21 +236,21 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
         <table>
           <thead>
             <tr>
-              <th>TICKER</th>
-              <th>DIRECTION</th>
-              <th>ENTRY</th>
+              <SortTh label="TICKER" k="ticker" />
+              <SortTh label="DIRECTION" k="dir" />
+              <SortTh label="ENTRY" k="entry" />
               <th>STOP LOSS</th>
               <th>SL DIST %</th>
-              <th>ENTRY DATE</th>
+              <SortTh label="ENTRY DATE" k="date" />
               <th>LIVE PRICE</th>
-              <th>PNL %</th>
+              <SortTh label="PNL %" k="pnl" />
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {positions.length === 0 ? (
-              <tr><td colSpan={9} className="empty-cell">NO POSITIONS — PRESS ADD TO BEGIN</td></tr>
-            ) : positions.map((p) => {
+            {sorted.length === 0 ? (
+              <tr><td colSpan={9} className="empty-cell">{search ? "NO RESULTS" : "NO POSITIONS — PRESS ADD TO BEGIN"}</td></tr>
+            ) : sorted.map((p) => {
               const entry = parseFloat(p.entry);
               const sl    = parseFloat(p.sl);
               const pnl   = calcPnL(p.direction, entry, p.currentPrice);
@@ -247,13 +310,8 @@ export default function App() {
   const [lastRefresh, setLastRefresh]   = useState(null);
   const [savedFlash, setSavedFlash]     = useState(false);
 
+  // savedFlash only — storage handled synchronously in setPosForTab
   useEffect(() => {
-    const toSave = Object.fromEntries(
-      Object.entries(allPositions).map(([id, rows]) => [
-        id, rows.map(({ currentPrice, loading, error, ...r }) => r),
-      ])
-    );
-    saveToStorage(toSave);
     setSavedFlash(true);
     const t = setTimeout(() => setSavedFlash(false), 1400);
     return () => clearTimeout(t);
@@ -278,15 +336,26 @@ export default function App() {
   const refreshTab = useCallback(async (tabId) => {
     const tab = TABS.find((t) => t.id === tabId);
     const positions = allPositions[tabId] || [];
-    if (!positions.some((p) => p.ticker.trim())) return;
+    const active = positions.filter((p) => p.ticker.trim());
+    if (!active.length) return;
+
     setRefreshing((prev) => ({ ...prev, [tabId]: true }));
-    const updated = await Promise.all(
-      positions.map(async (p) => {
-        if (!p.ticker.trim()) return p;
-        const price = await fetchPrice(tab.source, p.ticker.trim());
-        return { ...p, currentPrice: price, error: price === null, loading: false };
-      })
-    );
+
+    let priceMap = {};
+    if (tab.source === "binance") {
+      await Promise.all(active.map(async (p) => {
+        priceMap[p.ticker.trim()] = await fetchBinance(p.ticker.trim());
+      }));
+    } else {
+      priceMap = await fetchYahooBatch(active.map(p => p.ticker.trim()));
+    }
+
+    const updated = positions.map((p) => {
+      if (!p.ticker.trim()) return p;
+      const price = priceMap[p.ticker.trim()] ?? null;
+      return { ...p, currentPrice: price, error: price === null, loading: false };
+    });
+
     setAllPositions((prev) => ({ ...prev, [tabId]: updated }));
     setLastRefresh(new Date());
     setRefreshing((prev) => ({ ...prev, [tabId]: false }));
@@ -563,6 +632,16 @@ export default function App() {
         }
         .btn-refresh:active { transform: translateY(0); }
         .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
+        .search-inp {
+          background: var(--black2); border: 1px solid var(--border);
+          color: var(--text); font-family: 'DM Mono', monospace; font-size: 11px;
+          padding: 8px 14px; border-radius: 6px; outline: none;
+          width: 220px; letter-spacing: 0.04em;
+          transition: border-color 0.2s, background 0.2s;
+        }
+        .search-inp:focus { border-color: var(--gold1); background: rgba(212,175,55,0.04); }
+        .search-inp::placeholder { color: var(--text-mute); }
+
         .source-badge {
           font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em;
           font-family: 'Montserrat', sans-serif; font-weight: 500; margin-left: 4px;
