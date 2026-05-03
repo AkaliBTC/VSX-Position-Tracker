@@ -46,28 +46,59 @@ const fetchBinance = async (ticker) => {
 
 const fetchYahoo = async (ticker) => {
   const raw = ticker.toUpperCase().trim();
-  const yahooBase = `https://query1.finance.yahoo.com/v8/finance/chart/`;
-  const yahooBase2 = `https://query2.finance.yahoo.com/v8/finance/chart/`;
-  const params = `?interval=1d&range=5d`;
 
-  // Build URLs with ticker NOT encoded so ES=F stays as ES=F
-  const url1 = yahooBase + raw + params;
-  const url2 = yahooBase2 + raw + params;
+  // ── Endpoint builders ──────────────────────────────────────────────────────
+  const chartUrl1  = `https://query1.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`;
+  const chartUrl2  = `https://query2.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`;
+  const quoteUrl1  = `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${raw}`;
+  const quoteUrl2  = `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${raw}`;
+  const summaryUrl1 = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`;
+  const summaryUrl2 = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`;
 
+  const proxies = [
+    (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+    (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+  ];
+
+  // ── Helper: extract price from chart response ──────────────────────────────
+  const fromChart = (data) => {
+    const meta = data?.chart?.result?.[0]?.meta;
+    if (!meta) return null;
+    const p = meta.regularMarketPrice || meta.chartPreviousClose || meta.previousClose;
+    return p && p > 0 ? p : null;
+  };
+
+  // ── Helper: extract price from v6 quote response ───────────────────────────
+  const fromQuote = (data) => {
+    const r = data?.quoteResponse?.result?.[0];
+    if (!r) return null;
+    const p = r.regularMarketPrice || r.ask || r.bid;
+    return p && p > 0 ? p : null;
+  };
+
+  // ── Helper: extract price from quoteSummary response ──────────────────────
+  const fromSummary = (data) => {
+    const p = data?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw;
+    return p && p > 0 ? p : null;
+  };
+
+  // ── Try all combinations: chart → quote → summary, across both proxies ─────
   const attempts = [
-    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url1)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
-    () => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url2)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
-    () => fetch(`https://corsproxy.io/?${encodeURIComponent(url1)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }),
-    () => fetch(`https://corsproxy.io/?${encodeURIComponent(url2)}`).then(r => { if(!r.ok) throw new Error(); return r.json(); }),
+    // v8 chart (most data, primary)
+    ...proxies.map(px => async () => fromChart(await px(chartUrl1))),
+    ...proxies.map(px => async () => fromChart(await px(chartUrl2))),
+    // v6 quote (lighter, often works when chart is blocked)
+    ...proxies.map(px => async () => fromQuote(await px(quoteUrl1))),
+    ...proxies.map(px => async () => fromQuote(await px(quoteUrl2))),
+    // v10 quoteSummary (last resort)
+    ...proxies.map(px => async () => fromSummary(await px(summaryUrl1))),
+    ...proxies.map(px => async () => fromSummary(await px(summaryUrl2))),
   ];
 
   for (const attempt of attempts) {
     try {
-      const data = await attempt();
-      const meta = data?.chart?.result?.[0]?.meta;
-      if (!meta) continue;
-      const price = meta.regularMarketPrice || meta.chartPreviousClose || meta.previousClose;
-      if (price && price > 0) return price;
+      const price = await attempt();
+      if (price) return price;
     } catch { continue; }
   }
   return null;
@@ -606,51 +637,4 @@ export default function App() {
             <div className="stat-val" style={{
               color: tabPnl === null ? "var(--text-dim)" : tabPnl >= 0 ? "var(--green)" : "var(--red)"
             }}>
-              {tabPnl !== null ? `${tabPnl >= 0 ? "+" : ""}${tabPnl.toFixed(2)}%` : "—"}
-            </div>
-          </div>
-          <div className="stat-block">
-            <div className="stat-label">Portfolio PnL</div>
-            <div className="stat-val" style={{
-              color: portfolioPnl === null ? "var(--text-dim)" : portfolioPnl >= 0 ? "var(--green)" : "var(--red)"
-            }}>
-              {portfolioPnl !== null ? `${portfolioPnl >= 0 ? "+" : ""}${portfolioPnl.toFixed(2)}%` : "—"}
-            </div>
-          </div>
-          <div className="status-block">
-            <div className="live-badge"><div className="live-dot" /> ALL LIVE</div>
-            <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
-            {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
-          </div>
-        </div>
-      </div>
-
-      {/* TABS */}
-      <div className="tabs-wrap">
-        {TABS.map((t) => {
-          const count = (allPositions[t.id] || []).filter((p) => p.ticker).length;
-          return (
-            <button key={t.id}
-              className={`tab ${activeTab === t.id ? "active" : ""}`}
-              onClick={() => setActiveTab(t.id)}>
-              {t.label}
-              {count > 0 && <span className="tab-count">{count}</span>}
-              <span className="live-pip" />
-            </button>
-          );
-        })}
-      </div>
-
-      {/* CONTENT */}
-      <div className="content">
-        <PositionTable
-          tab={currentTab}
-          positions={allPositions[activeTab] || []}
-          setPositions={setPosForTab(activeTab)}
-          onRefresh={() => refreshTab(activeTab)}
-          isRefreshing={!!refreshing[activeTab]}
-        />
-      </div>
-    </div>
-  );
-}
+              {tabPnl !== null ? `${tabPnl >= 0 ? "+" : ""}${tabPnl.toFixed(2)}%` 
