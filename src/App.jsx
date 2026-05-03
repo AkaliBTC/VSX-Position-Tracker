@@ -627,4 +627,17 @@ export default function App() {
         .pnl-zero { color: var(--text-dim); font-family: 'DM Mono', monospace; }
 
         .del-btn {
-          background
+          background: none; border: none; color: var(--text-mute);
+          cursor: pointer; font-size: 12px; padding: 6px 10px;
+          transition: all 0.2s; border-radius: 4px;
+        }
+        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); transform: scale(1.1); }
+
+        .empty-cell {
+          text-align: center; padding: 72px;
+          font-family: 'Montserrat', sans-serif;
+          color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em; font-weight: 500;
+        }
+
+        .spin { display: inline-block; animation: spin 0.7s linear infinite; }
+        @keyfr
