@@ -22,10 +22,10 @@ const loadFromStorage = () => {
 };
 const saveToStorage = (d) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} };
 
+// ── BINANCE: Spot → Futures fallback ─────────────────────────────────────────
 const fetchBinance = async (ticker) => {
   const sym = ticker.toUpperCase().trim();
   const symbol = sym.endsWith("USDT") ? sym : sym + "USDT";
-  // 1) Try Spot
   try {
     const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
     if (res.ok) {
@@ -33,7 +33,6 @@ const fetchBinance = async (ticker) => {
       if (price > 0) return price;
     }
   } catch {}
-  // 2) Fallback: Futures (for tokens like HYPE that have no Spot pair)
   try {
     const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`);
     if (res.ok) {
@@ -44,70 +43,114 @@ const fetchBinance = async (ticker) => {
   return null;
 };
 
-const fetchYahoo = async (ticker) => {
-  const raw = ticker.toUpperCase().trim();
+// ── BINANCE BATCH: fetch all crypto tickers in parallel ──────────────────────
+const fetchBinanceBatch = async (tickers) => {
+  const results = {};
+  await Promise.all(tickers.map(async (ticker) => {
+    results[ticker] = await fetchBinance(ticker);
+  }));
+  return results;
+};
 
-  // ── Endpoint builders ──────────────────────────────────────────────────────
-  const chartUrl1  = `https://query1.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`;
-  const chartUrl2  = `https://query2.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`;
-  const quoteUrl1  = `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${raw}`;
-  const quoteUrl2  = `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${raw}`;
-  const summaryUrl1 = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`;
-  const summaryUrl2 = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`;
+// ── YAHOO PROXIES ─────────────────────────────────────────────────────────────
+const PROXIES = [
+  (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
+  (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+  (u) => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+  (u) => fetch(`https://yacdn.org/proxy/${u}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+];
 
-  const proxies = [
-    (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
-    (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    (u) => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-    (u) => fetch(`https://yacdn.org/proxy/${u}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-  ];
-
-  // ── Helper: extract price from chart response ──────────────────────────────
-  const fromChart = (data) => {
-    const meta = data?.chart?.result?.[0]?.meta;
-    if (!meta) return null;
-    const p = meta.regularMarketPrice || meta.chartPreviousClose || meta.previousClose;
-    return p && p > 0 ? p : null;
-  };
-
-  // ── Helper: extract price from v6 quote response ───────────────────────────
-  const fromQuote = (data) => {
-    const r = data?.quoteResponse?.result?.[0];
-    if (!r) return null;
-    const p = r.regularMarketPrice || r.ask || r.bid;
-    return p && p > 0 ? p : null;
-  };
-
-  // ── Helper: extract price from quoteSummary response ──────────────────────
-  const fromSummary = (data) => {
-    const p = data?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw;
-    return p && p > 0 ? p : null;
-  };
-
-  // ── Try all combinations: chart → quote → summary, across both proxies ─────
-  const attempts = [
-    // v8 chart (most data, primary)
-    ...proxies.map(px => async () => fromChart(await px(chartUrl1))),
-    ...proxies.map(px => async () => fromChart(await px(chartUrl2))),
-    // v6 quote (lighter, often works when chart is blocked)
-    ...proxies.map(px => async () => fromQuote(await px(quoteUrl1))),
-    ...proxies.map(px => async () => fromQuote(await px(quoteUrl2))),
-    // v10 quoteSummary (last resort)
-    ...proxies.map(px => async () => fromSummary(await px(summaryUrl1))),
-    ...proxies.map(px => async () => fromSummary(await px(summaryUrl2))),
-  ];
-
-  for (const attempt of attempts) {
+const tryProxies = async (url, extract) => {
+  for (const px of PROXIES) {
     try {
-      const price = await attempt();
-      if (price) return price;
+      const data = await px(url);
+      const val = extract(data);
+      if (val) return val;
     } catch { continue; }
   }
   return null;
 };
 
-const fetchPrice = (source, ticker) =>
-  source === "binance" ? fetchBinance(ticker) : fetchYahoo(ticker);
+// ── YAHOO BATCH: fetch up to 10 tickers per request via v6/quote ──────────────
+const fetchYahooBatch = async (tickers) => {
+  const BATCH_SIZE = 10;
+  const results = {};
+  tickers.forEach(t => { results[t] = null; });
+
+  // Split into chunks
+  const chunks = [];
+  for (let i = 0; i < tickers.length; i += BATCH_SIZE) {
+    chunks.push(tickers.slice(i, i + BATCH_SIZE));
+  }
+
+  await Promise.all(chunks.map(async (chunk) => {
+    const symbols = chunk.join(",");
+    const url1 = `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${symbols}`;
+    const url2 = `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${symbols}`;
+
+    const extract = (data) => {
+      const items = data?.quoteResponse?.result;
+      if (!items?.length) return null;
+      // Return sentinel so we know it worked
+      return items;
+    };
+
+    let items = null;
+    for (const url of [url1, url2]) {
+      for (const px of PROXIES) {
+        try {
+          const data = await px(url);
+          const res = data?.quoteResponse?.result;
+          if (res?.length) { items = res; break; }
+        } catch { continue; }
+        if (items) break;
+      }
+      if (items) break;
+    }
+
+    if (items) {
+      items.forEach(item => {
+        const sym = item.symbol;
+        const price = item.regularMarketPrice || item.ask || item.bid;
+        if (sym && price && price > 0) results[sym] = price;
+      });
+    } else {
+      // Batch failed — fall back to individual fetches for this chunk
+      await Promise.all(chunk.map(async (ticker) => {
+        results[ticker] = await fetchYahooSingle(ticker);
+      }));
+    }
+  }));
+
+  return results;
+};
+
+// ── YAHOO SINGLE: fallback for when batch fails on a ticker ──────────────────
+const fetchYahooSingle = async (ticker) => {
+  const raw = ticker.toUpperCase().trim();
+  const urls = [
+    `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${raw}`,
+    `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${raw}`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`,
+    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`,
+    `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${raw}?modules=price`,
+  ];
+  const extractors = [
+    (d) => { const r = d?.quoteResponse?.result?.[0]; return r?.regularMarketPrice || r?.ask || null; },
+    (d) => { const r = d?.quoteResponse?.result?.[0]; return r?.regularMarketPrice || r?.ask || null; },
+    (d) => { const m = d?.chart?.result?.[0]?.meta; return m?.regularMarketPrice || m?.chartPreviousClose || null; },
+    (d) => { const m = d?.chart?.result?.[0]?.meta; return m?.regularMarketPrice || m?.chartPreviousClose || null; },
+    (d) => d?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw || null,
+    (d) => d?.quoteSummary?.result?.[0]?.price?.regularMarketPrice?.raw || null,
+  ];
+
+  for (let i = 0; i < urls.length; i++) {
+    const price = await tryProxies(urls[i], extractors[i]);
+    if (price && price > 0) return price;
+  }
+  return null;
+};
 
 const calcPnL = (dir, entry, cur) => {
   if (!entry || !cur || isNaN(entry) || isNaN(cur)) return null;
@@ -135,9 +178,7 @@ const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
 const VSXLogo = ({ size = 72 }) => (
   <img
     src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png"
-    width={size}
-    height={size}
-    alt="VisionX Logo"
+    width={size} height={size} alt="VisionX Logo"
     style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))" }}
   />
 );
@@ -173,15 +214,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
         <table>
           <thead>
             <tr>
-              <th>TICKER</th>
-              <th>DIRECTION</th>
-              <th>ENTRY</th>
-              <th>STOP LOSS</th>
-              <th>SL DIST %</th>
-              <th>ENTRY DATE</th>
-              <th>LIVE PRICE</th>
-              <th>PNL %</th>
-              <th></th>
+              <th>TICKER</th><th>DIRECTION</th><th>ENTRY</th><th>STOP LOSS</th>
+              <th>SL DIST %</th><th>ENTRY DATE</th><th>LIVE PRICE</th><th>PNL %</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -268,15 +302,27 @@ export default function App() {
   const refreshTab = useCallback(async (tabId) => {
     const tab = TABS.find((t) => t.id === tabId);
     const positions = allPositions[tabId] || [];
-    if (!positions.some((p) => p.ticker.trim())) return;
+    const active = positions.filter((p) => p.ticker.trim());
+    if (!active.length) return;
+
     setRefreshing((prev) => ({ ...prev, [tabId]: true }));
-    const updated = await Promise.all(
-      positions.map(async (p) => {
-        if (!p.ticker.trim()) return p;
-        const price = await fetchPrice(tab.source, p.ticker.trim());
-        return { ...p, currentPrice: price, error: price === null, loading: false };
-      })
-    );
+
+    let priceMap = {};
+
+    if (tab.source === "binance") {
+      // Binance: parallel individual fetches (no batch API needed, it's fast)
+      priceMap = await fetchBinanceBatch(active.map(p => p.ticker.trim()));
+    } else {
+      // Yahoo: batch fetch (10 per request), fallback to single on failure
+      priceMap = await fetchYahooBatch(active.map(p => p.ticker.trim()));
+    }
+
+    const updated = positions.map((p) => {
+      if (!p.ticker.trim()) return p;
+      const price = priceMap[p.ticker.trim()] ?? null;
+      return { ...p, currentPrice: price, error: price === null, loading: false };
+    });
+
     setAllPositions((prev) => ({ ...prev, [tabId]: updated }));
     setLastRefresh(new Date());
     setRefreshing((prev) => ({ ...prev, [tabId]: false }));
@@ -309,11 +355,10 @@ export default function App() {
 
   const currentTab = TABS.find((t) => t.id === activeTab);
 
-  // Top & Worst performer for active tab
   const tabRowsWithPnl = (allPositions[activeTab] || [])
     .map((p) => ({ ...p, pnl: calcPnL(p.direction, parseFloat(p.entry), p.currentPrice) }))
     .filter((p) => p.ticker && p.pnl !== null && !isNaN(p.pnl));
-  const topPerformer  = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
+  const topPerformer   = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
   const worstPerformer = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
 
   return (
@@ -367,7 +412,6 @@ export default function App() {
           background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent);
           margin: 0 6px;
         }
-        .logo-wordmark { display: flex; flex-direction: column; gap: 1px; }
         .logo-name {
           font-family: 'Bebas Neue', sans-serif;
           font-size: 32px; letter-spacing: 0.25em;
@@ -385,7 +429,7 @@ export default function App() {
         .header-right { display: flex; align-items: center; gap: 0; }
 
         .stat-block {
-          padding: 0 32px;
+          padding: 0 28px;
           border-left: 1px solid var(--border);
           text-align: right;
           transition: background 0.25s;
@@ -404,10 +448,15 @@ export default function App() {
           font-size: 26px; letter-spacing: 0.04em; line-height: 1;
           transition: color 0.4s, transform 0.2s;
         }
+        .stat-sub {
+          font-family: 'DM Mono', monospace;
+          font-size: 11px; font-weight: 600;
+          letter-spacing: 0.04em; margin-top: 2px;
+        }
         .stat-block:hover .stat-val { transform: scale(1.03); }
 
         .status-block {
-          padding: 0 0 0 32px;
+          padding: 0 0 0 28px;
           border-left: 1px solid var(--border);
           display: flex; flex-direction: column;
           align-items: flex-end; gap: 5px;
@@ -441,24 +490,6 @@ export default function App() {
         .save-flash.on  { opacity: 1; }
         .save-flash.off { opacity: 0; }
         .refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; }
-
-        /* ── PERFORMER BLOCKS ── */
-        .performer-block {
-          padding: 0 24px;
-          border-left: 1px solid var(--border);
-          text-align: right;
-          cursor: default;
-        }
-        .performer-ticker {
-          font-family: 'Bebas Neue', sans-serif;
-          font-size: 20px; letter-spacing: 0.06em; line-height: 1;
-        }
-        .performer-pnl {
-          font-family: 'DM Mono', monospace;
-          font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
-        }
-        .top-ticker  { color: var(--green); }
-        .worst-ticker { color: var(--red); }
 
         /* ── TABS ── */
         .tabs-wrap {
@@ -583,9 +614,7 @@ export default function App() {
           cursor: default;
         }
         tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover {
-          background: rgba(212,175,55,0.03);
-        }
+        tbody tr:hover { background: rgba(212,175,55,0.03); }
         tbody tr:hover .ticker-inp { color: var(--gold4); }
         tbody tr:hover .pnl-pos { text-shadow: 0 0 12px rgba(34,197,94,0.4); }
         tbody tr:hover .pnl-neg { text-shadow: 0 0 12px rgba(239,68,68,0.4); }
@@ -681,7 +710,7 @@ export default function App() {
               {topPerformer ? topPerformer.ticker : "—"}
             </div>
             {topPerformer && (
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--green)", letterSpacing: "0.04em", marginTop: "2px" }}>
+              <div className="stat-sub" style={{ color: "var(--green)" }}>
                 +{topPerformer.pnl.toFixed(2)}%
               </div>
             )}
@@ -692,7 +721,7 @@ export default function App() {
               {worstPerformer ? worstPerformer.ticker : "—"}
             </div>
             {worstPerformer && (
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: worstPerformer.pnl < 0 ? "var(--red)" : "var(--green)", letterSpacing: "0.04em", marginTop: "2px" }}>
+              <div className="stat-sub" style={{ color: worstPerformer.pnl < 0 ? "var(--red)" : "var(--green)" }}>
                 {worstPerformer.pnl >= 0 ? "+" : ""}{worstPerformer.pnl.toFixed(2)}%
               </div>
             )}
