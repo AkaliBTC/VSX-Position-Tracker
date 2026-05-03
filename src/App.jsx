@@ -25,11 +25,23 @@ const saveToStorage = (d) => { try { localStorage.setItem(STORAGE_KEY, JSON.stri
 const fetchBinance = async (ticker) => {
   const sym = ticker.toUpperCase().trim();
   const symbol = sym.endsWith("USDT") ? sym : sym + "USDT";
+  // 1) Try Spot
   try {
     const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`);
-    if (!res.ok) throw new Error();
-    return parseFloat((await res.json()).price);
-  } catch { return null; }
+    if (res.ok) {
+      const price = parseFloat((await res.json()).price);
+      if (price > 0) return price;
+    }
+  } catch {}
+  // 2) Fallback: Futures (for tokens like HYPE that have no Spot pair)
+  try {
+    const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`);
+    if (res.ok) {
+      const price = parseFloat((await res.json()).price);
+      if (price > 0) return price;
+    }
+  } catch {}
+  return null;
 };
 
 const fetchYahoo = async (ticker) => {
