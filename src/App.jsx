@@ -640,4 +640,97 @@ export default function App() {
         }
 
         .spin { display: inline-block; animation: spin 0.7s linear infinite; }
-        @keyfr
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
+
+      {/* HEADER */}
+      <div className="header">
+        <div className="logo-area">
+          <VSXLogo size={72} />
+          <div className="logo-divider" />
+          <div>
+            <div className="logo-name">VISIONX</div>
+            <div className="logo-sub">Portfolio Tracker</div>
+          </div>
+        </div>
+
+        <div className="header-right">
+          <div className="stat-block">
+            <div className="stat-label">Positions</div>
+            <div className="stat-val" style={{ color: "var(--gold2)" }}>{totalPositions}</div>
+          </div>
+          <div className="stat-block">
+            <div className="stat-label">Pack Avg PnL</div>
+            <div className="stat-val" style={{
+              color: tabPnl === null ? "var(--text-dim)" : tabPnl >= 0 ? "var(--green)" : "var(--red)"
+            }}>
+              {tabPnl !== null ? `${tabPnl >= 0 ? "+" : ""}${tabPnl.toFixed(2)}%` : "—"}
+            </div>
+          </div>
+          <div className="stat-block">
+            <div className="stat-label">Portfolio PnL</div>
+            <div className="stat-val" style={{
+              color: portfolioPnl === null ? "var(--text-dim)" : portfolioPnl >= 0 ? "var(--green)" : "var(--red)"
+            }}>
+              {portfolioPnl !== null ? `${portfolioPnl >= 0 ? "+" : ""}${portfolioPnl.toFixed(2)}%` : "—"}
+            </div>
+          </div>
+          <div className="stat-block">
+            <div className="stat-label">Best Performer</div>
+            <div className="stat-val" style={{ color: "var(--green)" }}>
+              {topPerformer ? topPerformer.ticker : "—"}
+            </div>
+            {topPerformer && (
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: "var(--green)", letterSpacing: "0.04em", marginTop: "2px" }}>
+                +{topPerformer.pnl.toFixed(2)}%
+              </div>
+            )}
+          </div>
+          <div className="stat-block">
+            <div className="stat-label">Worst Performer</div>
+            <div className="stat-val" style={{ color: worstPerformer && worstPerformer.pnl < 0 ? "var(--red)" : "var(--green)" }}>
+              {worstPerformer ? worstPerformer.ticker : "—"}
+            </div>
+            {worstPerformer && (
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: worstPerformer.pnl < 0 ? "var(--red)" : "var(--green)", letterSpacing: "0.04em", marginTop: "2px" }}>
+                {worstPerformer.pnl >= 0 ? "+" : ""}{worstPerformer.pnl.toFixed(2)}%
+              </div>
+            )}
+          </div>
+          <div className="status-block">
+            <div className="live-badge"><div className="live-dot" /> ALL LIVE</div>
+            <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
+            {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* TABS */}
+      <div className="tabs-wrap">
+        {TABS.map((t) => {
+          const count = (allPositions[t.id] || []).filter((p) => p.ticker).length;
+          return (
+            <button key={t.id}
+              className={`tab ${activeTab === t.id ? "active" : ""}`}
+              onClick={() => setActiveTab(t.id)}>
+              {t.label}
+              {count > 0 && <span className="tab-count">{count}</span>}
+              <span className="live-pip" />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* CONTENT */}
+      <div className="content">
+        <PositionTable
+          tab={currentTab}
+          positions={allPositions[activeTab] || []}
+          setPositions={setPosForTab(activeTab)}
+          onRefresh={() => refreshTab(activeTab)}
+          isRefreshing={!!refreshing[activeTab]}
+        />
+      </div>
+    </div>
+  );
+}
