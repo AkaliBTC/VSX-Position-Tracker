@@ -58,6 +58,8 @@ const fetchYahoo = async (ticker) => {
   const proxies = [
     (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
     (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    (u) => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
+    (u) => fetch(`https://yacdn.org/proxy/${u}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
   ];
 
   // ── Helper: extract price from chart response ──────────────────────────────
@@ -307,6 +309,13 @@ export default function App() {
 
   const currentTab = TABS.find((t) => t.id === activeTab);
 
+  // Top & Worst performer for active tab
+  const tabRowsWithPnl = (allPositions[activeTab] || [])
+    .map((p) => ({ ...p, pnl: calcPnL(p.direction, parseFloat(p.entry), p.currentPrice) }))
+    .filter((p) => p.ticker && p.pnl !== null && !isNaN(p.pnl));
+  const topPerformer  = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
+  const worstPerformer = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
+
   return (
     <div className="app">
       <style>{`
@@ -432,6 +441,24 @@ export default function App() {
         .save-flash.on  { opacity: 1; }
         .save-flash.off { opacity: 0; }
         .refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; }
+
+        /* ── PERFORMER BLOCKS ── */
+        .performer-block {
+          padding: 0 24px;
+          border-left: 1px solid var(--border);
+          text-align: right;
+          cursor: default;
+        }
+        .performer-ticker {
+          font-family: 'Bebas Neue', sans-serif;
+          font-size: 20px; letter-spacing: 0.06em; line-height: 1;
+        }
+        .performer-pnl {
+          font-family: 'DM Mono', monospace;
+          font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+        }
+        .top-ticker  { color: var(--green); }
+        .worst-ticker { color: var(--red); }
 
         /* ── TABS ── */
         .tabs-wrap {
@@ -570,71 +597,4 @@ export default function App() {
           outline: none; padding: 4px 6px; width: 100%;
           transition: background 0.2s; border-radius: 4px;
         }
-        .cell-input:focus { background: rgba(212,175,55,0.05); }
-        .cell-input::placeholder { color: var(--text-mute); }
-
-        .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 90px; transition: color 0.2s; }
-        .num-inp    { width: 100px; }
-        .date-inp   { width: 130px; color-scheme: dark; }
-
-        .dir-sel {
-          border: none; font-family: 'Montserrat', sans-serif;
-          font-size: 10px; font-weight: 700; letter-spacing: 0.15em;
-          cursor: pointer; padding: 5px 14px; outline: none;
-          -webkit-appearance: none; text-transform: uppercase;
-          border-radius: 4px; transition: all 0.2s;
-        }
-        .dir-long  { background: rgba(34,197,94,0.1);  color: var(--green); }
-        .dir-short { background: rgba(239,68,68,0.1);  color: var(--red);   }
-        .dir-long:hover  { background: rgba(34,197,94,0.2); transform: scale(1.04); }
-        .dir-short:hover { background: rgba(239,68,68,0.2); transform: scale(1.04); }
-
-        .dist-val  { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; }
-        .price-val { color: var(--white); font-family: 'DM Mono', monospace; }
-        .fetching  { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
-        .price-err { color: var(--red); font-size: 10px; letter-spacing: 0.1em; }
-        .price-dim { color: var(--text-mute); }
-
-        .pnl-pos  { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
-        .pnl-neg  { color: var(--red);   font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
-        .pnl-zero { color: var(--text-dim); font-family: 'DM Mono', monospace; }
-
-        .del-btn {
-          background: none; border: none; color: var(--text-mute);
-          cursor: pointer; font-size: 12px; padding: 6px 10px;
-          transition: all 0.2s; border-radius: 4px;
-        }
-        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); transform: scale(1.1); }
-
-        .empty-cell {
-          text-align: center; padding: 72px;
-          font-family: 'Montserrat', sans-serif;
-          color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em; font-weight: 500;
-        }
-
-        .spin { display: inline-block; animation: spin 0.7s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
-
-      {/* HEADER */}
-      <div className="header">
-        <div className="logo-area">
-          <VSXLogo size={72} />
-          <div className="logo-divider" />
-          <div>
-            <div className="logo-name">VISIONX</div>
-            <div className="logo-sub">Portfolio Tracker</div>
-          </div>
-        </div>
-
-        <div className="header-right">
-          <div className="stat-block">
-            <div className="stat-label">Positions</div>
-            <div className="stat-val" style={{ color: "var(--gold2)" }}>{totalPositions}</div>
-          </div>
-          <div className="stat-block">
-            <div className="stat-label">Pack Avg PnL</div>
-            <div className="stat-val" style={{
-              color: tabPnl === null ? "var(--text-dim)" : tabPnl >= 0 ? "var(--green)" : "var(--red)"
-            }}>
-              {tabPnl !== null ? `${tabPnl >= 0 ? "+" : ""}${tabPnl.toFixed(2)}%` 
+        .cell-input:focus { background: 
