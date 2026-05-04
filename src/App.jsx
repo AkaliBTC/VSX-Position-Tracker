@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 const STORAGE_KEY = "position_monitor_v1";
 
@@ -156,11 +156,14 @@ const VSXLogo = ({ size = 72 }) => (
 );
 
 // ── TABLE ─────────────────────────────────────────────────────────────────────
-function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }) {
+function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, anyFocused }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState(null);
+
+  const setFocus = (id) => { setFocusedId(id); if (anyFocused) anyFocused.current = true; };
+  const clearFocus = () => { setFocusedId(null); if (anyFocused) anyFocused.current = false; };
 
   const update = (id, f, v) =>
     setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
@@ -196,7 +199,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
 
   const sorted = [...filtered].sort((a, b) => {
     if (!sortKey) return 0;
-    // Never re-sort the row being edited
     if (a.id === focusedId || b.id === focusedId) return 0;
     let va, vb;
     if (sortKey === "ticker")    { va = a.ticker; vb = b.ticker; }
@@ -264,8 +266,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
                     <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]}
                       value={p.ticker}
                       onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
-                      onFocus={() => setFocusedId(p.id)}
-                      onBlur={() => { setFocusedId(null); if (p.ticker.trim()) onRefresh(); }} />
+                      onFocus={() => setFocus(p.id)}
+                      onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
                   </td>
                   <td>
                     <select className={`dir-sel ${p.direction === "LONG" ? "dir-long" : "dir-short"}`}
@@ -276,14 +278,14 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
                   </td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number"
                     value={p.entry} onChange={(e) => update(p.id, "entry", e.target.value)}
-                    onFocus={() => setFocusedId(p.id)} onBlur={() => setFocusedId(null)} /></td>
+                    onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number"
                     value={p.sl} onChange={(e) => update(p.id, "sl", e.target.value)}
-                    onFocus={() => setFocusedId(p.id)} onBlur={() => setFocusedId(null)} /></td>
+                    onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><span className="dist-val">{dist !== null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—"}</span></td>
                   <td><input className="cell-input date-inp" type="date"
                     value={p.date} onChange={(e) => update(p.id, "date", e.target.value)}
-                    onFocus={() => setFocusedId(p.id)} onBlur={() => setFocusedId(null)} /></td>
+                    onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td>
                     {p.loading   ? <span className="fetching">LOADING</span>
                     : p.error    ? <span className="price-err">N/A</span>
@@ -316,6 +318,7 @@ export default function App() {
   const [refreshing, setRefreshing]     = useState({});
   const [lastRefresh, setLastRefresh]   = useState(null);
   const [savedFlash, setSavedFlash]     = useState(false);
+  const anyFocused = useRef(false);
 
   // savedFlash only — storage handled synchronously in setPosForTab
   useEffect(() => {
@@ -342,7 +345,6 @@ export default function App() {
 
   const refreshTab = useCallback(async (tabId) => {
     const tab = TABS.find((t) => t.id === tabId);
-    // Read snapshot for fetching — but we'll merge into latest state when writing
     const snapshot = allPositions[tabId] || [];
     const active = snapshot.filter((p) => p.ticker.trim());
     if (!active.length) return;
@@ -358,16 +360,15 @@ export default function App() {
       priceMap = await fetchYahooBatch(active.map(p => p.ticker.trim()));
     }
 
-    // Merge into the LATEST state (not the snapshot) to avoid overwriting edits
+    // Always merge into latest state to avoid overwriting edits made during fetch
     setAllPositions((prev) => {
       const latest = prev[tabId] || [];
       const updated = latest.map((p) => {
         if (!p.ticker.trim()) return p;
         const fetched = priceMap[p.ticker.trim()];
-        // If fetch returned null, keep existing price — never overwrite with N/A
         const price = (fetched != null && fetched > 0) ? fetched : p.currentPrice;
-        const hadPrice = fetched != null && fetched > 0;
-        return { ...p, currentPrice: price, error: !hadPrice && p.currentPrice === null, loading: false };
+        const isError = fetched == null && p.currentPrice === null;
+        return { ...p, currentPrice: price, error: isError, loading: false };
       });
       return { ...prev, [tabId]: updated };
     });
@@ -379,7 +380,7 @@ export default function App() {
     const intervals = TABS.map((tab) => {
       const ms = tab.source === "binance" ? 15000 : 30000;
       return setInterval(() => {
-        if ((allPositions[tab.id] || []).some((p) => p.ticker.trim())) refreshTab(tab.id);
+        if (!anyFocused.current && (allPositions[tab.id] || []).some((p) => p.ticker.trim())) refreshTab(tab.id);
       }, ms);
     });
     return () => intervals.forEach(clearInterval);
@@ -832,6 +833,7 @@ export default function App() {
           setPositions={setPosForTab(activeTab)}
           onRefresh={() => refreshTab(activeTab)}
           isRefreshing={!!refreshing[activeTab]}
+          anyFocused={anyFocused}
         />
       </div>
     </div>
