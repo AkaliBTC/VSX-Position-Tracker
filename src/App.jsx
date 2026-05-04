@@ -160,6 +160,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [search, setSearch] = useState("");
+  const [focusedId, setFocusedId] = useState(null);
 
   const update = (id, f, v) =>
     setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
@@ -195,6 +196,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
 
   const sorted = [...filtered].sort((a, b) => {
     if (!sortKey) return 0;
+    // Never re-sort the row being edited
+    if (a.id === focusedId || b.id === focusedId) return 0;
     let va, vb;
     if (sortKey === "ticker")    { va = a.ticker; vb = b.ticker; }
     else if (sortKey === "date") { va = a.date;   vb = b.date; }
@@ -261,7 +264,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
                     <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]}
                       value={p.ticker}
                       onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
-                      onBlur={() => { if (p.ticker.trim()) onRefresh(); }} />
+                      onFocus={() => setFocusedId(p.id)}
+                      onBlur={() => { setFocusedId(null); if (p.ticker.trim()) onRefresh(); }} />
                   </td>
                   <td>
                     <select className={`dir-sel ${p.direction === "LONG" ? "dir-long" : "dir-short"}`}
@@ -271,12 +275,15 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing }
                     </select>
                   </td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number"
-                    value={p.entry} onChange={(e) => update(p.id, "entry", e.target.value)} /></td>
+                    value={p.entry} onChange={(e) => update(p.id, "entry", e.target.value)}
+                    onFocus={() => setFocusedId(p.id)} onBlur={() => setFocusedId(null)} /></td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number"
-                    value={p.sl} onChange={(e) => update(p.id, "sl", e.target.value)} /></td>
+                    value={p.sl} onChange={(e) => update(p.id, "sl", e.target.value)}
+                    onFocus={() => setFocusedId(p.id)} onBlur={() => setFocusedId(null)} /></td>
                   <td><span className="dist-val">{dist !== null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—"}</span></td>
                   <td><input className="cell-input date-inp" type="date"
-                    value={p.date} onChange={(e) => update(p.id, "date", e.target.value)} /></td>
+                    value={p.date} onChange={(e) => update(p.id, "date", e.target.value)}
+                    onFocus={() => setFocusedId(p.id)} onBlur={() => setFocusedId(null)} /></td>
                   <td>
                     {p.loading   ? <span className="fetching">LOADING</span>
                     : p.error    ? <span className="price-err">N/A</span>
@@ -335,8 +342,9 @@ export default function App() {
 
   const refreshTab = useCallback(async (tabId) => {
     const tab = TABS.find((t) => t.id === tabId);
-    const positions = allPositions[tabId] || [];
-    const active = positions.filter((p) => p.ticker.trim());
+    // Read snapshot for fetching — but we'll merge into latest state when writing
+    const snapshot = allPositions[tabId] || [];
+    const active = snapshot.filter((p) => p.ticker.trim());
     if (!active.length) return;
 
     setRefreshing((prev) => ({ ...prev, [tabId]: true }));
@@ -350,13 +358,19 @@ export default function App() {
       priceMap = await fetchYahooBatch(active.map(p => p.ticker.trim()));
     }
 
-    const updated = positions.map((p) => {
-      if (!p.ticker.trim()) return p;
-      const price = priceMap[p.ticker.trim()] ?? null;
-      return { ...p, currentPrice: price, error: price === null, loading: false };
+    // Merge into the LATEST state (not the snapshot) to avoid overwriting edits
+    setAllPositions((prev) => {
+      const latest = prev[tabId] || [];
+      const updated = latest.map((p) => {
+        if (!p.ticker.trim()) return p;
+        const fetched = priceMap[p.ticker.trim()];
+        // If fetch returned null, keep existing price — never overwrite with N/A
+        const price = (fetched != null && fetched > 0) ? fetched : p.currentPrice;
+        const hadPrice = fetched != null && fetched > 0;
+        return { ...p, currentPrice: price, error: !hadPrice && p.currentPrice === null, loading: false };
+      });
+      return { ...prev, [tabId]: updated };
     });
-
-    setAllPositions((prev) => ({ ...prev, [tabId]: updated }));
     setLastRefresh(new Date());
     setRefreshing((prev) => ({ ...prev, [tabId]: false }));
   }, [allPositions]);
