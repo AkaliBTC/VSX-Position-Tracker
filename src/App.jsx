@@ -434,7 +434,7 @@ export default function App() {
   const tabRowsWithPnl = (allPositions[activeTab] || []).map((p) => ({ ...p, pnl: calcPnL(p.direction, parseFloat(p.entry), p.currentPrice) })).filter((p) => p.ticker && p.pnl !== null && !isNaN(p.pnl));
   const topPerformer   = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
   const worstPerformer = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
-  const totalValue = allRows.reduce((sum, p) => { const v = parseFloat(p.qty) * p.currentPrice; return isNaN(v) ? sum : sum + v; }, 0);
+
   const newCount = allRows.filter(p => isNew(p)).length;
 
   return (
@@ -594,12 +594,6 @@ export default function App() {
             <div className="stat-label">Portfolio PnL</div>
             <div className="stat-val" style={{ color: portfolioPnl === null ? "var(--text-dim)" : portfolioPnl >= 0 ? "var(--green)" : "var(--red)" }}>
               {portfolioPnl !== null ? `${portfolioPnl >= 0 ? "+" : ""}${portfolioPnl.toFixed(2)}%` : "—"}
-            </div>
-          </div>
-          <div className="stat-block">
-            <div className="stat-label">Total Value</div>
-            <div className="stat-val" style={{ color: "var(--gold2)", fontSize: "18px" }}>
-              {totalValue > 0 ? `$${totalValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
             </div>
           </div>
           <div className="stat-block">
