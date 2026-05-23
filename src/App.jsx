@@ -23,8 +23,14 @@ const loadFromStorage = () => {
 };
 const saveToStorage = (d) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} };
 
-// Returns true if the NEW flag is still within 24h
-const isNew = (p) => p.newFlaggedAt && (Date.now() - p.newFlaggedAt) < NEW_TTL;
+// FLAG config: type -> { label, colors }
+const FLAGS = {
+  "new_position": { label: "NEW POSITION", short: "NEW POS", color: "212,175,55",  textColor: "#d4af37" },
+  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",  color: "99,182,255",  textColor: "#63b6ff" },
+  "added":        { label: "ADDED",        short: "ADDED",   color: "34,197,94",   textColor: "#22c55e" },
+};
+const isFlagged = (p) => p.flag && p.flaggedAt && (Date.now() - p.flaggedAt) < NEW_TTL;
+const isNew = (p) => isFlagged(p);
 
 const fetchBinance = async (ticker) => {
   const sym = ticker.toUpperCase().trim();
@@ -114,12 +120,12 @@ const fmtValue = (qty, price) => {
   return (parseFloat(qty) * price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// newFlaggedAt: null = not flagged; timestamp = flagged at that time (auto-expires after 24h)
+// flag: null = no flag; flaggedAt = timestamp set when flagged (auto-expires after 24h)
 const newRow = () => ({
   id: Math.random().toString(36).slice(2),
   ticker: "", direction: "LONG", qty: "", entry: "", sl: "",
   date: new Date().toISOString().split("T")[0],
-  newFlaggedAt: null,
+  flag: null, flaggedAt: null,
   currentPrice: null, loading: false, error: false,
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
@@ -150,11 +156,21 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   };
   const add = () => setPositions((prev) => [...prev, newRow()]);
 
-  // Toggle NEW flag: set timestamp to now, or clear it
-  const toggleNew = (id, currently) => {
+  // Cycle flag: none -> new_position -> stop_adjust -> added -> none
+  const cycleFlag = (id) => {
+    const order = [null, "new_position", "stop_adjust", "added"];
     setPositions((prev) => prev.map((p) => {
       if (p.id !== id) return p;
-      return { ...p, newFlaggedAt: currently ? null : Date.now() };
+      const cur = isFlagged(p) ? p.flag : null;
+      const next = order[(order.indexOf(cur) + 1) % order.length];
+      return { ...p, flag: next, flaggedAt: next ? Date.now() : null };
+    }));
+  };
+  // Direct set flag type
+  const setFlag = (id, type) => {
+    setPositions((prev) => prev.map((p) => {
+      if (p.id !== id) return p;
+      return { ...p, flag: type || null, flaggedAt: type ? Date.now() : null };
     }));
   };
 
@@ -238,11 +254,14 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const pnl      = calcPnL(p.direction, entry, p.currentPrice);
               const dist     = calcSLDist(p.direction, p.currentPrice, sl);
               const posValue = fmtValue(p.qty, p.currentPrice);
-              const flagged  = isNew(p);
-              const timeLeft = flagged ? Math.ceil((NEW_TTL - (Date.now() - p.newFlaggedAt)) / 3600000) : 0;
+              const flagged  = isFlagged(p);
+              const flagCfg  = flagged ? FLAGS[p.flag] : null;
+              const timeLeft = flagged ? Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000) : 0;
+              const rowBorderColor = flagCfg ? `rgba(${flagCfg.color},0.4)` : "transparent";
+              const rowBg          = flagCfg ? `rgba(${flagCfg.color},0.04)` : "";
               return (
                 <tr key={p.id}
-                  style={flagged ? { background: "rgba(212,175,55,0.04)", borderLeft: "2px solid rgba(212,175,55,0.35)" } : {}}>
+                  style={flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]}
@@ -250,7 +269,11 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                         onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
                         onFocus={() => setFocus(p.id)}
                         onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                      {flagged && <span className="new-badge">NEW</span>}
+                      {flagged && flagCfg && (
+                        <span className="flag-badge" style={{ color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.12)` }}>
+                          {flagCfg.short}
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -303,12 +326,20 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   </td>
                   {/* FLAG cell */}
                   <td>
-                    <button
-                      className={`flag-btn ${flagged ? "flag-active" : ""}`}
-                      onClick={() => toggleNew(p.id, flagged)}
-                      title={flagged ? `NEW — läuft ab in ${timeLeft}h` : "Als NEW markieren"}>
-                      {flagged ? `${timeLeft}h` : "NEW"}
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <select
+                        className="flag-sel"
+                        value={flagged ? p.flag : ""}
+                        onChange={(e) => setFlag(p.id, e.target.value || null)}
+                        style={flagCfg ? { color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.08)` } : {}}
+                      >
+                        <option value="">— NONE —</option>
+                        <option value="new_position">NEW POSITION</option>
+                        <option value="stop_adjust">STOP ADJUST</option>
+                        <option value="added">ADDED</option>
+                      </select>
+                      {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
+                    </div>
                   </td>
                   <td><button className="del-btn" onClick={() => remove(p.id)}>✕</button></td>
                 </tr>
@@ -327,10 +358,10 @@ export default function App() {
   const [allPositions, setAllPositions] = useState(() => {
     const stored = loadFromStorage();
     if (!stored) return EMPTY_STATE;
-    // Migrate old rows that may lack qty / newFlaggedAt
+    // Migrate old rows that may lack qty / flag fields
     return Object.fromEntries(
       Object.entries(stored).map(([id, rows]) => [
-        id, rows.map(r => ({ qty: "", newFlaggedAt: null, ...r }))
+        id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))
       ])
     );
   });
@@ -347,7 +378,7 @@ export default function App() {
         const next = Object.fromEntries(
           Object.entries(prev).map(([id, rows]) => [
             id, rows.map(p => {
-              if (p.newFlaggedAt && !isNew(p)) { changed = true; return { ...p, newFlaggedAt: null }; }
+              if (p.flaggedAt && !isFlagged(p)) { changed = true; return { ...p, flag: null, flaggedAt: null }; }
               return p;
             })
           ])
@@ -547,26 +578,26 @@ export default function App() {
         .spin { display: inline-block; animation: spin 0.7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* NEW badge (inline, next to ticker) */
-        .new-badge {
+        /* FLAG badge (inline next to ticker) */
+        .flag-badge {
           font-family: 'Montserrat', sans-serif; font-size: 8px; font-weight: 700;
-          letter-spacing: 0.18em; padding: 2px 7px; border-radius: 4px;
-          background: rgba(212,175,55,0.15); color: var(--gold2);
-          border: 1px solid rgba(212,175,55,0.35); white-space: nowrap;
+          letter-spacing: 0.16em; padding: 2px 7px; border-radius: 4px;
+          border: 1px solid; white-space: nowrap;
           animation: newpulse 2.5s ease-in-out infinite;
         }
-        @keyframes newpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+        @keyframes newpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-        /* FLAG button */
-        .flag-btn {
-          font-family: 'Montserrat', sans-serif; font-size: 8px; font-weight: 700;
-          letter-spacing: 0.14em; padding: 4px 10px; border-radius: 4px; cursor: pointer;
+        /* FLAG select dropdown */
+        .flag-sel {
+          font-family: 'Montserrat', sans-serif; font-size: 9px; font-weight: 700;
+          letter-spacing: 0.1em; padding: 4px 8px; border-radius: 4px; cursor: pointer;
           border: 1px solid var(--border2); background: transparent; color: var(--text-mute);
-          transition: all 0.2s; white-space: nowrap;
+          transition: all 0.2s; white-space: nowrap; outline: none;
+          -webkit-appearance: none; appearance: none;
+          text-transform: uppercase;
         }
-        .flag-btn:hover { border-color: rgba(212,175,55,0.4); color: var(--gold2); background: rgba(212,175,55,0.07); }
-        .flag-btn.flag-active { border-color: rgba(212,175,55,0.5); color: var(--gold2); background: rgba(212,175,55,0.1); }
-        .flag-btn.flag-active:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.08); }
+        .flag-sel:hover { border-color: rgba(212,175,55,0.3); }
+        .flag-sel option { background: var(--black3); color: var(--text); }
       `}</style>
 
       {/* HEADER */}
