@@ -232,7 +232,7 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
 
   return (
     <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={S.panel}>
+      <div style={S.panel} id="report-print-area">
 
         {/* PANEL HEADER */}
         <div style={S.header}>
@@ -258,6 +258,25 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
                   <option key={q} value={q}>{getQuarterLabel(q)}</option>
                 )) : <option value="">{getQuarterLabel(selectedQ)}</option>}
               </select>
+              <button
+                onClick={() => {
+                  const panel = document.getElementById("report-print-area");
+                  if (!panel) return;
+                  const win = window.open("", "_blank");
+                  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>VisionX ${tab.label} Pack — ${selectedQ.replace("-"," ")} Report</title><style>
+                    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
+                    *{box-sizing:border-box;margin:0;padding:0}
+                    body{background:#0a0a0a;color:#e8e8e8;font-family:'Montserrat',sans-serif;padding:40px 48px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                    @page{size:A4;margin:0}
+                    @media print{body{padding:24px 32px}}
+                  </style></head><body>${panel.innerHTML}</body></html>`);
+                  win.document.close();
+                  setTimeout(() => { win.focus(); win.print(); }, 600);
+                }}
+                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; }}
+              >⬇ PDF</button>
               <button onClick={onClose} style={{ background: "none", border: "1px solid #222", color: "#444", cursor: "pointer", fontSize: 14, padding: "7px 12px", borderRadius: 6, transition: "color 0.2s, border-color 0.2s" }}
                 onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)"; }}
                 onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.borderColor = "#222"; }}>✕</button>
@@ -330,14 +349,14 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
               </div>
               <div style={S.statCard}>
                 <div style={S.statLabel}>Reward / Risk</div>
-                <div style={{ ...S.statVal, color: rr !== null && rr >= 1 ? "#22c55e" : "#e8e8e8" }}>
+                <div style={{ ...S.statVal, color: rr === null ? "#555" : rr >= 1 ? "#22c55e" : "#ef4444" }}>
                   {rr !== null ? `${rr.toFixed(2)}R` : "—"}
                 </div>
                 <div style={S.statSub}>avg win / avg loss</div>
               </div>
               <div style={S.statCard}>
                 <div style={S.statLabel}>Open Positions</div>
-                <div style={{ ...S.statVal, color: "#63b6ff" }}>{openPositions.length}</div>
+                <div style={{ ...S.statVal, color: "#d4af37" }}>{openPositions.length}</div>
                 <div style={S.statSub}>currently active</div>
               </div>
             </div>
@@ -348,12 +367,15 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
             <div style={S.sectionTitle}>Long vs Short Breakdown</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {[
-                { label: "Long Positions", trades: longTrades, pnl: longPnL, color: "#22c55e", colorRgb: "34,197,94" },
-                { label: "Short Positions", trades: shortTrades, pnl: shortPnL, color: "#ef4444", colorRgb: "239,68,68" },
-              ].map(({ label, trades, pnl, color, colorRgb }) => (
-                <div key={label} style={{ background: "#111", border: `1px solid rgba(${colorRgb},0.12)`, borderRadius: 8, padding: "14px 16px" }}>
+                { label: "Long Positions", trades: longTrades, pnl: longPnL },
+                { label: "Short Positions", trades: shortTrades, pnl: shortPnL },
+              ].map(({ label, trades, pnl }) => {
+                const _pnlColor = trades.length === 0 ? "#555" : pnl >= 0 ? "#22c55e" : "#ef4444";
+                const _borderRgb = trades.length === 0 ? "255,255,255" : pnl >= 0 ? "34,197,94" : "239,68,68";
+                return (
+                <div key={label} style={{ background: "#111", border: `1px solid rgba(${_borderRgb},0.12)`, borderRadius: 8, padding: "14px 16px" }}>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
-                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color, marginBottom: 6 }}>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: _pnlColor, marginBottom: 6 }}>
                     {trades.length > 0 ? fmtUSD(pnl) : "—"}
                   </div>
                   <div style={{ display: "flex", gap: 16 }}>
@@ -365,7 +387,7 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
                     )}
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           </div>
 
@@ -374,23 +396,26 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
             <div style={S.sectionTitle}>Trade Highlights</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {[
-                { label: "Best Trade", trade: bestTrade, color: "#22c55e", colorRgb: "34,197,94" },
-                { label: "Worst Trade", trade: worstTrade, color: "#ef4444", colorRgb: "239,68,68" },
-              ].map(({ label, trade, color, colorRgb }) => (
-                <div key={label} style={{ background: "#111", border: `1px solid rgba(${colorRgb},0.15)`, borderRadius: 8, padding: "14px 16px" }}>
+                { label: "Best Trade", trade: bestTrade },
+                { label: "Worst Trade", trade: worstTrade },
+              ].map(({ label, trade }) => {
+                const _tc = trade ? (trade.pnlUSD >= 0 ? "#22c55e" : "#ef4444") : "#ef4444";
+                const _trgb = trade ? (trade.pnlUSD >= 0 ? "34,197,94" : "239,68,68") : "239,68,68";
+                return (
+                <div key={label} style={{ background: "#111", border: `1px solid rgba(${_trgb},0.15)`, borderRadius: 8, padding: "14px 16px" }}>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
                   {trade ? (<>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                       <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#d4af37", letterSpacing: "0.06em" }}>{trade.ticker}</span>
                       <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 3, background: trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: trade.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{trade.direction}</span>
                     </div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color, marginBottom: 4 }}>{fmtUSD(trade.pnlUSD)}</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: _tc, marginBottom: 4 }}>{fmtUSD(trade.pnlUSD)}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>
                       {trade.pnlPct != null ? `${trade.pnlPct >= 0 ? "+" : ""}${trade.pnlPct.toFixed(2)}%` : ""} · {trade.daysHeld}d · {CLOSE_REASONS[trade.reason] || trade.reason}
                     </div>
                   </>) : <div style={{ color: "#333", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>—</div>}
                 </div>
-              ))}
+              );})}
             </div>
           </div>
 
