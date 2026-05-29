@@ -264,8 +264,6 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
                   const qLabel = selectedQ.replace("-", " ");
                   const packLabel = tab.label.toUpperCase() + " PACK";
                   const todayStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-
-                  // Collect data for PDF
                   const _qData = closedPositions.filter(c => c.tabId === tab.id && c.quarter === selectedQ);
                   const _open  = (activePositions || []).filter(p => p.ticker.trim());
                   const _totalPnL = _qData.reduce((s,c) => s+(c.pnlUSD||0), 0);
@@ -279,209 +277,237 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
                   const _short = _qData.filter(c=>c.direction==="SHORT");
                   const _longPnL  = _long.reduce((s,c)=>s+(c.pnlUSD||0),0);
                   const _shortPnL = _short.reduce((s,c)=>s+(c.pnlUSD||0),0);
-
                   const gc = (v) => v >= 0 ? "#22c55e" : "#ef4444";
+                  const gb = (v) => v >= 0 ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)";
                   const fu = (v) => { if(v==null) return "—"; const a=Math.abs(v); return (v>=0?"+":"-")+"$"+a.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); };
                   const fp = (p) => { if(p==null) return "—"; if(p<0.01) return p.toFixed(6); if(p<1) return p.toFixed(4); if(p<100) return p.toFixed(3); return p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); };
+                  const GOLD="#d4af37"; const GOLD2="#f8e49b"; const GOLD3="#b99c64";
+                  const BG1="#080808"; const BG2="#0f0f0f"; const BG3="#141414";
+                  const BORDER="#1e1e1e"; const BORDER2="#2a2a2a";
+                  const TEXT="#e8e8e8"; const MUTE="#555"; const DIM="#333";
 
-                  const tradeRows = _qData.sort((a,b)=>b.closedAt-a.closedAt).map((c,i) => \`
-                    <tr style="border-bottom:1px solid #1e1e1e">
-                      <td style="padding:9px 10px;color:#666;font-size:11px">\${String(i+1).padStart(2,"0")}</td>
-                      <td style="padding:9px 10px;color:#d4af37;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">\${c.ticker}</td>
-                      <td style="padding:9px 10px"><span style="font-size:9px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:\${c.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:\${c.direction==="LONG"?"#22c55e":"#ef4444"}">\${c.direction}</span></td>
-                      <td style="padding:9px 10px;color:#888">\${c.qty||"—"}</td>
-                      <td style="padding:9px 10px;color:#888">\${c.entry?fp(parseFloat(c.entry)):"—"}</td>
-                      <td style="padding:9px 10px;color:#e8e8e8">\${fp(c.closePrice)}</td>
-                      <td style="padding:9px 10px;color:#666;font-size:11px">\${c.entryDate||"—"}</td>
-                      <td style="padding:9px 10px;color:#666;font-size:11px">\${c.closeDate||"—"}</td>
-                      <td style="padding:9px 10px;color:#666">\${c.daysHeld!=null?c.daysHeld+"d":"—"}</td>
-                      <td style="padding:9px 10px;color:\${gc(c.pnlPct||0)}">\${c.pnlPct!=null?(c.pnlPct>=0?"+":"")+c.pnlPct.toFixed(2)+"%":"—"}</td>
-                      <td style="padding:9px 10px;color:\${gc(c.pnlUSD||0)};font-weight:600">\${fu(c.pnlUSD)}</td>
-                      <td style="padding:9px 10px;color:#555;font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\${c.note||"—"}</td>
-                    </tr>\`).join("");
+                  // ── TRADE LOG ROWS ──
+                  const tradeRows = _qData.sort((a,b)=>b.closedAt-a.closedAt).map((c,i) => {
+                    const rowBg = i%2===0 ? BG2 : BG3;
+                    return `<tr style="background:${rowBg}">
+                      <td style="padding:10px 12px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i+1).padStart(2,"0")}</td>
+                      <td style="padding:10px 12px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em">${c.ticker}</td>
+                      <td style="padding:10px 12px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 9px;border-radius:3px;background:${c.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:${c.direction==="LONG"?"#22c55e":"#ef4444"}">${c.direction}</span></td>
+                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty||"—"}</td>
+                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.entry?fp(parseFloat(c.entry)):"—"}</td>
+                      <td style="padding:10px 12px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${fp(c.closePrice)}</td>
+                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.entryDate||"—"}</td>
+                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate||"—"}</td>
+                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld!=null?c.daysHeld+"d":"—"}</td>
+                      <td style="padding:10px 12px;color:${gc(c.pnlPct||0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct!=null?(c.pnlPct>=0?"+":"")+c.pnlPct.toFixed(2)+"%":"—"}</td>
+                      <td style="padding:10px 12px;color:${gc(c.pnlUSD||0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
+                      <td style="padding:10px 12px;color:#444;font-family:'DM Mono',monospace;font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.note||"—"}</td>
+                    </tr>`;
+                  }).join("");
 
-                  const openRows = _open.map(p => {
+                  // ── OPEN POSITION ROWS ──
+                  const openRows = _open.map((p,i) => {
                     const ep = parseFloat(p.entry);
                     const upct = p.currentPrice ? (p.direction==="LONG"?((p.currentPrice-ep)/ep)*100:((ep-p.currentPrice)/ep)*100) : null;
                     const uusd = p.currentPrice&&p.qty ? (p.direction==="LONG"?(p.currentPrice-ep)*parseFloat(p.qty):(ep-p.currentPrice)*parseFloat(p.qty)) : null;
-                    return \`<tr style="border-bottom:1px solid #1e1e1e">
-                      <td style="padding:9px 10px;color:#d4af37;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">\${p.ticker}</td>
-                      <td style="padding:9px 10px"><span style="font-size:9px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:\${p.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:\${p.direction==="LONG"?"#22c55e":"#ef4444"}">\${p.direction}</span></td>
-                      <td style="padding:9px 10px;color:#888">\${p.qty||"—"}</td>
-                      <td style="padding:9px 10px;color:#888">\${p.entry?fp(ep):"—"}</td>
-                      <td style="padding:9px 10px;color:#e8e8e8">\${p.currentPrice?fp(p.currentPrice):"—"}</td>
-                      <td style="padding:9px 10px;color:\${upct!=null?gc(upct):"#555"}">\${upct!=null?(upct>=0?"+":"")+upct.toFixed(2)+"%":"—"}</td>
-                      <td style="padding:9px 10px;color:\${uusd!=null?gc(uusd):"#555"};font-weight:600">\${fu(uusd)}</td>
-                      <td style="padding:9px 10px;color:#666;font-size:11px">\${p.date||"—"}</td>
-                    </tr>\`;
+                    const rowBg = i%2===0 ? BG2 : BG3;
+                    return `<tr style="background:${rowBg}">
+                      <td style="padding:10px 12px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em">${p.ticker}</td>
+                      <td style="padding:10px 12px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 9px;border-radius:3px;background:${p.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:${p.direction==="LONG"?"#22c55e":"#ef4444"}">${p.direction}</span></td>
+                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.qty||"—"}</td>
+                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.entry?fp(ep):"—"}</td>
+                      <td style="padding:10px 12px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${p.currentPrice?fp(p.currentPrice):"—"}</td>
+                      <td style="padding:10px 12px;color:${upct!=null?gc(upct):DIM};font-family:'DM Mono',monospace;font-size:11px">${upct!=null?(upct>=0?"+":"")+upct.toFixed(2)+"%":"—"}</td>
+                      <td style="padding:10px 12px;color:${uusd!=null?gc(uusd):DIM};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(uusd)}</td>
+                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${p.date||"—"}</td>
+                    </tr>`;
                   }).join("");
 
-                  const tradeHighlightsHtml = (_best || _worst) ? \`
-                  <div style="margin-bottom:32px">
-                    <div style="font-size:8px;font-weight:700;letter-spacing:0.28em;color:#444;text-transform:uppercase;margin-bottom:14px">TRADE HIGHLIGHTS</div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                      \${[{label:"BEST TRADE",trade:_best},{label:"WORST TRADE",trade:_worst}].map(({label,trade})=>{
-                        if(!trade) return \`<div style="background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:16px 18px"><div style="font-size:7px;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">\${label}</div><div style="color:#333;font-size:13px">—</div></div>\`;
-                        const tc = trade.pnlUSD>=0?"#22c55e":"#ef4444";
-                        const trgb = trade.pnlUSD>=0?"34,197,94":"239,68,68";
-                        return \`<div style="background:#111;border:1px solid rgba(\${trgb},0.2);border-radius:8px;padding:16px 18px">
-                          <div style="font-size:7px;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:10px">\${label}</div>
-                          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                            <span style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#d4af37;letter-spacing:0.06em">\${trade.ticker}</span>
-                            <span style="font-size:8px;font-weight:700;letter-spacing:0.12em;padding:3px 9px;border-radius:3px;background:\${trade.direction==="LONG"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)"};color:\${trade.direction==="LONG"?"#22c55e":"#ef4444"}">\${trade.direction}</span>
+                  // ── TRADE HIGHLIGHTS ──
+                  const highlightsHtml = (_best||_worst) ? `
+                  <section style="margin-bottom:36px">
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+                      <div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div>
+                      <div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">Trade Highlights</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                      ${[{label:"BEST TRADE",trade:_best},{label:"WORST TRADE",trade:_worst}].map(({label,trade})=>{
+                        if(!trade) return `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:20px 22px"><div style="font-size:7px;letter-spacing:0.24em;color:${DIM};text-transform:uppercase;margin-bottom:10px">${label}</div><div style="color:${DIM};font-size:13px;font-family:'DM Mono',monospace">—</div></div>`;
+                        const tc=trade.pnlUSD>=0?"#22c55e":"#ef4444";
+                        const trgb=trade.pnlUSD>=0?"34,197,94":"239,68,68";
+                        return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-radius:10px;padding:20px 22px;border-left:3px solid ${tc}">
+                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">${label}</div>
+                          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+                            <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};letter-spacing:0.06em">${trade.ticker}</span>
+                            <span style="font-size:8px;font-weight:700;letter-spacing:0.12em;padding:3px 9px;border-radius:3px;background:${trade.direction==="LONG"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)"};color:${trade.direction==="LONG"?"#22c55e":"#ef4444"}">${trade.direction}</span>
                           </div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:\${tc};margin-bottom:4px">\${fu(trade.pnlUSD)}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${trade.pnlPct!=null?(trade.pnlPct>=0?"+":"")+trade.pnlPct.toFixed(2)+"%" :""} · \${trade.daysHeld}d</div>
-                        </div>\`;
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:30px;color:${tc};letter-spacing:0.02em;margin-bottom:6px">${fu(trade.pnlUSD)}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trade.pnlPct!=null?(trade.pnlPct>=0?"+":"")+trade.pnlPct.toFixed(2)+"%":""} · ${trade.daysHeld}d hold</div>
+                        </div>`;
                       }).join("")}
                     </div>
-                  </div>\` : "";
+                  </section>` : "";
 
-                  const openSnapshotHtml = _open.length > 0 ? \`
-                  <div style="margin-bottom:32px">
-                    <div style="font-size:8px;font-weight:700;letter-spacing:0.28em;color:#444;text-transform:uppercase;margin-bottom:14px">OPEN POSITIONS — AS OF REPORT DATE</div>
-                    <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px">
-                      <thead><tr style="border-bottom:1px solid #2a2a2a">
-                        \${["TICKER","DIR","QTY","ENTRY","LIVE PRICE","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>\`<th style="padding:8px 10px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:#444;text-align:left;white-space:nowrap;font-weight:700">\${h}</th>\`).join("")}
+                  // ── OPEN SNAPSHOT SECTION ──
+                  const openSectionHtml = _open.length > 0 ? `
+                  <div style="page-break-before:always;min-height:100vh;padding:52px 56px;display:flex;flex-direction:column;background:${BG1}">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
+                      <div>
+                        <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">${packLabel} — OPEN POSITIONS</div>
+                      </div>
+                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${todayStr}</div>
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER};border-radius:8px;overflow:hidden">
+                      <thead><tr style="background:#0c0c0c;border-bottom:1px solid ${BORDER2}">
+                        ${["TICKER","DIR","QTY","ENTRY","LIVE PRICE","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="padding:11px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.22em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap">${h}</th>`).join("")}
                       </tr></thead>
-                      <tbody>\${openRows}</tbody>
+                      <tbody>${openRows}</tbody>
                     </table>
-                  </div>\` : "";
+                    <div style="flex:1"></div>
+                    <div style="border-top:1px solid ${BORDER};padding-top:14px;display:flex;justify-content:space-between">
+                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.08em">VISIONX ANALYTICS · ${packLabel} · ${qLabel} · CONFIDENTIAL</div>
+                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">2</div>
+                    </div>
+                  </div>` : "";
 
-                  win.document.write(\`<!DOCTYPE html><html><head>
+                  // ── TRADE LOG PAGE ──
+                  const logPageNum = _open.length > 0 ? 3 : 2;
+                  const tradeLogHtml = `
+                  <div style="page-break-before:always;padding:52px 56px;background:${BG1}">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
+                      <div>
+                        <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">${packLabel} — COMPLETE TRADE LOG</div>
+                      </div>
+                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${todayStr}</div>
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER};overflow:hidden">
+                      <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
+                        ${["#","TICKER","DIR","QTY","ENTRY","CLOSE","ENTRY DATE","CLOSE DATE","DAYS","PNL %","PNL USD","NOTE"].map(h=>`<th style="padding:11px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap">${h}</th>`).join("")}
+                      </tr></thead>
+                      <tbody>${tradeRows}</tbody>
+                    </table>
+                    <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+                      <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${_qData.length} Trades · ${_winRate||"—"}% Win Rate · ${_avgHold!=null?_avgHold+"d avg hold":"—"}</div>
+                      <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.04em;color:${gc(_totalPnL)}">${fu(_totalPnL)}</div>
+                    </div>
+                    <div style="margin-top:28px;border-top:1px solid ${BORDER};padding-top:14px;display:flex;justify-content:space-between">
+                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.08em">VISIONX ANALYTICS · ${packLabel} · ${qLabel} · CONFIDENTIAL</div>
+                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${logPageNum}</div>
+                    </div>
+                  </div>`;
+
+                  // ── LONG/SHORT BREAKDOWN ──
+                  const lsHtml = `
+                  <section style="margin-bottom:36px">
+                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+                      <div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div>
+                      <div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">Long vs Short Breakdown</div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+                      ${[{label:"LONG POSITIONS",trades:_long,pnl:_longPnL},{label:"SHORT POSITIONS",trades:_short,pnl:_shortPnL}].map(({label,trades,pnl})=>{
+                        const pc=trades.length===0?DIM:pnl>=0?"#22c55e":"#ef4444";
+                        const br=trades.length===0?"80,80,80":pnl>=0?"34,197,94":"239,68,68";
+                        const leftColor=trades.length===0?"#333":pnl>=0?"#22c55e":"#ef4444";
+                        return `<div style="background:${BG2};border:1px solid rgba(${br},0.18);border-radius:10px;padding:20px 22px;border-left:3px solid ${leftColor}">
+                          <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">${label}</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${pc};margin-bottom:8px">${trades.length>0?fu(pnl):"—"}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trades.length} trade${trades.length!==1?"s":""}${trades.length>0?" · "+trades.filter(t=>(t.pnlUSD||0)>0).length+"W / "+trades.filter(t=>(t.pnlUSD||0)<=0).length+"L":""}</div>
+                        </div>`;
+                      }).join("")}
+                    </div>
+                  </section>`;
+
+                  win.document.write(`<!DOCTYPE html><html><head>
                     <meta charset="utf-8">
-                    <title>VisionX \${packLabel} \${qLabel} Report</title>
+                    <title>VisionX ${packLabel} ${qLabel} Report</title>
                     <link rel="preconnect" href="https://fonts.googleapis.com">
                     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
                     <style>
                       *{box-sizing:border-box;margin:0;padding:0}
-                      body{background:#080808;color:#e8e8e8;font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                      html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
                       @page{size:A4;margin:0}
+                      section{break-inside:avoid}
                     </style>
                   </head><body>
 
-                  <!-- PAGE 1: COVER + EXECUTIVE SUMMARY -->
-                  <div style="min-height:100vh;padding:52px 56px;display:flex;flex-direction:column">
+                  <!-- ══ PAGE 1: EXECUTIVE SUMMARY ══ -->
+                  <div style="min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
 
-                    <!-- Cover header -->
-                    <div style="border-bottom:1px solid #1e1e1e;padding-bottom:28px;margin-bottom:36px">
-                      <div style="font-size:8px;font-weight:700;letter-spacing:0.32em;color:#555;text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
-                      <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:0.16em;color:#f8e49b;line-height:1;margin-bottom:6px">\${packLabel}</div>
-                      <div style="display:flex;align-items:center;gap:20px;margin-top:10px">
-                        <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:0.1em;color:#666">\${qLabel}</span>
-                        <span style="width:1px;height:14px;background:#2a2a2a;display:inline-block"></span>
-                        <span style="font-family:'DM Mono',monospace;font-size:11px;color:#555">Generated \${todayStr}</span>
-                        <span style="width:1px;height:14px;background:#2a2a2a;display:inline-block"></span>
-                        <span style="font-size:9px;font-weight:700;letter-spacing:0.2em;color:#555;text-transform:uppercase">Confidential</span>
+                    <!-- Gold top bar -->
+                    <div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>
+
+                    <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+
+                      <!-- Header -->
+                      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:1px solid ${BORDER}">
+                        <div>
+                          <div style="font-size:7px;font-weight:700;letter-spacing:0.36em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:54px;letter-spacing:0.14em;color:${GOLD2};line-height:1">${packLabel}</div>
+                        </div>
+                        <div style="text-align:right;padding-top:6px">
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:0.1em;color:${GOLD3};margin-bottom:4px">${qLabel}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${todayStr}</div>
+                          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${DIM};text-transform:uppercase;margin-top:4px">Confidential</div>
+                        </div>
                       </div>
+
+                      <!-- Hero PnL -->
+                      <section style="background:${BG2};border:1px solid ${_totalPnL>=0?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"};border-left:4px solid ${gc(_totalPnL)};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
+                        <div>
+                          <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Total Realised P&L · ${qLabel}</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:60px;color:${gc(_totalPnL)};line-height:1;letter-spacing:0.01em">${fu(_totalPnL)}</div>
+                          ${_avgPct!==null?`<div style="font-family:'DM Mono',monospace;font-size:12px;color:${gc(parseFloat(_avgPct))};margin-top:8px;opacity:0.8">Avg ${parseFloat(_avgPct)>=0?"+":""}${_avgPct}% per trade</div>`:""}
+                        </div>
+                        <div style="text-align:right">
+                          <div style="font-size:7px;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:6px">Closed Trades</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;color:${GOLD};line-height:1">${_qData.length}</div>
+                        </div>
+                      </section>
+
+                      <!-- Stats row -->
+                      <section style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:28px">
+                        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Win Rate</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${_winRate!=null?(parseFloat(_winRate)>=50?"#22c55e":"#ef4444"):MUTE}">${_winRate!=null?_winRate+"%":"—"}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">${_wins.length}W / ${_qData.length-_wins.length}L</div>
+                        </div>
+                        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Avg Hold Time</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${_avgHold!=null?_avgHold+"D":"—"}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">per trade</div>
+                        </div>
+                        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Open Positions</div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${_open.length}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">currently active</div>
+                        </div>
+                      </section>
+
+                      <!-- Long/Short -->
+                      ${lsHtml}
+
+                      <!-- Trade highlights -->
+                      ${highlightsHtml}
+
+                      <div style="flex:1"></div>
                     </div>
 
-                    <!-- Total PnL hero -->
-                    <div style="background:#0f0f0f;border:1px solid \${gc(_totalPnL).replace("#22c55e","rgba(34,197,94,0.2)").replace("#ef4444","rgba(239,68,68,0.2)")};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
-                      <div>
-                        <div style="font-size:8px;font-weight:700;letter-spacing:0.24em;color:#555;text-transform:uppercase;margin-bottom:10px">Total Realised P&L · \${qLabel}</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:56px;color:\${gc(_totalPnL)};line-height:1;letter-spacing:0.02em">\${fu(_totalPnL)}</div>
-                        \${_avgPct!==null?\`<div style="font-family:'DM Mono',monospace;font-size:12px;color:\${gc(parseFloat(_avgPct))};margin-top:8px;opacity:0.7">Avg \${parseFloat(_avgPct)>=0?"+":""}\${_avgPct}% per trade</div>\`:""}
-                      </div>
-                      <div style="text-align:right">
-                        <div style="font-size:8px;letter-spacing:0.2em;color:#555;text-transform:uppercase;margin-bottom:6px">CLOSED TRADES</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:#d4af37">\${_qData.length}</div>
-                      </div>
+                    <!-- Footer -->
+                    <div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center">
+                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX ANALYTICS · ${packLabel} · ${qLabel} · CONFIDENTIAL</div>
+                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">1</div>
                     </div>
-
-                    <!-- Stat row -->
-                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:28px">
-                      <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:16px 18px">
-                        <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">Win Rate</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:\${_winRate!=null?(parseFloat(_winRate)>=50?"#22c55e":"#ef4444"):"#555"}">\${_winRate!=null?_winRate+"%":"—"}</div>
-                        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555;margin-top:4px">\${_wins.length}W / \${_qData.length-_wins.length}L</div>
-                      </div>
-                      <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:16px 18px">
-                        <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">Avg Hold Time</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#d4af37">\${_avgHold!=null?_avgHold+"D":"—"}</div>
-                        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555;margin-top:4px">per trade</div>
-                      </div>
-                      <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:16px 18px">
-                        <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">Open Positions</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#d4af37">\${_open.length}</div>
-                        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555;margin-top:4px">currently active</div>
-                      </div>
-                    </div>
-
-                    <!-- Long vs Short -->
-                    <div style="margin-bottom:28px">
-                      <div style="font-size:8px;font-weight:700;letter-spacing:0.28em;color:#444;text-transform:uppercase;margin-bottom:14px">LONG VS SHORT BREAKDOWN</div>
-                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                        \${[{label:"LONG POSITIONS",trades:_long,pnl:_longPnL},{label:"SHORT POSITIONS",trades:_short,pnl:_shortPnL}].map(({label,trades,pnl})=>{
-                          const pc = trades.length===0?"#555":pnl>=0?"#22c55e":"#ef4444";
-                          const br = trades.length===0?"255,255,255":pnl>=0?"34,197,94":"239,68,68";
-                          return \`<div style="background:#0f0f0f;border:1px solid rgba(\${br},0.15);border-radius:8px;padding:16px 18px">
-                            <div style="font-size:7px;font-weight:700;letter-spacing:0.2em;color:#444;text-transform:uppercase;margin-bottom:10px">\${label}</div>
-                            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:\${pc};margin-bottom:6px">\${trades.length>0?fu(pnl):"—"}</div>
-                            <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${trades.length} trade\${trades.length!==1?"s":""}\${trades.length>0?" · "+trades.filter(t=>(t.pnlUSD||0)>0).length+"W / "+trades.filter(t=>(t.pnlUSD||0)<=0).length+"L":""}</div>
-                          </div>\`;
-                        }).join("")}
-                      </div>
-                    </div>
-
-                    <!-- Trade highlights -->
-                    \${tradeHighlightsHtml}
-
-                    <!-- spacer pushes footer down -->
-                    <div style="flex:1"></div>
-                    <div style="border-top:1px solid #1a1a1a;padding-top:16px;display:flex;justify-content:space-between;align-items:center">
-                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a;letter-spacing:0.08em">VISIONX ANALYTICS · \${packLabel} · \${qLabel} · CONFIDENTIAL</div>
-                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">1</div>
-                    </div>
+                    <div style="height:3px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>
                   </div>
 
-                  \${openSnapshotHtml.length > 10 ? \`
-                  <!-- PAGE BREAK: OPEN POSITIONS -->
-                  <div style="page-break-before:always;min-height:100vh;padding:52px 56px;display:flex;flex-direction:column">
-                    <div style="border-bottom:1px solid #1e1e1e;padding-bottom:20px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end">
-                      <div>
-                        <div style="font-size:8px;font-weight:700;letter-spacing:0.32em;color:#555;text-transform:uppercase;margin-bottom:6px">VISIONX ANALYTICS · \${qLabel}</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.14em;color:#f8e49b">\${packLabel} — OPEN POSITIONS</div>
-                      </div>
-                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${todayStr}</div>
-                    </div>
-                    \${openSnapshotHtml}
-                    <div style="flex:1"></div>
-                    <div style="border-top:1px solid #1a1a1a;padding-top:16px;display:flex;justify-content:space-between">
-                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">VISIONX ANALYTICS · \${packLabel} · \${qLabel} · CONFIDENTIAL</div>
-                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">2</div>
-                    </div>
-                  </div>\` : ""}
+                  ${openSectionHtml}
+                  ${tradeLogHtml}
 
-                  <!-- PAGE BREAK: TRADE LOG -->
-                  <div style="page-break-before:always;padding:52px 56px">
-                    <div style="border-bottom:1px solid #1e1e1e;padding-bottom:20px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end">
-                      <div>
-                        <div style="font-size:8px;font-weight:700;letter-spacing:0.32em;color:#555;text-transform:uppercase;margin-bottom:6px">VISIONX ANALYTICS · \${qLabel}</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.14em;color:#f8e49b">\${packLabel} — COMPLETE TRADE LOG</div>
-                      </div>
-                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${todayStr}</div>
-                    </div>
-                    <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px">
-                      <thead><tr style="border-bottom:1px solid #2a2a2a;background:#0f0f0f">
-                        \${["#","TICKER","DIR","QTY","ENTRY","CLOSE","ENTRY DATE","CLOSE DATE","DAYS","PNL %","PNL USD","NOTE"].map(h=>\`<th style="padding:10px 10px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:#444;text-align:left;white-space:nowrap;font-weight:700">\${h}</th>\`).join("")}
-                      </tr></thead>
-                      <tbody>\${tradeRows}</tbody>
-                    </table>
-                    <!-- Summary row -->
-                    <div style="margin-top:20px;padding:14px 18px;background:#0f0f0f;border:1px solid #1e1e1e;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-                      <div style="font-size:8px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase">\${_qData.length} Trades · \${_winRate||"—"}% Win Rate · \${_avgHold!=null?_avgHold+"d avg hold":"—"}</div>
-                      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:\${gc(_totalPnL)}">\${fu(_totalPnL)}</div>
-                    </div>
-                    <div style="margin-top:32px;border-top:1px solid #1a1a1a;padding-top:16px;display:flex;justify-content:space-between">
-                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">VISIONX ANALYTICS · \${packLabel} · \${qLabel} · CONFIDENTIAL</div>
-                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">\${_open.length>0?3:2}</div>
-                    </div>
-                  </div>
-
-                  </body></html>\`);
+                  </body></html>`);
                   win.document.close();
-                  setTimeout(() => { win.focus(); win.print(); }, 900);
+                  setTimeout(() => { win.focus(); win.print(); }, 1000);
                 }}
                 style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: "all 0.2s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; }}
