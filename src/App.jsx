@@ -169,362 +169,351 @@ const VSXLogo = ({ size = 72 }) => (
 );
 
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
-function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }) {
+// ── QUARTERLY REPORT PANEL (FULL PORTFOLIO) ──────────────────────────────────
+function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   const [selectedQ, setSelectedQ] = useState(getQuarter(new Date()));
 
-  const tabClosed = closedPositions.filter(c => c.tabId === tab.id);
-  const quarters = sortedQuarters(tabClosed.map(c => c.quarter));
-  if (!quarters.includes(selectedQ) && quarters.length > 0) {
-    // default to most recent available
-  }
-  const qData = selectedQ ? tabClosed.filter(c => c.quarter === selectedQ) : [];
+  // All closed data across every pack
+  const quarters = sortedQuarters(closedPositions.map(c => c.quarter));
+  const qData = closedPositions.filter(c => c.quarter === selectedQ);
 
-  // Stats
+  // Per-pack breakdown
+  const packData = TABS.map(t => {
+    const pClosed = qData.filter(c => c.tabId === t.id);
+    const pOpen   = (allPositions[t.id] || []).filter(p => p.ticker.trim());
+    const pPnL    = pClosed.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+    const pWins   = pClosed.filter(c => (c.pnlUSD || 0) > 0).length;
+    return { tab: t, closed: pClosed, open: pOpen, pnl: pPnL, wins: pWins };
+  }).filter(p => p.closed.length > 0 || p.open.length > 0);
+
+  // Portfolio-wide stats
   const totalTrades = qData.length;
-  const winners = qData.filter(c => (c.pnlUSD || 0) > 0);
-  const losers  = qData.filter(c => (c.pnlUSD || 0) <= 0);
-  const winRate = totalTrades > 0 ? (winners.length / totalTrades) * 100 : null;
-  const totalPnL = qData.reduce((s, c) => s + (c.pnlUSD || 0), 0);
-  const avgPnLPct = totalTrades > 0 ? qData.reduce((s, c) => s + (c.pnlPct || 0), 0) / totalTrades : null;
-  const avgWin = winners.length > 0 ? winners.reduce((s, c) => s + (c.pnlUSD || 0), 0) / winners.length : null;
-  const avgLoss = losers.length > 0 ? losers.reduce((s, c) => s + (c.pnlUSD || 0), 0) / losers.length : null;
-  const rr = avgWin && avgLoss && avgLoss !== 0 ? Math.abs(avgWin / avgLoss) : null;
-  const avgHold = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
-  const bestTrade = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlUSD || 0) > (b.pnlUSD || 0) ? a : b) : null;
-  const worstTrade = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlUSD || 0) < (b.pnlUSD || 0) ? a : b) : null;
-  const byReason = Object.entries(CLOSE_REASONS).map(([k, v]) => ({
-    key: k, label: v, count: qData.filter(c => c.reason === k).length,
-    pnl: qData.filter(c => c.reason === k).reduce((s, c) => s + (c.pnlUSD || 0), 0),
-  })).filter(r => r.count > 0);
-  const longTrades = qData.filter(c => c.direction === "LONG");
+  const winners     = qData.filter(c => (c.pnlUSD || 0) > 0);
+  const winRate     = totalTrades > 0 ? (winners.length / totalTrades) * 100 : null;
+  const totalPnL    = qData.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+  const avgPnLPct   = totalTrades > 0 ? qData.reduce((s, c) => s + (c.pnlPct || 0), 0) / totalTrades : null;
+  const avgHold     = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
+  const bestTrade   = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlUSD || 0) > (b.pnlUSD || 0) ? a : b) : null;
+  const worstTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlUSD || 0) < (b.pnlUSD || 0) ? a : b) : null;
+  const longTrades  = qData.filter(c => c.direction === "LONG");
   const shortTrades = qData.filter(c => c.direction === "SHORT");
-  const longPnL = longTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
-  const shortPnL = shortTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+  const longPnL     = longTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+  const shortPnL    = shortTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+  const allOpen     = TABS.flatMap(t => (allPositions[t.id] || []).filter(p => p.ticker.trim()).map(p => ({ ...p, tabLabel: t.label })));
 
-  // Previous quarter for QoQ
-  const qList = getQuarterOptions();
-  const qIdx = qList.indexOf(selectedQ);
-  const prevQ = qIdx < qList.length - 1 ? qList[qIdx + 1] : null;
-  const prevQData = prevQ ? tabClosed.filter(c => c.quarter === prevQ) : [];
-  const prevQPnL = prevQData.reduce((s, c) => s + (c.pnlUSD || 0), 0);
-  const qoqChange = prevQData.length > 0 ? totalPnL - prevQPnL : null;
+  // QoQ
+  const qList   = getQuarterOptions();
+  const qIdx    = qList.indexOf(selectedQ);
+  const prevQ   = qIdx < qList.length - 1 ? qList[qIdx + 1] : null;
+  const prevQPnL = prevQ ? closedPositions.filter(c => c.quarter === prevQ).reduce((s, c) => s + (c.pnlUSD || 0), 0) : null;
+  const qoqChange = prevQPnL !== null && closedPositions.some(c => c.quarter === prevQ) ? totalPnL - prevQPnL : null;
 
-  // Active (open) positions for this tab
-  const openPositions = (activePositions || []).filter(p => p.ticker.trim());
-
-  const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const [qLabel, qYear] = selectedQ.split("-");
+  const today  = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const qLabel = getQuarterLabel(selectedQ);
 
   const S = {
-    overlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9998, display: "flex", justifyContent: "flex-end", backdropFilter: "blur(6px)" },
-    panel: { width: 720, maxWidth: "95vw", height: "100vh", overflowY: "auto", background: "#0d0d0d", borderLeft: "1px solid #222", display: "flex", flexDirection: "column" },
-    header: { padding: "28px 32px 20px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a", position: "sticky", top: 0, zIndex: 10 },
-    section: { padding: "24px 32px", borderBottom: "1px solid #111" },
-    sectionTitle: { fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.28em", color: "#555", textTransform: "uppercase", marginBottom: 16 },
-    statGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 },
-    statCard: { background: "#111", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 14px" },
-    statLabel: { fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 5 },
-    statVal: { fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.04em", lineHeight: 1 },
-    statSub: { fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 3 },
-    divider: { height: 1, background: "#111", margin: "0 32px" },
-    tradeRow: { display: "flex", alignItems: "center", padding: "10px 0", borderBottom: "1px solid #0f0f0f" },
+    overlay:      { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9998, display: "flex", justifyContent: "flex-end", backdropFilter: "blur(6px)" },
+    panel:        { width: 780, maxWidth: "96vw", height: "100vh", overflowY: "auto", background: "#0d0d0d", borderLeft: "1px solid #222", display: "flex", flexDirection: "column" },
+    stickyHdr:    { padding: "24px 32px 18px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a", position: "sticky", top: 0, zIndex: 10 },
+    section:      { padding: "22px 32px", borderBottom: "1px solid #111" },
+    sectionTitle: { fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.28em", color: "#555", textTransform: "uppercase", marginBottom: 14 },
+    statCard:     { background: "#111", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 14px" },
+    statLabel:    { fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 5 },
+    statVal:      { fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.04em", lineHeight: 1 },
+    statSub:      { fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 3 },
   };
+
+  // ── PDF generator ──────────────────────────────────────────────────────────
+  const generatePDF = () => {
+    const win = window.open("", "_blank");
+    const gc  = (v) => v >= 0 ? "#22c55e" : "#ef4444";
+    const fu  = (v) => { if (v == null) return "—"; const a = Math.abs(v); return (v >= 0 ? "+" : "-") + "$" + a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    const fp  = (p) => { if (p == null) return "—"; if (p < 0.01) return p.toFixed(6); if (p < 1) return p.toFixed(4); if (p < 100) return p.toFixed(3); return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    const GOLD = "#d4af37"; const GOLD2 = "#f8e49b"; const GOLD3 = "#b99c64";
+    const BG1 = "#080808"; const BG2 = "#0f0f0f"; const BG3 = "#141414";
+    const BORDER = "#1e1e1e"; const BORDER2 = "#2a2a2a";
+    const TEXT = "#e8e8e8"; const MUTE = "#555"; const DIM = "#333";
+
+    const thStyle = `padding:11px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap`;
+    const sectionHdr = (title) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div><div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">${title}</div></div>`;
+    const footer = (n) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX ANALYTICS · FULL PORTFOLIO · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}</div></div>`;
+    const goldBar = `<div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>`;
+
+    // Trade rows (all packs)
+    const tradeRows = qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => {
+      const rowBg = i % 2 === 0 ? BG2 : BG3;
+      return `<tr style="background:${rowBg}">
+        <td style="padding:9px 11px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
+        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${c.ticker}</td>
+        <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
+        <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
+        <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty || "—"}</td>
+        <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.entry ? fp(parseFloat(c.entry)) : "—"}</td>
+        <td style="padding:9px 11px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${fp(c.closePrice)}</td>
+        <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
+        <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
+        <td style="padding:9px 11px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
+        <td style="padding:9px 11px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
+      </tr>`;
+    }).join("");
+
+    // Open position rows (all packs)
+    const openRows = allOpen.map((p, i) => {
+      const ep   = parseFloat(p.entry);
+      const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
+      const uusd = p.currentPrice && p.qty ? (p.direction === "LONG" ? (p.currentPrice - ep) * parseFloat(p.qty) : (ep - p.currentPrice) * parseFloat(p.qty)) : null;
+      const rowBg = i % 2 === 0 ? BG2 : BG3;
+      return `<tr style="background:${rowBg}">
+        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${p.ticker}</td>
+        <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${p.tabLabel || "—"}</td>
+        <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${p.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${p.direction === "LONG" ? "#22c55e" : "#ef4444"}">${p.direction}</span></td>
+        <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.qty || "—"}</td>
+        <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.entry ? fp(ep) : "—"}</td>
+        <td style="padding:9px 11px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${p.currentPrice ? fp(p.currentPrice) : "—"}</td>
+        <td style="padding:9px 11px;color:${upct != null ? gc(upct) : DIM};font-family:'DM Mono',monospace;font-size:11px">${upct != null ? (upct >= 0 ? "+" : "") + upct.toFixed(2) + "%" : "—"}</td>
+        <td style="padding:9px 11px;color:${uusd != null ? gc(uusd) : DIM};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(uusd)}</td>
+        <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${p.date || "—"}</td>
+      </tr>`;
+    }).join("");
+
+    // Pack breakdown rows
+    const packRows = TABS.map(t => {
+      const pc    = qData.filter(c => c.tabId === t.id);
+      const po    = (allPositions[t.id] || []).filter(p => p.ticker.trim());
+      if (pc.length === 0 && po.length === 0) return "";
+      const ppnl  = pc.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+      const pwins = pc.filter(c => (c.pnlUSD || 0) > 0).length;
+      const pwr   = pc.length > 0 ? ((pwins / pc.length) * 100).toFixed(0) + "%" : "—";
+      return `<tr style="border-bottom:1px solid ${BORDER}">
+        <td style="padding:11px 14px;font-family:'Bebas Neue',sans-serif;font-size:16px;color:${GOLD};letter-spacing:0.08em">${t.label.toUpperCase()}</td>
+        <td style="padding:11px 14px;font-family:'DM Mono',monospace;font-size:12px;color:${MUTE}">${pc.length}</td>
+        <td style="padding:11px 14px;font-family:'DM Mono',monospace;font-size:12px;color:${MUTE}">${pwr}</td>
+        <td style="padding:11px 14px;font-family:'DM Mono',monospace;font-size:12px;color:${MUTE}">${po.length} open</td>
+        <td style="padding:11px 14px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${gc(ppnl)};text-align:right">${pc.length > 0 ? fu(ppnl) : "—"}</td>
+      </tr>`;
+    }).join("");
+
+    // Highlights
+    const hlHtml = (bestTrade || worstTrade) ? `
+    <section style="margin-bottom:34px;break-inside:avoid">
+      ${sectionHdr("Trade Highlights")}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        ${[{ label: "BEST TRADE", trade: bestTrade }, { label: "WORST TRADE", trade: worstTrade }].map(({ label, trade }) => {
+          if (!trade) return `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:20px 22px"><div style="font-size:7px;letter-spacing:0.24em;color:${DIM};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="color:${DIM};font-size:13px;font-family:'DM Mono',monospace">—</div></div>`;
+          const tc   = trade.pnlUSD >= 0 ? "#22c55e" : "#ef4444";
+          const trgb = trade.pnlUSD >= 0 ? "34,197,94" : "239,68,68";
+          return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-left:3px solid ${tc};border-radius:10px;padding:20px 22px">
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">${label}</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+              <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};letter-spacing:0.06em">${trade.ticker}</span>
+              <span style="font-size:8px;padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)"};color:${trade.direction === "LONG" ? "#22c55e" : "#ef4444"}">${trade.direction}</span>
+              <span style="font-size:8px;color:${GOLD3};font-family:'Montserrat',sans-serif;font-weight:600;letter-spacing:0.08em">${trade.tabLabel || ""}</span>
+            </div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:30px;color:${tc};margin-bottom:5px">${fu(trade.pnlUSD)}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trade.pnlPct != null ? (trade.pnlPct >= 0 ? "+" : "") + trade.pnlPct.toFixed(2) + "%" : ""} · ${trade.daysHeld}d hold</div>
+          </div>`;
+        }).join("")}
+      </div>
+    </section>` : "";
+
+    const openSection = allOpen.length > 0 ? `
+    <div style="page-break-before:always;min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
+      ${goldBar}
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">FULL PORTFOLIO — OPEN POSITIONS</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
+          <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
+            ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
+          </tr></thead>
+          <tbody>${openRows}</tbody>
+        </table>
+        <div style="flex:1"></div>
+      </div>
+      ${footer(2)}
+      ${goldBar}
+    </div>` : "";
+
+    const logPageNum = allOpen.length > 0 ? 3 : 2;
+
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8">
+      <title>VisionX Full Portfolio ${qLabel} Report</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        @page{size:A4;margin:0}
+        section{break-inside:avoid}
+      </style>
+    </head><body>
+
+    <!-- ══ PAGE 1: EXECUTIVE SUMMARY ══ -->
+    <div style="min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
+      ${goldBar}
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid ${BORDER};padding-bottom:24px;margin-bottom:32px">
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.36em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:54px;letter-spacing:0.12em;color:${GOLD2};line-height:1">FULL PORTFOLIO</div>
+          </div>
+          <div style="text-align:right;padding-top:6px">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:0.1em;color:${GOLD3};margin-bottom:4px">${qLabel}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+            <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${DIM};text-transform:uppercase;margin-top:4px">Confidential</div>
+          </div>
+        </div>
+
+        <!-- Hero PnL -->
+        <section style="background:${BG2};border:1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"};border-left:4px solid ${gc(totalPnL)};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
+          <div>
+            <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Total Realised P&L · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:60px;color:${gc(totalPnL)};line-height:1;letter-spacing:0.01em">${fu(totalPnL)}</div>
+            ${avgPnLPct !== null ? `<div style="font-family:'DM Mono',monospace;font-size:12px;color:${gc(avgPnLPct)};margin-top:8px;opacity:0.8">Avg ${avgPnLPct >= 0 ? "+" : ""}${avgPnLPct.toFixed(2)}% per trade</div>` : ""}
+          </div>
+          <div style="text-align:right">
+            ${qoqChange !== null ? `<div style="margin-bottom:10px"><div style="font-size:7px;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase;margin-bottom:4px">vs ${getQuarterLabel(prevQ)}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${gc(qoqChange)}">${qoqChange >= 0 ? "+" : ""}${fu(qoqChange).slice(1)}</div></div>` : ""}
+            <div><div style="font-size:7px;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:4px">Closed Trades</div><div style="font-family:'Bebas Neue',sans-serif;font-size:40px;color:${GOLD};line-height:1">${totalTrades}</div></div>
+          </div>
+        </section>
+
+        <!-- Stats -->
+        <section style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px;break-inside:avoid">
+          <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Win Rate</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${winRate != null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : MUTE}">${winRate != null ? winRate.toFixed(0) + "%" : "—"}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">${winners.length}W / ${totalTrades - winners.length}L</div>
+          </div>
+          <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Avg Hold Time</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${avgHold != null ? avgHold + "D" : "—"}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">per trade</div>
+          </div>
+          <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Open Positions</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${allOpen.length}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">across all packs</div>
+          </div>
+        </section>
+
+        <!-- Pack breakdown -->
+        <section style="margin-bottom:24px;break-inside:avoid">
+          ${sectionHdr("Performance by Pack")}
+          <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
+            <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
+              ${["PACK", "TRADES", "WIN RATE", "OPEN", "REALISED P&L"].map((h, i) => `<th style="${thStyle}${i === 4 ? ";text-align:right" : ""}">${h}</th>`).join("")}
+            </tr></thead>
+            <tbody>${packRows}</tbody>
+          </table>
+        </section>
+
+        <!-- Long vs Short -->
+        <section style="margin-bottom:24px;break-inside:avoid">
+          ${sectionHdr("Long vs Short Breakdown")}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            ${[{ label: "LONG POSITIONS", trades: longTrades, pnl: longPnL }, { label: "SHORT POSITIONS", trades: shortTrades, pnl: shortPnL }].map(({ label, trades, pnl }) => {
+              const pc = trades.length === 0 ? DIM : pnl >= 0 ? "#22c55e" : "#ef4444";
+              const br = trades.length === 0 ? "80,80,80" : pnl >= 0 ? "34,197,94" : "239,68,68";
+              return `<div style="background:${BG2};border:1px solid rgba(${br},0.2);border-left:3px solid ${pc};border-radius:10px;padding:18px 20px">
+                <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">${label}</div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${pc};margin-bottom:8px">${trades.length > 0 ? fu(pnl) : "—"}</div>
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trades.length} trade${trades.length !== 1 ? "s" : ""}${trades.length > 0 ? " · " + trades.filter(t => (t.pnlUSD || 0) > 0).length + "W / " + trades.filter(t => (t.pnlUSD || 0) <= 0).length + "L" : ""}</div>
+              </div>`;
+            }).join("")}
+          </div>
+        </section>
+
+        <!-- Trade Highlights -->
+        ${hlHtml}
+
+        <div style="flex:1"></div>
+      </div>
+      ${footer(1)}
+      ${goldBar}
+    </div>
+
+    ${openSection}
+
+    <!-- ══ TRADE LOG PAGE ══ -->
+    <div style="page-break-before:always;padding:0;background:${BG1}">
+      ${goldBar}
+      <div style="padding:44px 56px 32px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">FULL PORTFOLIO — COMPLETE TRADE LOG</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
+          <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
+            ${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
+          </tr></thead>
+          <tbody>${tradeRows}</tbody>
+        </table>
+        <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.04em;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
+        </div>
+      </div>
+      ${footer(logPageNum)}
+      ${goldBar}
+    </div>
+
+    </body></html>`);
+    win.document.close();
+    setTimeout(() => { win.focus(); win.print(); }, 1000);
+  };
+  // ── end PDF ──────────────────────────────────────────────────────────────────
 
   return (
     <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={S.panel} id="report-print-area">
+      <div style={S.panel}>
 
         {/* PANEL HEADER */}
-        <div style={S.header}>
+        <div style={S.stickyHdr}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
             <div>
               <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.3em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>
                 VISIONX ANALYTICS · QUARTERLY REPORT
               </div>
               <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: "0.14em", color: "#f8e49b", lineHeight: 1 }}>
-                {tab.label.toUpperCase()} PACK
+                FULL PORTFOLIO
               </div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", marginTop: 4 }}>
                 Generated {today} · Confidential
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <select
-                value={selectedQ}
-                onChange={e => setSelectedQ(e.target.value)}
-                style={{ background: "#111", border: "1px solid #222", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 6, outline: "none", cursor: "pointer" }}
-              >
-                {quarters.length > 0 ? quarters.map(q => (
-                  <option key={q} value={q}>{getQuarterLabel(q)}</option>
-                )) : <option value="">{getQuarterLabel(selectedQ)}</option>}
+              <select value={selectedQ} onChange={e => setSelectedQ(e.target.value)}
+                style={{ background: "#111", border: "1px solid #222", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 6, outline: "none", cursor: "pointer" }}>
+                {quarters.length > 0 ? quarters.map(q => <option key={q} value={q}>{getQuarterLabel(q)}</option>) : <option value="">{getQuarterLabel(selectedQ)}</option>}
               </select>
-              <button
-                onClick={() => {
-                  const win = window.open("", "_blank");
-                  const qLabel = selectedQ.replace("-", " ");
-                  const packLabel = tab.label.toUpperCase() + " PACK";
-                  const todayStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-                  const _qData = closedPositions.filter(c => c.tabId === tab.id && c.quarter === selectedQ);
-                  const _open  = (activePositions || []).filter(p => p.ticker.trim());
-                  const _totalPnL = _qData.reduce((s,c) => s+(c.pnlUSD||0), 0);
-                  const _wins  = _qData.filter(c=>(c.pnlUSD||0)>0);
-                  const _winRate = _qData.length > 0 ? ((_wins.length/_qData.length)*100).toFixed(0) : null;
-                  const _avgHold = _qData.length > 0 ? Math.round(_qData.reduce((s,c)=>s+(c.daysHeld||0),0)/_qData.length) : null;
-                  const _avgPct  = _qData.length > 0 ? (_qData.reduce((s,c)=>s+(c.pnlPct||0),0)/_qData.length).toFixed(2) : null;
-                  const _best  = _qData.length > 0 ? _qData.reduce((a,b)=>(a.pnlUSD||0)>(b.pnlUSD||0)?a:b) : null;
-                  const _worst = _qData.length > 0 ? _qData.reduce((a,b)=>(a.pnlUSD||0)<(b.pnlUSD||0)?a:b) : null;
-                  const _long  = _qData.filter(c=>c.direction==="LONG");
-                  const _short = _qData.filter(c=>c.direction==="SHORT");
-                  const _longPnL  = _long.reduce((s,c)=>s+(c.pnlUSD||0),0);
-                  const _shortPnL = _short.reduce((s,c)=>s+(c.pnlUSD||0),0);
-                  const gc = (v) => v >= 0 ? "#22c55e" : "#ef4444";
-                  const gb = (v) => v >= 0 ? "rgba(34,197,94,0.18)" : "rgba(239,68,68,0.18)";
-                  const fu = (v) => { if(v==null) return "—"; const a=Math.abs(v); return (v>=0?"+":"-")+"$"+a.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); };
-                  const fp = (p) => { if(p==null) return "—"; if(p<0.01) return p.toFixed(6); if(p<1) return p.toFixed(4); if(p<100) return p.toFixed(3); return p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); };
-                  const GOLD="#d4af37"; const GOLD2="#f8e49b"; const GOLD3="#b99c64";
-                  const BG1="#080808"; const BG2="#0f0f0f"; const BG3="#141414";
-                  const BORDER="#1e1e1e"; const BORDER2="#2a2a2a";
-                  const TEXT="#e8e8e8"; const MUTE="#555"; const DIM="#333";
-
-                  // ── TRADE LOG ROWS ──
-                  const tradeRows = _qData.sort((a,b)=>b.closedAt-a.closedAt).map((c,i) => {
-                    const rowBg = i%2===0 ? BG2 : BG3;
-                    return `<tr style="background:${rowBg}">
-                      <td style="padding:10px 12px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i+1).padStart(2,"0")}</td>
-                      <td style="padding:10px 12px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em">${c.ticker}</td>
-                      <td style="padding:10px 12px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 9px;border-radius:3px;background:${c.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:${c.direction==="LONG"?"#22c55e":"#ef4444"}">${c.direction}</span></td>
-                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty||"—"}</td>
-                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.entry?fp(parseFloat(c.entry)):"—"}</td>
-                      <td style="padding:10px 12px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${fp(c.closePrice)}</td>
-                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.entryDate||"—"}</td>
-                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate||"—"}</td>
-                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld!=null?c.daysHeld+"d":"—"}</td>
-                      <td style="padding:10px 12px;color:${gc(c.pnlPct||0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct!=null?(c.pnlPct>=0?"+":"")+c.pnlPct.toFixed(2)+"%":"—"}</td>
-                      <td style="padding:10px 12px;color:${gc(c.pnlUSD||0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
-                      <td style="padding:10px 12px;color:#444;font-family:'DM Mono',monospace;font-size:10px;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.note||"—"}</td>
-                    </tr>`;
-                  }).join("");
-
-                  // ── OPEN POSITION ROWS ──
-                  const openRows = _open.map((p,i) => {
-                    const ep = parseFloat(p.entry);
-                    const upct = p.currentPrice ? (p.direction==="LONG"?((p.currentPrice-ep)/ep)*100:((ep-p.currentPrice)/ep)*100) : null;
-                    const uusd = p.currentPrice&&p.qty ? (p.direction==="LONG"?(p.currentPrice-ep)*parseFloat(p.qty):(ep-p.currentPrice)*parseFloat(p.qty)) : null;
-                    const rowBg = i%2===0 ? BG2 : BG3;
-                    return `<tr style="background:${rowBg}">
-                      <td style="padding:10px 12px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:16px;letter-spacing:0.06em">${p.ticker}</td>
-                      <td style="padding:10px 12px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 9px;border-radius:3px;background:${p.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:${p.direction==="LONG"?"#22c55e":"#ef4444"}">${p.direction}</span></td>
-                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.qty||"—"}</td>
-                      <td style="padding:10px 12px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.entry?fp(ep):"—"}</td>
-                      <td style="padding:10px 12px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${p.currentPrice?fp(p.currentPrice):"—"}</td>
-                      <td style="padding:10px 12px;color:${upct!=null?gc(upct):DIM};font-family:'DM Mono',monospace;font-size:11px">${upct!=null?(upct>=0?"+":"")+upct.toFixed(2)+"%":"—"}</td>
-                      <td style="padding:10px 12px;color:${uusd!=null?gc(uusd):DIM};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(uusd)}</td>
-                      <td style="padding:10px 12px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${p.date||"—"}</td>
-                    </tr>`;
-                  }).join("");
-
-                  // ── TRADE HIGHLIGHTS ──
-                  const highlightsHtml = (_best||_worst) ? `
-                  <section style="margin-bottom:36px">
-                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-                      <div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div>
-                      <div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">Trade Highlights</div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-                      ${[{label:"BEST TRADE",trade:_best},{label:"WORST TRADE",trade:_worst}].map(({label,trade})=>{
-                        if(!trade) return `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:20px 22px"><div style="font-size:7px;letter-spacing:0.24em;color:${DIM};text-transform:uppercase;margin-bottom:10px">${label}</div><div style="color:${DIM};font-size:13px;font-family:'DM Mono',monospace">—</div></div>`;
-                        const tc=trade.pnlUSD>=0?"#22c55e":"#ef4444";
-                        const trgb=trade.pnlUSD>=0?"34,197,94":"239,68,68";
-                        return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-radius:10px;padding:20px 22px;border-left:3px solid ${tc}">
-                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">${label}</div>
-                          <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-                            <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};letter-spacing:0.06em">${trade.ticker}</span>
-                            <span style="font-size:8px;font-weight:700;letter-spacing:0.12em;padding:3px 9px;border-radius:3px;background:${trade.direction==="LONG"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)"};color:${trade.direction==="LONG"?"#22c55e":"#ef4444"}">${trade.direction}</span>
-                          </div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:30px;color:${tc};letter-spacing:0.02em;margin-bottom:6px">${fu(trade.pnlUSD)}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trade.pnlPct!=null?(trade.pnlPct>=0?"+":"")+trade.pnlPct.toFixed(2)+"%":""} · ${trade.daysHeld}d hold</div>
-                        </div>`;
-                      }).join("")}
-                    </div>
-                  </section>` : "";
-
-                  // ── OPEN SNAPSHOT SECTION ──
-                  const openSectionHtml = _open.length > 0 ? `
-                  <div style="page-break-before:always;min-height:100vh;padding:52px 56px;display:flex;flex-direction:column;background:${BG1}">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
-                      <div>
-                        <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">${packLabel} — OPEN POSITIONS</div>
-                      </div>
-                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${todayStr}</div>
-                    </div>
-                    <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER};border-radius:8px;overflow:hidden">
-                      <thead><tr style="background:#0c0c0c;border-bottom:1px solid ${BORDER2}">
-                        ${["TICKER","DIR","QTY","ENTRY","LIVE PRICE","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="padding:11px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.22em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap">${h}</th>`).join("")}
-                      </tr></thead>
-                      <tbody>${openRows}</tbody>
-                    </table>
-                    <div style="flex:1"></div>
-                    <div style="border-top:1px solid ${BORDER};padding-top:14px;display:flex;justify-content:space-between">
-                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.08em">VISIONX ANALYTICS · ${packLabel} · ${qLabel} · CONFIDENTIAL</div>
-                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">2</div>
-                    </div>
-                  </div>` : "";
-
-                  // ── TRADE LOG PAGE ──
-                  const logPageNum = _open.length > 0 ? 3 : 2;
-                  const tradeLogHtml = `
-                  <div style="page-break-before:always;padding:52px 56px;background:${BG1}">
-                    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
-                      <div>
-                        <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
-                        <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">${packLabel} — COMPLETE TRADE LOG</div>
-                      </div>
-                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${todayStr}</div>
-                    </div>
-                    <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER};overflow:hidden">
-                      <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-                        ${["#","TICKER","DIR","QTY","ENTRY","CLOSE","ENTRY DATE","CLOSE DATE","DAYS","PNL %","PNL USD","NOTE"].map(h=>`<th style="padding:11px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap">${h}</th>`).join("")}
-                      </tr></thead>
-                      <tbody>${tradeRows}</tbody>
-                    </table>
-                    <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-                      <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${_qData.length} Trades · ${_winRate||"—"}% Win Rate · ${_avgHold!=null?_avgHold+"d avg hold":"—"}</div>
-                      <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.04em;color:${gc(_totalPnL)}">${fu(_totalPnL)}</div>
-                    </div>
-                    <div style="margin-top:28px;border-top:1px solid ${BORDER};padding-top:14px;display:flex;justify-content:space-between">
-                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.08em">VISIONX ANALYTICS · ${packLabel} · ${qLabel} · CONFIDENTIAL</div>
-                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${logPageNum}</div>
-                    </div>
-                  </div>`;
-
-                  // ── LONG/SHORT BREAKDOWN ──
-                  const lsHtml = `
-                  <section style="margin-bottom:36px">
-                    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
-                      <div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div>
-                      <div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">Long vs Short Breakdown</div>
-                    </div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-                      ${[{label:"LONG POSITIONS",trades:_long,pnl:_longPnL},{label:"SHORT POSITIONS",trades:_short,pnl:_shortPnL}].map(({label,trades,pnl})=>{
-                        const pc=trades.length===0?DIM:pnl>=0?"#22c55e":"#ef4444";
-                        const br=trades.length===0?"80,80,80":pnl>=0?"34,197,94":"239,68,68";
-                        const leftColor=trades.length===0?"#333":pnl>=0?"#22c55e":"#ef4444";
-                        return `<div style="background:${BG2};border:1px solid rgba(${br},0.18);border-radius:10px;padding:20px 22px;border-left:3px solid ${leftColor}">
-                          <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">${label}</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${pc};margin-bottom:8px">${trades.length>0?fu(pnl):"—"}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trades.length} trade${trades.length!==1?"s":""}${trades.length>0?" · "+trades.filter(t=>(t.pnlUSD||0)>0).length+"W / "+trades.filter(t=>(t.pnlUSD||0)<=0).length+"L":""}</div>
-                        </div>`;
-                      }).join("")}
-                    </div>
-                  </section>`;
-
-                  win.document.write(`<!DOCTYPE html><html><head>
-                    <meta charset="utf-8">
-                    <title>VisionX ${packLabel} ${qLabel} Report</title>
-                    <link rel="preconnect" href="https://fonts.googleapis.com">
-                    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-                    <style>
-                      *{box-sizing:border-box;margin:0;padding:0}
-                      html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-                      @page{size:A4;margin:0}
-                      section{break-inside:avoid}
-                    </style>
-                  </head><body>
-
-                  <!-- ══ PAGE 1: EXECUTIVE SUMMARY ══ -->
-                  <div style="min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
-
-                    <!-- Gold top bar -->
-                    <div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>
-
-                    <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
-
-                      <!-- Header -->
-                      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:36px;padding-bottom:24px;border-bottom:1px solid ${BORDER}">
-                        <div>
-                          <div style="font-size:7px;font-weight:700;letter-spacing:0.36em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:54px;letter-spacing:0.14em;color:${GOLD2};line-height:1">${packLabel}</div>
-                        </div>
-                        <div style="text-align:right;padding-top:6px">
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:0.1em;color:${GOLD3};margin-bottom:4px">${qLabel}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${todayStr}</div>
-                          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${DIM};text-transform:uppercase;margin-top:4px">Confidential</div>
-                        </div>
-                      </div>
-
-                      <!-- Hero PnL -->
-                      <section style="background:${BG2};border:1px solid ${_totalPnL>=0?"rgba(34,197,94,0.25)":"rgba(239,68,68,0.25)"};border-left:4px solid ${gc(_totalPnL)};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
-                        <div>
-                          <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Total Realised P&L · ${qLabel}</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:60px;color:${gc(_totalPnL)};line-height:1;letter-spacing:0.01em">${fu(_totalPnL)}</div>
-                          ${_avgPct!==null?`<div style="font-family:'DM Mono',monospace;font-size:12px;color:${gc(parseFloat(_avgPct))};margin-top:8px;opacity:0.8">Avg ${parseFloat(_avgPct)>=0?"+":""}${_avgPct}% per trade</div>`:""}
-                        </div>
-                        <div style="text-align:right">
-                          <div style="font-size:7px;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:6px">Closed Trades</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:44px;color:${GOLD};line-height:1">${_qData.length}</div>
-                        </div>
-                      </section>
-
-                      <!-- Stats row -->
-                      <section style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:28px">
-                        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
-                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Win Rate</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${_winRate!=null?(parseFloat(_winRate)>=50?"#22c55e":"#ef4444"):MUTE}">${_winRate!=null?_winRate+"%":"—"}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">${_wins.length}W / ${_qData.length-_wins.length}L</div>
-                        </div>
-                        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
-                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Avg Hold Time</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${_avgHold!=null?_avgHold+"D":"—"}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">per trade</div>
-                        </div>
-                        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
-                          <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Open Positions</div>
-                          <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${_open.length}</div>
-                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">currently active</div>
-                        </div>
-                      </section>
-
-                      <!-- Long/Short -->
-                      ${lsHtml}
-
-                      <!-- Trade highlights -->
-                      ${highlightsHtml}
-
-                      <div style="flex:1"></div>
-                    </div>
-
-                    <!-- Footer -->
-                    <div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center">
-                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX ANALYTICS · ${packLabel} · ${qLabel} · CONFIDENTIAL</div>
-                      <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">1</div>
-                    </div>
-                    <div style="height:3px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>
-                  </div>
-
-                  ${openSectionHtml}
-                  ${tradeLogHtml}
-
-                  </body></html>`);
-                  win.document.close();
-                  setTimeout(() => { win.focus(); win.print(); }, 1000);
-                }}
-                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: "all 0.2s" }}
+              <button onClick={generatePDF}
+                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; }}
-              >⬇ PDF</button>
-              <button onClick={onClose} style={{ background: "none", border: "1px solid #222", color: "#444", cursor: "pointer", fontSize: 14, padding: "7px 12px", borderRadius: 6, transition: "color 0.2s, border-color 0.2s" }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; }}>
+                ⬇ PDF
+              </button>
+              <button onClick={onClose}
+                style={{ background: "none", border: "1px solid #222", color: "#444", cursor: "pointer", fontSize: 14, padding: "7px 12px", borderRadius: 6 }}
                 onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)"; }}
                 onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.borderColor = "#222"; }}>✕</button>
             </div>
           </div>
-
-          {/* Quarter selector pills */}
           {quarters.length > 1 && (
             <div style={{ display: "flex", gap: 6 }}>
               {quarters.map(q => (
                 <button key={q} onClick={() => setSelectedQ(q)}
-                  style={{ background: selectedQ === q ? "rgba(212,175,55,0.12)" : "transparent", border: `1px solid ${selectedQ === q ? "rgba(212,175,55,0.35)" : "#1a1a1a"}`, color: selectedQ === q ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "5px 14px", borderRadius: 20, cursor: "pointer", transition: "all 0.2s" }}>
+                  style={{ background: selectedQ === q ? "rgba(212,175,55,0.12)" : "transparent", border: `1px solid ${selectedQ === q ? "rgba(212,175,55,0.35)" : "#1a1a1a"}`, color: selectedQ === q ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "5px 14px", borderRadius: 20, cursor: "pointer" }}>
                   {getQuarterLabel(q)}
                 </button>
               ))}
@@ -532,156 +521,137 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
           )}
         </div>
 
-        {totalTrades === 0 ? (
+        {totalTrades === 0 && allOpen.length === 0 ? (
           <div style={{ padding: "72px 32px", textAlign: "center", fontFamily: "'Montserrat', sans-serif", fontSize: 10, letterSpacing: "0.3em", color: "#2a2a2a" }}>
-            NO CLOSED POSITIONS FOR {getQuarterLabel(selectedQ)}
+            NO DATA FOR {getQuarterLabel(selectedQ)}
           </div>
         ) : (<>
 
           {/* EXECUTIVE SUMMARY */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
-
-            {/* Headline PnL */}
-            <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderRadius: 10, padding: "18px 22px", marginBottom: 16, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 10, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
-                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>
-                  Total Realised P&L · {getQuarterLabel(selectedQ)}
-                </div>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: "0.04em", color: totalPnL >= 0 ? "#22c55e" : "#ef4444", lineHeight: 1 }}>
-                  {fmtUSD(totalPnL)}
-                </div>
-                {avgPnLPct !== null && (
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: totalPnL >= 0 ? "#22c55e" : "#ef4444", marginTop: 4, opacity: 0.7 }}>
-                    Avg {avgPnLPct >= 0 ? "+" : ""}{avgPnLPct.toFixed(2)}% per trade
-                  </div>
-                )}
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 8 }}>Total Realised P&L · {qLabel}</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: "0.04em", color: totalPnL >= 0 ? "#22c55e" : "#ef4444", lineHeight: 1 }}>{fmtUSD(totalPnL)}</div>
+                {avgPnLPct !== null && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: totalPnL >= 0 ? "#22c55e" : "#ef4444", marginTop: 5, opacity: 0.7 }}>Avg {avgPnLPct >= 0 ? "+" : ""}{avgPnLPct.toFixed(2)}% per trade</div>}
               </div>
               <div style={{ textAlign: "right" }}>
-                {qoqChange !== null && (
-                  <div>
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 4 }}>vs {getQuarterLabel(prevQ)}</div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: qoqChange >= 0 ? "#22c55e" : "#ef4444" }}>
-                      {qoqChange >= 0 ? "+" : ""}{fmtUSD(qoqChange).slice(1)}
-                    </div>
-                  </div>
-                )}
+                {qoqChange !== null && <div style={{ marginBottom: 8 }}>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 3 }}>vs {getQuarterLabel(prevQ)}</div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: qoqChange >= 0 ? "#22c55e" : "#ef4444" }}>{qoqChange >= 0 ? "+" : ""}{fmtUSD(qoqChange).slice(1)}</div>
+                </div>}
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 3 }}>Closed Trades</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#d4af37" }}>{totalTrades}</div>
               </div>
             </div>
-
-            {/* Stat grid */}
-            <div style={S.statGrid}>
-              <div style={S.statCard}>
-                <div style={S.statLabel}>Win Rate</div>
-                <div style={{ ...S.statVal, color: (winRate || 0) >= 50 ? "#22c55e" : "#ef4444" }}>
-                  {winRate !== null ? `${winRate.toFixed(0)}%` : "—"}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              {[
+                { label: "Win Rate", val: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners.length}W / ${totalTrades - winners.length}L`, color: winRate !== null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : "#555" },
+                { label: "Avg Hold Time", val: avgHold !== null ? `${avgHold}D` : "—", sub: "per trade", color: "#d4af37" },
+                { label: "Open Positions", val: String(allOpen.length), sub: "across all packs", color: "#d4af37" },
+              ].map(({ label, val, sub, color }) => (
+                <div key={label} style={S.statCard}>
+                  <div style={S.statLabel}>{label}</div>
+                  <div style={{ ...S.statVal, color }}>{val}</div>
+                  <div style={S.statSub}>{sub}</div>
                 </div>
-                <div style={S.statSub}>{winners.length}W / {losers.length}L</div>
-              </div>
-              <div style={S.statCard}>
-                <div style={S.statLabel}>Total Trades</div>
-                <div style={{ ...S.statVal, color: "#d4af37" }}>{totalTrades}</div>
-                <div style={S.statSub}>{avgHold}d avg hold</div>
-              </div>
-              <div style={S.statCard}>
-                <div style={S.statLabel}>Open Positions</div>
-                <div style={{ ...S.statVal, color: "#d4af37" }}>{openPositions.length}</div>
-                <div style={S.statSub}>currently active</div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* DIRECTION BREAKDOWN */}
+          {/* PACK BREAKDOWN */}
+          {packData.length > 0 && (
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Performance by Pack</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid #1a1a1a", borderRadius: 8, overflow: "hidden" }}>
+                {packData.map(({ tab, closed, open, pnl, wins }, i) => (
+                  <div key={tab.id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < packData.length - 1 ? "1px solid #111" : "none", background: i % 2 === 0 ? "#0f0f0f" : "#111" }}>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#d4af37", letterSpacing: "0.1em", width: 110 }}>{tab.label.toUpperCase()}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 70 }}>{closed.length} trade{closed.length !== 1 ? "s" : ""}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 60 }}>{closed.length > 0 ? `${((wins / closed.length) * 100).toFixed(0)}% WR` : "—"}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flex: 1 }}>{open.length} open</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: closed.length > 0 ? (pnl >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>
+                      {closed.length > 0 ? fmtUSD(pnl) : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* LONG VS SHORT */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Long vs Short Breakdown</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                { label: "Long Positions", trades: longTrades, pnl: longPnL },
-                { label: "Short Positions", trades: shortTrades, pnl: shortPnL },
-              ].map(({ label, trades, pnl }) => {
-                const _pnlColor = trades.length === 0 ? "#555" : pnl >= 0 ? "#22c55e" : "#ef4444";
-                const _borderRgb = trades.length === 0 ? "255,255,255" : pnl >= 0 ? "34,197,94" : "239,68,68";
+              {[{ label: "Long Positions", trades: longTrades, pnl: longPnL }, { label: "Short Positions", trades: shortTrades, pnl: shortPnL }].map(({ label, trades, pnl }) => {
+                const pnlColor = trades.length === 0 ? "#555" : pnl >= 0 ? "#22c55e" : "#ef4444";
+                const borderRgb = trades.length === 0 ? "255,255,255" : pnl >= 0 ? "34,197,94" : "239,68,68";
                 return (
-                <div key={label} style={{ background: "#111", border: `1px solid rgba(${_borderRgb},0.12)`, borderRadius: 8, padding: "14px 16px" }}>
-                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
-                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: _pnlColor, marginBottom: 6 }}>
-                    {trades.length > 0 ? fmtUSD(pnl) : "—"}
+                  <div key={label} style={{ background: "#111", border: `1px solid rgba(${borderRgb},0.12)`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 8, padding: "14px 16px" }}>
+                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: pnlColor, marginBottom: 6 }}>{trades.length > 0 ? fmtUSD(pnl) : "—"}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{trades.length} trade{trades.length !== 1 ? "s" : ""}{trades.length > 0 ? ` · ${trades.filter(t => (t.pnlUSD || 0) > 0).length}W / ${trades.filter(t => (t.pnlUSD || 0) <= 0).length}L` : ""}</div>
                   </div>
-                  <div style={{ display: "flex", gap: 16 }}>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{trades.length} trade{trades.length !== 1 ? "s" : ""}</div>
-                    {trades.length > 0 && (
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>
-                        {trades.filter(t => (t.pnlUSD || 0) > 0).length}W / {trades.filter(t => (t.pnlUSD || 0) <= 0).length}L
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );})}
+                );
+              })}
             </div>
           </div>
 
-          {/* BEST & WORST */}
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Trade Highlights</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              {[
-                { label: "Best Trade", trade: bestTrade },
-                { label: "Worst Trade", trade: worstTrade },
-              ].map(({ label, trade }) => {
-                const _tc = trade ? (trade.pnlUSD >= 0 ? "#22c55e" : "#ef4444") : "#ef4444";
-                const _trgb = trade ? (trade.pnlUSD >= 0 ? "34,197,94" : "239,68,68") : "239,68,68";
-                return (
-                <div key={label} style={{ background: "#111", border: `1px solid rgba(${_trgb},0.15)`, borderRadius: 8, padding: "14px 16px" }}>
-                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
-                  {trade ? (<>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#d4af37", letterSpacing: "0.06em" }}>{trade.ticker}</span>
-                      <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 3, background: trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: trade.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{trade.direction}</span>
-                    </div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: _tc, marginBottom: 4 }}>{fmtUSD(trade.pnlUSD)}</div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>
-                      {trade.pnlPct != null ? `${trade.pnlPct >= 0 ? "+" : ""}${trade.pnlPct.toFixed(2)}%` : ""} · {trade.daysHeld}d · {CLOSE_REASONS[trade.reason] || trade.reason}
-                    </div>
-                  </>) : <div style={{ color: "#333", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>—</div>}
-                </div>
-              );})}
-            </div>
-          </div>
-
-
-          {/* OPEN POSITIONS SNAPSHOT */}
-          {openPositions.length > 0 && (
+          {/* TRADE HIGHLIGHTS */}
+          {(bestTrade || worstTrade) && (
             <div style={S.section}>
-              <div style={S.sectionTitle}>Open Positions Snapshot (as of report date)</div>
-              <div style={{ fontSize: 9, fontFamily: "'DM Mono', monospace", color: "#333", marginBottom: 12, letterSpacing: "0.06em" }}>
-                Unrealised P&L calculated at last known live price.
+              <div style={S.sectionTitle}>Trade Highlights</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                {[{ label: "Best Trade", trade: bestTrade }, { label: "Worst Trade", trade: worstTrade }].map(({ label, trade }) => {
+                  const _tc   = trade ? (trade.pnlUSD >= 0 ? "#22c55e" : "#ef4444") : "#ef4444";
+                  const _trgb = trade ? (trade.pnlUSD >= 0 ? "34,197,94" : "239,68,68") : "239,68,68";
+                  return (
+                    <div key={label} style={{ background: "#111", border: `1px solid rgba(${_trgb},0.15)`, borderLeft: `3px solid ${_tc}`, borderRadius: 8, padding: "14px 16px" }}>
+                      <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
+                      {trade ? (<>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#d4af37", letterSpacing: "0.06em" }}>{trade.ticker}</span>
+                          <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 3, background: trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: trade.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{trade.direction}</span>
+                          <span style={{ fontSize: 8, color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontWeight: 600, letterSpacing: "0.1em" }}>{trade.tabLabel}</span>
+                        </div>
+                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, color: _tc, marginBottom: 4 }}>{fmtUSD(trade.pnlUSD)}</div>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{trade.pnlPct != null ? `${trade.pnlPct >= 0 ? "+" : ""}${trade.pnlPct.toFixed(2)}%` : ""} · {trade.daysHeld}d hold</div>
+                      </>) : <div style={{ color: "#333", fontFamily: "'DM Mono', monospace", fontSize: 11 }}>—</div>}
+                    </div>
+                  );
+                })}
               </div>
+            </div>
+          )}
+
+          {/* OPEN POSITIONS */}
+          {allOpen.length > 0 && (
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Open Positions Snapshot — All Packs</div>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
-                    {["TICKER", "DIR", "QTY", "ENTRY", "LIVE PRICE", "UNREALISED %", "UNREALISED USD", "ENTRY DATE"].map(h => (
+                    {["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => (
                       <th key={h} style={{ padding: "7px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#333", textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {openPositions.map(p => {
-                    const entry = parseFloat(p.entry);
-                    const pnlPct = calcPnL(p.direction, entry, p.currentPrice);
-                    const pnlUSD = calcPnLUSD(p.direction, entry, p.currentPrice, p.qty);
+                  {allOpen.map(p => {
+                    const ep   = parseFloat(p.entry);
+                    const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
+                    const uusd = p.currentPrice && p.qty ? (p.direction === "LONG" ? (p.currentPrice - ep) * parseFloat(p.qty) : (ep - p.currentPrice) * parseFloat(p.qty)) : null;
                     return (
                       <tr key={p.id} style={{ borderBottom: "1px solid #0f0f0f" }}>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{p.ticker}</td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: p.direction === "LONG" ? "#22c55e" : "#ef4444" }}>{p.direction}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#b99c64", letterSpacing: "0.08em" }}>{p.tabLabel}</td>
+                        <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", padding: "2px 7px", borderRadius: 3, background: p.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: p.direction === "LONG" ? "#22c55e" : "#ef4444" }}>{p.direction}</span></td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{p.qty || "—"}</td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{p.entry ? fmtPrice(entry) : "—"}</td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{p.currentPrice ? fmtPrice(p.currentPrice) : <span style={{ color: "#333" }}>—</span>}</td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: pnlPct !== null ? (pnlPct >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>
-                          {pnlPct !== null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}
-                        </td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: pnlUSD !== null ? (pnlUSD >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>
-                          {pnlUSD !== null ? fmtUSD(pnlUSD) : "—"}
-                        </td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{p.entry ? fmtPrice(ep) : "—"}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{p.currentPrice ? fmtPrice(p.currentPrice) : "—"}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: upct != null ? (upct >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>{upct != null ? `${upct >= 0 ? "+" : ""}${upct.toFixed(2)}%` : "—"}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: uusd != null ? (uusd >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>{fmtUSD(uusd)}</td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{p.date || "—"}</td>
                       </tr>
                     );
@@ -691,53 +661,44 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
             </div>
           )}
 
-          {/* FULL TRADE LOG */}
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Complete Trade Log · {getQuarterLabel(selectedQ)}</div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-              <thead>
-                <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
-                  {["#", "TICKER", "DIR", "QTY", "ENTRY", "CLOSE", "ENTRY DATE", "CLOSE DATE", "DAYS", "EXIT REASON", "PNL %", "PNL USD", "NOTE"].map(h => (
-                    <th key={h} style={{ padding: "7px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#333", textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => (
-                  <tr key={c.id} style={{ borderBottom: "1px solid #0d0d0d" }}>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#333" }}>{String(i + 1).padStart(2, "0")}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{c.ticker}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: c.direction === "LONG" ? "#22c55e" : "#ef4444" }}>{c.direction}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.entry ? fmtPrice(parseFloat(c.entry)) : "—"}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{fmtPrice(c.closePrice)}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{c.entryDate || "—"}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{c.closeDate || "—"}</td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#555" }}>{c.daysHeld != null ? `${c.daysHeld}d` : "—"}</td>
-                    <td style={{ padding: "9px 8px" }}>
-                      <span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: "#1a1a1a", border: "1px solid #222", color: "#555", letterSpacing: "0.08em", fontFamily: "'Montserrat', sans-serif", fontWeight: 600 }}>
-                        {CLOSE_REASONS[c.reason] || c.reason}
-                      </span>
-                    </td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct != null ? (c.pnlPct >= 0 ? "#22c55e" : "#ef4444") : "#555" }}>
-                      {c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}
-                    </td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: (c.pnlUSD || 0) >= 0 ? "#22c55e" : "#ef4444" }}>
-                      {c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}
-                    </td>
-                    <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#444", maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {c.note || "—"}
-                    </td>
+          {/* COMPLETE TRADE LOG — ALL PACKS */}
+          {totalTrades > 0 && (
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Complete Trade Log · {qLabel} · All Packs</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #1a1a1a" }}>
+                    {["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD", "NOTE"].map(h => (
+                      <th key={h} style={{ padding: "8px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.22em", color: "#333", textAlign: "left", whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => (
+                    <tr key={c.id} style={{ borderBottom: "1px solid #111" }}>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#333" }}>{String(i + 1).padStart(2, "0")}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{c.ticker}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#b99c64", letterSpacing: "0.08em" }}>{c.tabLabel}</td>
+                      <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: c.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: c.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{c.direction}</span></td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.entry ? fmtPrice(parseFloat(c.entry)) : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{fmtPrice(c.closePrice)}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{c.closeDate || "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#555" }}>{c.daysHeld != null ? `${c.daysHeld}d` : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct != null ? (c.pnlPct >= 0 ? "#22c55e" : "#ef4444") : "#555" }}>{c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: (c.pnlUSD || 0) >= 0 ? "#22c55e" : "#ef4444" }}>{c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#444", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.note || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* FOOTER */}
-          <div style={{ padding: "20px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ padding: "18px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2a2a2a", letterSpacing: "0.08em" }}>
-              VISIONX ANALYTICS · {tab.label.toUpperCase()} PACK · {getQuarterLabel(selectedQ)} · CONFIDENTIAL
+              VISIONX ANALYTICS · FULL PORTFOLIO · {qLabel} · CONFIDENTIAL
             </div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2a2a2a" }}>{today}</div>
           </div>
@@ -954,7 +915,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
 }
 
 // ── TABLE ─────────────────────────────────────────────────────────────────────
-function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, anyFocused, closedPositions, onClosePosition, onDeleteClosed, onDeleteQuarter, onOpenReport }) {
+function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, anyFocused, closedPositions, onClosePosition, onDeleteClosed, onDeleteQuarter }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [search, setSearch] = useState("");
@@ -998,7 +959,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     return 0;
   });
 
-  const tabHasClosedData = closedPositions.some(c => c.tabId === tab.id);
 
   return (
     <div>
@@ -1017,15 +977,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
         </button>
         <input className="search-inp" placeholder="Search ticker, date, direction…" value={search} onChange={e => setSearch(e.target.value)} />
         <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 30s AUTO"}</span>
-        {/* QUARTERLY REPORT BUTTON */}
-        {tabHasClosedData && (
-          <button onClick={onOpenReport}
-            style={{ marginLeft: "auto", background: "transparent", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", display: "flex", alignItems: "center", gap: 8, transition: "all 0.25s", whiteSpace: "nowrap" }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.08)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.45)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.25)"; }}>
-            <span style={{ fontSize: 13 }}>▤</span> QUARTERLY REPORT
-          </button>
-        )}
+
       </div>
       <div className="table-wrap">
         <table>
@@ -1128,7 +1080,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState({});
   const [lastRefresh, setLastRefresh] = useState(null);
   const [savedFlash, setSavedFlash] = useState(false);
-  const [reportTab, setReportTab] = useState(null);
+  const [showReport, setShowReport] = useState(false);
   const anyFocused = useRef(false);
 
   useEffect(() => {
@@ -1321,12 +1273,11 @@ export default function App() {
       `}</style>
 
       {/* QUARTERLY REPORT PANEL */}
-      {reportTab && (
+      {showReport && (
         <QuarterlyReportPanel
-          tab={reportTab}
           closedPositions={closedPositions}
-          activePositions={allPositions[reportTab.id] || []}
-          onClose={() => setReportTab(null)}
+          allPositions={allPositions}
+          onClose={() => setShowReport(false)}
         />
       )}
 
@@ -1376,6 +1327,14 @@ export default function App() {
           <div className="status-block">
             <div className="live-badge"><div className="live-dot" /> ALL LIVE</div>
             {newCount > 0 && <div className="new-count-badge">{newCount} NEW</div>}
+            {closedPositions.length > 0 && (
+              <button
+                onClick={() => setShowReport(true)}
+                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.28)", color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}
+              >▤ QUARTERLY REPORT</button>
+            )}
             <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
             {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
           </div>
@@ -1413,7 +1372,6 @@ export default function App() {
           onClosePosition={handleClosePosition}
           onDeleteClosed={handleDeleteClosed}
           onDeleteQuarter={handleDeleteQuarter}
-          onOpenReport={() => setReportTab(currentTab)}
         />
       </div>
     </div>
