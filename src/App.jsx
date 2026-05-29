@@ -221,7 +221,7 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
     header: { padding: "28px 32px 20px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a", position: "sticky", top: 0, zIndex: 10 },
     section: { padding: "24px 32px", borderBottom: "1px solid #111" },
     sectionTitle: { fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.28em", color: "#555", textTransform: "uppercase", marginBottom: 16 },
-    statGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 },
+    statGrid: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 },
     statCard: { background: "#111", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 14px" },
     statLabel: { fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 5 },
     statVal: { fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.04em", lineHeight: 1 },
@@ -260,18 +260,228 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
               </select>
               <button
                 onClick={() => {
-                  const panel = document.getElementById("report-print-area");
-                  if (!panel) return;
                   const win = window.open("", "_blank");
-                  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>VisionX ${tab.label} Pack — ${selectedQ.replace("-"," ")} Report</title><style>
-                    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap');
-                    *{box-sizing:border-box;margin:0;padding:0}
-                    body{background:#0a0a0a;color:#e8e8e8;font-family:'Montserrat',sans-serif;padding:40px 48px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-                    @page{size:A4;margin:0}
-                    @media print{body{padding:24px 32px}}
-                  </style></head><body>${panel.innerHTML}</body></html>`);
+                  const qLabel = selectedQ.replace("-", " ");
+                  const packLabel = tab.label.toUpperCase() + " PACK";
+                  const todayStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+                  // Collect data for PDF
+                  const _qData = closedPositions.filter(c => c.tabId === tab.id && c.quarter === selectedQ);
+                  const _open  = (activePositions || []).filter(p => p.ticker.trim());
+                  const _totalPnL = _qData.reduce((s,c) => s+(c.pnlUSD||0), 0);
+                  const _wins  = _qData.filter(c=>(c.pnlUSD||0)>0);
+                  const _winRate = _qData.length > 0 ? ((_wins.length/_qData.length)*100).toFixed(0) : null;
+                  const _avgHold = _qData.length > 0 ? Math.round(_qData.reduce((s,c)=>s+(c.daysHeld||0),0)/_qData.length) : null;
+                  const _avgPct  = _qData.length > 0 ? (_qData.reduce((s,c)=>s+(c.pnlPct||0),0)/_qData.length).toFixed(2) : null;
+                  const _best  = _qData.length > 0 ? _qData.reduce((a,b)=>(a.pnlUSD||0)>(b.pnlUSD||0)?a:b) : null;
+                  const _worst = _qData.length > 0 ? _qData.reduce((a,b)=>(a.pnlUSD||0)<(b.pnlUSD||0)?a:b) : null;
+                  const _long  = _qData.filter(c=>c.direction==="LONG");
+                  const _short = _qData.filter(c=>c.direction==="SHORT");
+                  const _longPnL  = _long.reduce((s,c)=>s+(c.pnlUSD||0),0);
+                  const _shortPnL = _short.reduce((s,c)=>s+(c.pnlUSD||0),0);
+
+                  const gc = (v) => v >= 0 ? "#22c55e" : "#ef4444";
+                  const fu = (v) => { if(v==null) return "—"; const a=Math.abs(v); return (v>=0?"+":"-")+"$"+a.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); };
+                  const fp = (p) => { if(p==null) return "—"; if(p<0.01) return p.toFixed(6); if(p<1) return p.toFixed(4); if(p<100) return p.toFixed(3); return p.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); };
+
+                  const tradeRows = _qData.sort((a,b)=>b.closedAt-a.closedAt).map((c,i) => \`
+                    <tr style="border-bottom:1px solid #1e1e1e">
+                      <td style="padding:9px 10px;color:#666;font-size:11px">\${String(i+1).padStart(2,"0")}</td>
+                      <td style="padding:9px 10px;color:#d4af37;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">\${c.ticker}</td>
+                      <td style="padding:9px 10px"><span style="font-size:9px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:\${c.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:\${c.direction==="LONG"?"#22c55e":"#ef4444"}">\${c.direction}</span></td>
+                      <td style="padding:9px 10px;color:#888">\${c.qty||"—"}</td>
+                      <td style="padding:9px 10px;color:#888">\${c.entry?fp(parseFloat(c.entry)):"—"}</td>
+                      <td style="padding:9px 10px;color:#e8e8e8">\${fp(c.closePrice)}</td>
+                      <td style="padding:9px 10px;color:#666;font-size:11px">\${c.entryDate||"—"}</td>
+                      <td style="padding:9px 10px;color:#666;font-size:11px">\${c.closeDate||"—"}</td>
+                      <td style="padding:9px 10px;color:#666">\${c.daysHeld!=null?c.daysHeld+"d":"—"}</td>
+                      <td style="padding:9px 10px;color:\${gc(c.pnlPct||0)}">\${c.pnlPct!=null?(c.pnlPct>=0?"+":"")+c.pnlPct.toFixed(2)+"%":"—"}</td>
+                      <td style="padding:9px 10px;color:\${gc(c.pnlUSD||0)};font-weight:600">\${fu(c.pnlUSD)}</td>
+                      <td style="padding:9px 10px;color:#555;font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">\${c.note||"—"}</td>
+                    </tr>\`).join("");
+
+                  const openRows = _open.map(p => {
+                    const ep = parseFloat(p.entry);
+                    const upct = p.currentPrice ? (p.direction==="LONG"?((p.currentPrice-ep)/ep)*100:((ep-p.currentPrice)/ep)*100) : null;
+                    const uusd = p.currentPrice&&p.qty ? (p.direction==="LONG"?(p.currentPrice-ep)*parseFloat(p.qty):(ep-p.currentPrice)*parseFloat(p.qty)) : null;
+                    return \`<tr style="border-bottom:1px solid #1e1e1e">
+                      <td style="padding:9px 10px;color:#d4af37;font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">\${p.ticker}</td>
+                      <td style="padding:9px 10px"><span style="font-size:9px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:\${p.direction==="LONG"?"rgba(34,197,94,0.12)":"rgba(239,68,68,0.12)"};color:\${p.direction==="LONG"?"#22c55e":"#ef4444"}">\${p.direction}</span></td>
+                      <td style="padding:9px 10px;color:#888">\${p.qty||"—"}</td>
+                      <td style="padding:9px 10px;color:#888">\${p.entry?fp(ep):"—"}</td>
+                      <td style="padding:9px 10px;color:#e8e8e8">\${p.currentPrice?fp(p.currentPrice):"—"}</td>
+                      <td style="padding:9px 10px;color:\${upct!=null?gc(upct):"#555"}">\${upct!=null?(upct>=0?"+":"")+upct.toFixed(2)+"%":"—"}</td>
+                      <td style="padding:9px 10px;color:\${uusd!=null?gc(uusd):"#555"};font-weight:600">\${fu(uusd)}</td>
+                      <td style="padding:9px 10px;color:#666;font-size:11px">\${p.date||"—"}</td>
+                    </tr>\`;
+                  }).join("");
+
+                  const tradeHighlightsHtml = (_best || _worst) ? \`
+                  <div style="margin-bottom:32px">
+                    <div style="font-size:8px;font-weight:700;letter-spacing:0.28em;color:#444;text-transform:uppercase;margin-bottom:14px">TRADE HIGHLIGHTS</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                      \${[{label:"BEST TRADE",trade:_best},{label:"WORST TRADE",trade:_worst}].map(({label,trade})=>{
+                        if(!trade) return \`<div style="background:#111;border:1px solid #1e1e1e;border-radius:8px;padding:16px 18px"><div style="font-size:7px;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">\${label}</div><div style="color:#333;font-size:13px">—</div></div>\`;
+                        const tc = trade.pnlUSD>=0?"#22c55e":"#ef4444";
+                        const trgb = trade.pnlUSD>=0?"34,197,94":"239,68,68";
+                        return \`<div style="background:#111;border:1px solid rgba(\${trgb},0.2);border-radius:8px;padding:16px 18px">
+                          <div style="font-size:7px;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:10px">\${label}</div>
+                          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                            <span style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:#d4af37;letter-spacing:0.06em">\${trade.ticker}</span>
+                            <span style="font-size:8px;font-weight:700;letter-spacing:0.12em;padding:3px 9px;border-radius:3px;background:\${trade.direction==="LONG"?"rgba(34,197,94,0.1)":"rgba(239,68,68,0.1)"};color:\${trade.direction==="LONG"?"#22c55e":"#ef4444"}">\${trade.direction}</span>
+                          </div>
+                          <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:\${tc};margin-bottom:4px">\${fu(trade.pnlUSD)}</div>
+                          <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${trade.pnlPct!=null?(trade.pnlPct>=0?"+":"")+trade.pnlPct.toFixed(2)+"%" :""} · \${trade.daysHeld}d</div>
+                        </div>\`;
+                      }).join("")}
+                    </div>
+                  </div>\` : "";
+
+                  const openSnapshotHtml = _open.length > 0 ? \`
+                  <div style="margin-bottom:32px">
+                    <div style="font-size:8px;font-weight:700;letter-spacing:0.28em;color:#444;text-transform:uppercase;margin-bottom:14px">OPEN POSITIONS — AS OF REPORT DATE</div>
+                    <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px">
+                      <thead><tr style="border-bottom:1px solid #2a2a2a">
+                        \${["TICKER","DIR","QTY","ENTRY","LIVE PRICE","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>\`<th style="padding:8px 10px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:#444;text-align:left;white-space:nowrap;font-weight:700">\${h}</th>\`).join("")}
+                      </tr></thead>
+                      <tbody>\${openRows}</tbody>
+                    </table>
+                  </div>\` : "";
+
+                  win.document.write(\`<!DOCTYPE html><html><head>
+                    <meta charset="utf-8">
+                    <title>VisionX \${packLabel} \${qLabel} Report</title>
+                    <link rel="preconnect" href="https://fonts.googleapis.com">
+                    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+                    <style>
+                      *{box-sizing:border-box;margin:0;padding:0}
+                      body{background:#080808;color:#e8e8e8;font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+                      @page{size:A4;margin:0}
+                    </style>
+                  </head><body>
+
+                  <!-- PAGE 1: COVER + EXECUTIVE SUMMARY -->
+                  <div style="min-height:100vh;padding:52px 56px;display:flex;flex-direction:column">
+
+                    <!-- Cover header -->
+                    <div style="border-bottom:1px solid #1e1e1e;padding-bottom:28px;margin-bottom:36px">
+                      <div style="font-size:8px;font-weight:700;letter-spacing:0.32em;color:#555;text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
+                      <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;letter-spacing:0.16em;color:#f8e49b;line-height:1;margin-bottom:6px">\${packLabel}</div>
+                      <div style="display:flex;align-items:center;gap:20px;margin-top:10px">
+                        <span style="font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:0.1em;color:#666">\${qLabel}</span>
+                        <span style="width:1px;height:14px;background:#2a2a2a;display:inline-block"></span>
+                        <span style="font-family:'DM Mono',monospace;font-size:11px;color:#555">Generated \${todayStr}</span>
+                        <span style="width:1px;height:14px;background:#2a2a2a;display:inline-block"></span>
+                        <span style="font-size:9px;font-weight:700;letter-spacing:0.2em;color:#555;text-transform:uppercase">Confidential</span>
+                      </div>
+                    </div>
+
+                    <!-- Total PnL hero -->
+                    <div style="background:#0f0f0f;border:1px solid \${gc(_totalPnL).replace("#22c55e","rgba(34,197,94,0.2)").replace("#ef4444","rgba(239,68,68,0.2)")};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
+                      <div>
+                        <div style="font-size:8px;font-weight:700;letter-spacing:0.24em;color:#555;text-transform:uppercase;margin-bottom:10px">Total Realised P&L · \${qLabel}</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:56px;color:\${gc(_totalPnL)};line-height:1;letter-spacing:0.02em">\${fu(_totalPnL)}</div>
+                        \${_avgPct!==null?\`<div style="font-family:'DM Mono',monospace;font-size:12px;color:\${gc(parseFloat(_avgPct))};margin-top:8px;opacity:0.7">Avg \${parseFloat(_avgPct)>=0?"+":""}\${_avgPct}% per trade</div>\`:""}
+                      </div>
+                      <div style="text-align:right">
+                        <div style="font-size:8px;letter-spacing:0.2em;color:#555;text-transform:uppercase;margin-bottom:6px">CLOSED TRADES</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;color:#d4af37">\${_qData.length}</div>
+                      </div>
+                    </div>
+
+                    <!-- Stat row -->
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:28px">
+                      <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:16px 18px">
+                        <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">Win Rate</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:\${_winRate!=null?(parseFloat(_winRate)>=50?"#22c55e":"#ef4444"):"#555"}">\${_winRate!=null?_winRate+"%":"—"}</div>
+                        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555;margin-top:4px">\${_wins.length}W / \${_qData.length-_wins.length}L</div>
+                      </div>
+                      <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:16px 18px">
+                        <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">Avg Hold Time</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#d4af37">\${_avgHold!=null?_avgHold+"D":"—"}</div>
+                        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555;margin-top:4px">per trade</div>
+                      </div>
+                      <div style="background:#0f0f0f;border:1px solid #1a1a1a;border-radius:8px;padding:16px 18px">
+                        <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase;margin-bottom:8px">Open Positions</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#d4af37">\${_open.length}</div>
+                        <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555;margin-top:4px">currently active</div>
+                      </div>
+                    </div>
+
+                    <!-- Long vs Short -->
+                    <div style="margin-bottom:28px">
+                      <div style="font-size:8px;font-weight:700;letter-spacing:0.28em;color:#444;text-transform:uppercase;margin-bottom:14px">LONG VS SHORT BREAKDOWN</div>
+                      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                        \${[{label:"LONG POSITIONS",trades:_long,pnl:_longPnL},{label:"SHORT POSITIONS",trades:_short,pnl:_shortPnL}].map(({label,trades,pnl})=>{
+                          const pc = trades.length===0?"#555":pnl>=0?"#22c55e":"#ef4444";
+                          const br = trades.length===0?"255,255,255":pnl>=0?"34,197,94":"239,68,68";
+                          return \`<div style="background:#0f0f0f;border:1px solid rgba(\${br},0.15);border-radius:8px;padding:16px 18px">
+                            <div style="font-size:7px;font-weight:700;letter-spacing:0.2em;color:#444;text-transform:uppercase;margin-bottom:10px">\${label}</div>
+                            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:\${pc};margin-bottom:6px">\${trades.length>0?fu(pnl):"—"}</div>
+                            <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${trades.length} trade\${trades.length!==1?"s":""}\${trades.length>0?" · "+trades.filter(t=>(t.pnlUSD||0)>0).length+"W / "+trades.filter(t=>(t.pnlUSD||0)<=0).length+"L":""}</div>
+                          </div>\`;
+                        }).join("")}
+                      </div>
+                    </div>
+
+                    <!-- Trade highlights -->
+                    \${tradeHighlightsHtml}
+
+                    <!-- spacer pushes footer down -->
+                    <div style="flex:1"></div>
+                    <div style="border-top:1px solid #1a1a1a;padding-top:16px;display:flex;justify-content:space-between;align-items:center">
+                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a;letter-spacing:0.08em">VISIONX ANALYTICS · \${packLabel} · \${qLabel} · CONFIDENTIAL</div>
+                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">1</div>
+                    </div>
+                  </div>
+
+                  \${openSnapshotHtml.length > 10 ? \`
+                  <!-- PAGE BREAK: OPEN POSITIONS -->
+                  <div style="page-break-before:always;min-height:100vh;padding:52px 56px;display:flex;flex-direction:column">
+                    <div style="border-bottom:1px solid #1e1e1e;padding-bottom:20px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end">
+                      <div>
+                        <div style="font-size:8px;font-weight:700;letter-spacing:0.32em;color:#555;text-transform:uppercase;margin-bottom:6px">VISIONX ANALYTICS · \${qLabel}</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.14em;color:#f8e49b">\${packLabel} — OPEN POSITIONS</div>
+                      </div>
+                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${todayStr}</div>
+                    </div>
+                    \${openSnapshotHtml}
+                    <div style="flex:1"></div>
+                    <div style="border-top:1px solid #1a1a1a;padding-top:16px;display:flex;justify-content:space-between">
+                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">VISIONX ANALYTICS · \${packLabel} · \${qLabel} · CONFIDENTIAL</div>
+                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">2</div>
+                    </div>
+                  </div>\` : ""}
+
+                  <!-- PAGE BREAK: TRADE LOG -->
+                  <div style="page-break-before:always;padding:52px 56px">
+                    <div style="border-bottom:1px solid #1e1e1e;padding-bottom:20px;margin-bottom:28px;display:flex;justify-content:space-between;align-items:flex-end">
+                      <div>
+                        <div style="font-size:8px;font-weight:700;letter-spacing:0.32em;color:#555;text-transform:uppercase;margin-bottom:6px">VISIONX ANALYTICS · \${qLabel}</div>
+                        <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.14em;color:#f8e49b">\${packLabel} — COMPLETE TRADE LOG</div>
+                      </div>
+                      <div style="font-family:'DM Mono',monospace;font-size:10px;color:#555">\${todayStr}</div>
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;font-family:'DM Mono',monospace;font-size:12px">
+                      <thead><tr style="border-bottom:1px solid #2a2a2a;background:#0f0f0f">
+                        \${["#","TICKER","DIR","QTY","ENTRY","CLOSE","ENTRY DATE","CLOSE DATE","DAYS","PNL %","PNL USD","NOTE"].map(h=>\`<th style="padding:10px 10px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:#444;text-align:left;white-space:nowrap;font-weight:700">\${h}</th>\`).join("")}
+                      </tr></thead>
+                      <tbody>\${tradeRows}</tbody>
+                    </table>
+                    <!-- Summary row -->
+                    <div style="margin-top:20px;padding:14px 18px;background:#0f0f0f;border:1px solid #1e1e1e;border-radius:8px;display:flex;justify-content:space-between;align-items:center">
+                      <div style="font-size:8px;font-weight:700;letter-spacing:0.22em;color:#444;text-transform:uppercase">\${_qData.length} Trades · \${_winRate||"—"}% Win Rate · \${_avgHold!=null?_avgHold+"d avg hold":"—"}</div>
+                      <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:\${gc(_totalPnL)}">\${fu(_totalPnL)}</div>
+                    </div>
+                    <div style="margin-top:32px;border-top:1px solid #1a1a1a;padding-top:16px;display:flex;justify-content:space-between">
+                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">VISIONX ANALYTICS · \${packLabel} · \${qLabel} · CONFIDENTIAL</div>
+                      <div style="font-family:'DM Mono',monospace;font-size:9px;color:#2a2a2a">\${_open.length>0?3:2}</div>
+                    </div>
+                  </div>
+
+                  </body></html>\`);
                   win.document.close();
-                  setTimeout(() => { win.focus(); win.print(); }, 600);
+                  setTimeout(() => { win.focus(); win.print(); }, 900);
                 }}
                 style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: "all 0.2s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; }}
@@ -348,13 +558,6 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
                 <div style={S.statSub}>{avgHold}d avg hold</div>
               </div>
               <div style={S.statCard}>
-                <div style={S.statLabel}>Reward / Risk</div>
-                <div style={{ ...S.statVal, color: rr === null ? "#555" : rr >= 1 ? "#22c55e" : "#ef4444" }}>
-                  {rr !== null ? `${rr.toFixed(2)}R` : "—"}
-                </div>
-                <div style={S.statSub}>avg win / avg loss</div>
-              </div>
-              <div style={S.statCard}>
                 <div style={S.statLabel}>Open Positions</div>
                 <div style={{ ...S.statVal, color: "#d4af37" }}>{openPositions.length}</div>
                 <div style={S.statSub}>currently active</div>
@@ -419,27 +622,6 @@ function QuarterlyReportPanel({ tab, closedPositions, activePositions, onClose }
             </div>
           </div>
 
-          {/* CLOSE REASON ANALYSIS */}
-          {byReason.length > 0 && (
-            <div style={S.section}>
-              <div style={S.sectionTitle}>Exit Reason Analysis</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {byReason.sort((a, b) => b.count - a.count).map(r => {
-                  const pct = (r.count / totalTrades) * 100;
-                  return (
-                    <div key={r.key} style={{ background: "#111", borderRadius: 6, padding: "10px 14px", display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{ width: 100, fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", color: "#666", textTransform: "uppercase", flexShrink: 0 }}>{r.label}</div>
-                      <div style={{ flex: 1, height: 4, background: "#1a1a1a", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ height: "100%", width: `${pct}%`, background: r.pnl >= 0 ? "#22c55e" : "#ef4444", borderRadius: 2, transition: "width 0.5s" }} />
-                      </div>
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#666", width: 28, textAlign: "right" }}>{r.count}×</div>
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: r.pnl >= 0 ? "#22c55e" : "#ef4444", width: 90, textAlign: "right" }}>{fmtUSD(r.pnl)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* OPEN POSITIONS SNAPSHOT */}
           {openPositions.length > 0 && (
