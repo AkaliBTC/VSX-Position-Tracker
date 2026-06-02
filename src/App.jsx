@@ -18,9 +18,11 @@ const PLACEHOLDERS = {
 const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  ·  CH: NESN.SW  ·  JP: 7203.T";
 
 const FLAGS = {
-  "new_position": { label: "NEW POSITION", short: "NEW POS", color: "212,175,55",  textColor: "#d4af37" },
-  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",  color: "99,182,255",  textColor: "#63b6ff" },
-  "added":        { label: "ADDED",        short: "ADDED",   color: "34,197,94",   textColor: "#22c55e" },
+  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55",  textColor: "#d4af37" },
+  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "99,182,255",  textColor: "#63b6ff" },
+  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" },
+  // ── FIX 2: new PARTIALS flag ──────────────────────────────────────────────
+  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "251,146,60",  textColor: "#fb923c" },
 };
 
 const CLOSE_REASONS = {
@@ -139,10 +141,29 @@ const fmtPrice = (p) => {
   if (p < 100) return p.toFixed(3);
   return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
-const fmtValue = (qty, price) => {
-  if (!qty || !price || isNaN(parseFloat(qty)) || isNaN(price)) return null;
-  return (parseFloat(qty) * price).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+// ── FIX 1: Value-Berechnung korrekt für LONG und SHORT ───────────────────────
+// Für LONG: Marktwert = qty * currentPrice (was die Position jetzt wert ist)
+// Für SHORT: Entry-Exposure = qty * entryPrice (was du geshortet hast)
+// Das macht konzeptuell Sinn: bei Longs siehst du deinen aktuellen Wert,
+// bei Shorts siehst du dein Exposure (was zurückgekauft werden muss × Entry).
+const calcPositionValue = (direction, qty, entryPrice, currentPrice) => {
+  if (!qty || isNaN(parseFloat(qty))) return null;
+  const q = parseFloat(qty);
+  if (direction === "LONG") {
+    if (!currentPrice || isNaN(currentPrice)) return null;
+    return q * currentPrice;
+  } else {
+    // SHORT: zeige Entry-Exposure (qty × entry), da das dein geöffnetes Exposure ist
+    if (!entryPrice || isNaN(parseFloat(entryPrice))) return null;
+    return q * parseFloat(entryPrice);
+  }
 };
+const fmtValue = (val) => {
+  if (val == null) return null;
+  return val.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
 const fmtUSD = (v) => {
   if (v == null) return "—";
   const abs = Math.abs(v);
@@ -169,15 +190,12 @@ const VSXLogo = ({ size = 72 }) => (
 );
 
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
-// ── QUARTERLY REPORT PANEL (FULL PORTFOLIO) ──────────────────────────────────
 function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   const [selectedQ, setSelectedQ] = useState(getQuarter(new Date()));
 
-  // All closed data across every pack
   const quarters = sortedQuarters(closedPositions.map(c => c.quarter));
   const qData = closedPositions.filter(c => c.quarter === selectedQ);
 
-  // Per-pack breakdown
   const packData = TABS.map(t => {
     const pClosed = qData.filter(c => c.tabId === t.id);
     const pOpen   = (allPositions[t.id] || []).filter(p => p.ticker.trim());
@@ -186,7 +204,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     return { tab: t, closed: pClosed, open: pOpen, pnl: pPnL, wins: pWins };
   }).filter(p => p.closed.length > 0 || p.open.length > 0);
 
-  // Portfolio-wide stats
   const totalTrades = qData.length;
   const winners     = qData.filter(c => (c.pnlUSD || 0) > 0);
   const winRate     = totalTrades > 0 ? (winners.length / totalTrades) * 100 : null;
@@ -201,7 +218,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   const shortPnL    = shortTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const allOpen     = TABS.flatMap(t => (allPositions[t.id] || []).filter(p => p.ticker.trim()).map(p => ({ ...p, tabLabel: t.label })));
 
-  // QoQ
   const qList   = getQuarterOptions();
   const qIdx    = qList.indexOf(selectedQ);
   const prevQ   = qIdx < qList.length - 1 ? qList[qIdx + 1] : null;
@@ -223,7 +239,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     statSub:      { fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 3 },
   };
 
-  // ── PDF generator ──────────────────────────────────────────────────────────
   const generatePDF = () => {
     const win = window.open("", "_blank");
     const gc  = (v) => v >= 0 ? "#22c55e" : "#ef4444";
@@ -239,12 +254,12 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     const footer = (n) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX ANALYTICS · FULL PORTFOLIO · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}</div></div>`;
     const goldBar = `<div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>`;
 
-    // Trade rows (all packs)
     const tradeRows = qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => {
       const rowBg = i % 2 === 0 ? BG2 : BG3;
+      const partialLabel = c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : "";
       return `<tr style="background:${rowBg}">
         <td style="padding:9px 11px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
-        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${c.ticker}</td>
+        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${c.ticker}${partialLabel}</td>
         <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
         <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
         <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty || "—"}</td>
@@ -257,7 +272,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       </tr>`;
     }).join("");
 
-    // Open position rows (all packs)
     const openRows = allOpen.map((p, i) => {
       const ep   = parseFloat(p.entry);
       const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
@@ -276,7 +290,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       </tr>`;
     }).join("");
 
-    // Pack breakdown rows
     const packRows = TABS.map(t => {
       const pc    = qData.filter(c => c.tabId === t.id);
       const po    = (allPositions[t.id] || []).filter(p => p.ticker.trim());
@@ -293,7 +306,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       </tr>`;
     }).join("");
 
-    // Highlights
     const hlHtml = (bestTrade || worstTrade) ? `
     <section style="margin-bottom:34px;break-inside:avoid">
       ${sectionHdr("Trade Highlights")}
@@ -353,13 +365,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         section{break-inside:avoid}
       </style>
     </head><body>
-
-    <!-- ══ PAGE 1: EXECUTIVE SUMMARY ══ -->
     <div style="min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
       ${goldBar}
       <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
-
-        <!-- Header -->
         <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid ${BORDER};padding-bottom:24px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.36em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
@@ -371,8 +379,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${DIM};text-transform:uppercase;margin-top:4px">Confidential</div>
           </div>
         </div>
-
-        <!-- Hero PnL -->
         <section style="background:${BG2};border:1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"};border-left:4px solid ${gc(totalPnL)};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
           <div>
             <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Total Realised P&L · ${qLabel}</div>
@@ -384,8 +390,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             <div><div style="font-size:7px;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:4px">Closed Trades</div><div style="font-family:'Bebas Neue',sans-serif;font-size:40px;color:${GOLD};line-height:1">${totalTrades}</div></div>
           </div>
         </section>
-
-        <!-- Stats -->
         <section style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px;break-inside:avoid">
           <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
             <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Win Rate</div>
@@ -403,8 +407,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">across all packs</div>
           </div>
         </section>
-
-        <!-- Pack breakdown -->
         <section style="margin-bottom:24px;break-inside:avoid">
           ${sectionHdr("Performance by Pack")}
           <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
@@ -414,8 +416,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             <tbody>${packRows}</tbody>
           </table>
         </section>
-
-        <!-- Long vs Short -->
         <section style="margin-bottom:24px;break-inside:avoid">
           ${sectionHdr("Long vs Short Breakdown")}
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -430,19 +430,13 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             }).join("")}
           </div>
         </section>
-
-        <!-- Trade Highlights -->
         ${hlHtml}
-
         <div style="flex:1"></div>
       </div>
       ${footer(1)}
       ${goldBar}
     </div>
-
     ${openSection}
-
-    <!-- ══ TRADE LOG PAGE ══ -->
     <div style="page-break-before:always;padding:0;background:${BG1}">
       ${goldBar}
       <div style="padding:44px 56px 32px">
@@ -467,30 +461,20 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       ${footer(logPageNum)}
       ${goldBar}
     </div>
-
     </body></html>`);
     win.document.close();
     setTimeout(() => { win.focus(); win.print(); }, 1000);
   };
-  // ── end PDF ──────────────────────────────────────────────────────────────────
 
   return (
     <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={S.panel}>
-
-        {/* PANEL HEADER */}
         <div style={S.stickyHdr}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
             <div>
-              <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.3em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>
-                VISIONX ANALYTICS · QUARTERLY REPORT
-              </div>
-              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: "0.14em", color: "#f8e49b", lineHeight: 1 }}>
-                FULL PORTFOLIO
-              </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", marginTop: 4 }}>
-                Generated {today} · Confidential
-              </div>
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.3em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>VISIONX ANALYTICS · QUARTERLY REPORT</div>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: "0.14em", color: "#f8e49b", lineHeight: 1 }}>FULL PORTFOLIO</div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", marginTop: 4 }}>Generated {today} · Confidential</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <select value={selectedQ} onChange={e => setSelectedQ(e.target.value)}
@@ -522,12 +506,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         </div>
 
         {totalTrades === 0 && allOpen.length === 0 ? (
-          <div style={{ padding: "72px 32px", textAlign: "center", fontFamily: "'Montserrat', sans-serif", fontSize: 10, letterSpacing: "0.3em", color: "#2a2a2a" }}>
-            NO DATA FOR {getQuarterLabel(selectedQ)}
-          </div>
+          <div style={{ padding: "72px 32px", textAlign: "center", fontFamily: "'Montserrat', sans-serif", fontSize: 10, letterSpacing: "0.3em", color: "#2a2a2a" }}>NO DATA FOR {getQuarterLabel(selectedQ)}</div>
         ) : (<>
-
-          {/* EXECUTIVE SUMMARY */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
             <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 10, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -560,7 +540,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             </div>
           </div>
 
-          {/* PACK BREAKDOWN */}
           {packData.length > 0 && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Performance by Pack</div>
@@ -571,16 +550,13 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 70 }}>{closed.length} trade{closed.length !== 1 ? "s" : ""}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 60 }}>{closed.length > 0 ? `${((wins / closed.length) * 100).toFixed(0)}% WR` : "—"}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flex: 1 }}>{open.length} open</div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: closed.length > 0 ? (pnl >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>
-                      {closed.length > 0 ? fmtUSD(pnl) : "—"}
-                    </div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: closed.length > 0 ? (pnl >= 0 ? "#22c55e" : "#ef4444") : "#333" }}>{closed.length > 0 ? fmtUSD(pnl) : "—"}</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* LONG VS SHORT */}
           <div style={S.section}>
             <div style={S.sectionTitle}>Long vs Short Breakdown</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -598,7 +574,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             </div>
           </div>
 
-          {/* TRADE HIGHLIGHTS */}
           {(bestTrade || worstTrade) && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Trade Highlights</div>
@@ -625,7 +600,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             </div>
           )}
 
-          {/* OPEN POSITIONS */}
           {allOpen.length > 0 && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Open Positions Snapshot — All Packs</div>
@@ -661,7 +635,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             </div>
           )}
 
-          {/* COMPLETE TRADE LOG — ALL PACKS */}
           {totalTrades > 0 && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Complete Trade Log · {qLabel} · All Packs</div>
@@ -677,7 +650,10 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                   {qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => (
                     <tr key={c.id} style={{ borderBottom: "1px solid #111" }}>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#333" }}>{String(i + 1).padStart(2, "0")}</td>
-                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{c.ticker}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>
+                        {c.ticker}
+                        {c.partialPct && <span style={{ fontSize: 9, color: "#fb923c", marginLeft: 4 }}>[{c.partialPct}%]</span>}
+                      </td>
                       <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#b99c64", letterSpacing: "0.08em" }}>{c.tabLabel}</td>
                       <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: c.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: c.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{c.direction}</span></td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
@@ -695,37 +671,62 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             </div>
           )}
 
-          {/* FOOTER */}
           <div style={{ padding: "18px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2a2a2a", letterSpacing: "0.08em" }}>
-              VISIONX ANALYTICS · FULL PORTFOLIO · {qLabel} · CONFIDENTIAL
-            </div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2a2a2a", letterSpacing: "0.08em" }}>VISIONX ANALYTICS · FULL PORTFOLIO · {qLabel} · CONFIDENTIAL</div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#2a2a2a" }}>{today}</div>
           </div>
-
         </>)}
       </div>
     </div>
   );
 }
 
-// ── CLOSE POSITION MODAL ──────────────────────────────────────────────────────
+// ── FIX 3: CLOSE POSITION MODAL — mit Partial Close Option ───────────────────
 function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   const [closePrice, setClosePrice] = useState(position.currentPrice ? String(position.currentPrice) : "");
   const [quarter, setQuarter] = useState(getQuarter(new Date()));
   const [reason, setReason] = useState("tp");
   const [note, setNote] = useState("");
 
+  // ── PARTIAL STATE ──────────────────────────────────────────────────────────
+  const [isPartial, setIsPartial] = useState(false);
+  const [partialPct, setPartialPct] = useState(50);
+  const [partialInput, setPartialInput] = useState("50");
+
+  const handleSliderChange = (v) => {
+    const n = Math.min(99, Math.max(1, parseInt(v) || 1));
+    setPartialPct(n);
+    setPartialInput(String(n));
+  };
+  const handlePartialInput = (v) => {
+    setPartialInput(v);
+    const n = parseInt(v);
+    if (!isNaN(n) && n >= 1 && n <= 99) setPartialPct(n);
+  };
+
   const entry = parseFloat(position.entry);
   const cp = parseFloat(closePrice);
+  const totalQty = parseFloat(position.qty) || 0;
+  const effectiveQty = isPartial ? totalQty * (partialPct / 100) : totalQty;
+  const remainingQty = totalQty - effectiveQty;
+
   const pnlPct = (!isNaN(entry) && !isNaN(cp) && cp > 0) ? calcPnL(position.direction, entry, cp) : null;
-  const pnlUSD = (!isNaN(entry) && !isNaN(cp) && cp > 0 && position.qty) ? calcPnLUSD(position.direction, entry, cp, position.qty) : null;
+  const pnlUSD = (!isNaN(entry) && !isNaN(cp) && cp > 0 && effectiveQty > 0)
+    ? (position.direction === "LONG" ? (cp - entry) * effectiveQty : (entry - cp) * effectiveQty)
+    : null;
   const daysHeld = position.date ? daysBetween(position.date, new Date().toISOString().split("T")[0]) : null;
   const isPos = pnlUSD !== null ? pnlUSD >= 0 : null;
 
+  const qtyDisplay = (n) => {
+    if (n == null || isNaN(n)) return "—";
+    return Number.isInteger(n) ? String(n) : n.toFixed(4).replace(/\.?0+$/, "");
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 520, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
+      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 540, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)", maxHeight: "92vh", overflowY: "auto" }}>
+
+        {/* HEADER */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: "0.18em", color: "#f8e49b", lineHeight: 1 }}>CLOSE POSITION</div>
@@ -734,26 +735,101 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "1px solid #222", color: "#666", fontWeight: 600 }}>{tabLabel.toUpperCase()} PACK</span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 4, lineHeight: 1 }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 4 }}>✕</button>
         </div>
-        <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 8, padding: "14px 16px", marginBottom: 18, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px 12px" }}>
-          {[{ label: "Ticker", val: position.ticker, color: "#d4af37" }, { label: "Direction", val: position.direction, color: position.direction === "LONG" ? "#22c55e" : "#ef4444" }, { label: "Quantity", val: position.qty || "—", color: "#e8e8e8" }, { label: "Entry Price", val: fmtPrice(parseFloat(position.entry)), color: "#e8e8e8" }, { label: "Entry Date", val: position.date || "—", color: "#666" }, { label: "Days Held", val: daysHeld !== null ? `${daysHeld}d` : "—", color: "#666" }].map(({ label, val, color }) => (
+
+        {/* POSITION INFO */}
+        <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 8, padding: "14px 16px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px 12px" }}>
+          {[
+            { label: "Ticker", val: position.ticker, color: "#d4af37" },
+            { label: "Direction", val: position.direction, color: position.direction === "LONG" ? "#22c55e" : "#ef4444" },
+            { label: "Total Qty", val: position.qty || "—", color: "#e8e8e8" },
+            { label: "Entry Price", val: fmtPrice(parseFloat(position.entry)), color: "#e8e8e8" },
+            { label: "Entry Date", val: position.date || "—", color: "#666" },
+            { label: "Days Held", val: daysHeld !== null ? `${daysHeld}d` : "—", color: "#666" },
+          ].map(({ label, val, color }) => (
             <div key={label}>
               <div style={{ fontSize: 8, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color }}>{val}</div>
             </div>
           ))}
         </div>
+
+        {/* ── PARTIAL TOGGLE ────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 14, background: isPartial ? "rgba(251,146,60,0.05)" : "#0a0a0a", border: `1px solid ${isPartial ? "rgba(251,146,60,0.3)" : "#1a1a1a"}`, borderRadius: 8, padding: "14px 16px", transition: "all 0.2s" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isPartial ? 14 : 0 }}>
+            <div>
+              <div style={{ fontSize: 9, letterSpacing: "0.2em", color: isPartial ? "#fb923c" : "#888", textTransform: "uppercase", fontWeight: 700, marginBottom: 2 }}>PARTIAL CLOSE</div>
+              <div style={{ fontSize: 10, color: "#444", letterSpacing: "0.02em" }}>Close only a portion — rest stays open</div>
+            </div>
+            {/* Toggle switch */}
+            <div onClick={() => setIsPartial(p => !p)} style={{ cursor: "pointer", width: 42, height: 22, borderRadius: 11, background: isPartial ? "rgba(251,146,60,0.7)" : "#222", border: `1px solid ${isPartial ? "rgba(251,146,60,0.5)" : "#333"}`, position: "relative", transition: "all 0.2s", flexShrink: 0 }}>
+              <div style={{ position: "absolute", top: 2, left: isPartial ? 20 : 2, width: 16, height: 16, borderRadius: 8, background: isPartial ? "#fb923c" : "#555", transition: "left 0.2s", boxShadow: isPartial ? "0 0 8px rgba(251,146,60,0.5)" : "none" }} />
+            </div>
+          </div>
+
+          {isPartial && (
+            <div>
+              {/* Slider + input row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <input
+                  type="range" min="1" max="99" value={partialPct}
+                  onChange={e => handleSliderChange(e.target.value)}
+                  style={{ flex: 1, accentColor: "#fb923c", height: 4, cursor: "pointer" }}
+                />
+                <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                  <input
+                    type="number" min="1" max="99" value={partialInput}
+                    onChange={e => handlePartialInput(e.target.value)}
+                    onBlur={() => handleSliderChange(partialInput)}
+                    style={{ width: 52, background: "#111", border: "1px solid rgba(251,146,60,0.3)", color: "#fb923c", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.04em", padding: "4px 8px", borderRadius: 5, outline: "none", textAlign: "center" }}
+                  />
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#fb923c" }}>%</span>
+                </div>
+              </div>
+
+              {/* Preset quick picks */}
+              <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                {[10, 25, 33, 50, 75].map(v => (
+                  <button key={v} onClick={() => handleSliderChange(v)}
+                    style={{ padding: "3px 10px", background: partialPct === v ? "rgba(251,146,60,0.2)" : "transparent", border: `1px solid ${partialPct === v ? "rgba(251,146,60,0.5)" : "#222"}`, color: partialPct === v ? "#fb923c" : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", borderRadius: 4, cursor: "pointer", transition: "all 0.15s" }}>
+                    {v}%
+                  </button>
+                ))}
+              </div>
+
+              {/* Qty breakdown */}
+              {totalQty > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div style={{ background: "#111", border: "1px solid rgba(251,146,60,0.15)", borderRadius: 6, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#fb923c", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Closing</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#fb923c" }}>{qtyDisplay(effectiveQty)}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{partialPct}% of position</div>
+                  </div>
+                  <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 6, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Remaining Open</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#888" }}>{qtyDisplay(remainingQty)}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{100 - partialPct}% of position</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* CLOSE PRICE */}
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Close Price (USD)</label>
           <input type="number" value={closePrice} onChange={e => setClosePrice(e.target.value)} placeholder="Enter close price…"
             style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 14, padding: "10px 12px", borderRadius: 6, outline: "none" }} />
           {position.currentPrice && (
-            <div style={{ fontSize: 10, color: "#444", marginTop: 5, letterSpacing: "0.04em" }}>
+            <div style={{ fontSize: 10, color: "#444", marginTop: 5 }}>
               Live price: {fmtPrice(position.currentPrice)} · <span onClick={() => setClosePrice(String(position.currentPrice))} style={{ color: "#b99c64", cursor: "pointer", textDecoration: "underline" }}>use live price</span>
             </div>
           )}
         </div>
+
+        {/* QUARTER + REASON */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           <div>
             <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Quarter</label>
@@ -768,30 +844,71 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
             </select>
           </div>
         </div>
-        <div style={{ marginBottom: 18 }}>
+
+        {/* NOTE */}
+        <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Note (optional)</label>
           <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Wave 5 complete, target hit"
             style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none" }} />
         </div>
+
+        {/* PNL PREVIEW */}
         <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 8, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 5 }}>Realised P&L</div>
+            <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 5 }}>
+              {isPartial ? `Realised P&L (${partialPct}%)` : "Realised P&L"}
+            </div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: isPos === null ? "#444" : isPos ? "#22c55e" : "#ef4444" }}>
               {pnlPct !== null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}
             </div>
+            {isPartial && effectiveQty > 0 && (
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 3 }}>
+                {qtyDisplay(effectiveQty)} units closed
+              </div>
+            )}
           </div>
           <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, letterSpacing: "0.04em", color: isPos === null ? "#333" : isPos ? "#22c55e" : "#ef4444" }}>
             {pnlUSD !== null ? fmtUSD(pnlUSD) : "—"}
           </div>
         </div>
+
+        {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => {
-            const record = { id: position.id, ticker: position.ticker, direction: position.direction, qty: position.qty, entry: position.entry, sl: position.sl, entryDate: position.date, closeDate: new Date().toISOString().split("T")[0], closePrice: cp, closePriceDisplay: fmtPrice(cp), pnlPct, pnlUSD, quarter, reason, note, tabId, tabLabel, daysHeld, closedAt: Date.now() };
-            onConfirm(record);
-          }} disabled={!closePrice || isNaN(cp) || cp <= 0}
+          <button
+            onClick={() => {
+              const closedQty = isPartial ? qtyDisplay(effectiveQty) : position.qty;
+              const record = {
+                id: position.id,
+                ticker: position.ticker,
+                direction: position.direction,
+                qty: closedQty,
+                entry: position.entry,
+                sl: position.sl,
+                entryDate: position.date,
+                closeDate: new Date().toISOString().split("T")[0],
+                closePrice: cp,
+                closePriceDisplay: fmtPrice(cp),
+                pnlPct,
+                pnlUSD,
+                quarter,
+                reason,
+                note,
+                tabId,
+                tabLabel,
+                daysHeld,
+                closedAt: Date.now(),
+                // ── partial meta ───────────────────────────────────────
+                isPartial,
+                partialPct: isPartial ? partialPct : null,
+                remainingQty: isPartial ? qtyDisplay(remainingQty) : null,
+              };
+              // Pass remaining qty back so App can update the open position
+              onConfirm(record, isPartial ? qtyDisplay(remainingQty) : null);
+            }}
+            disabled={!closePrice || isNaN(cp) || cp <= 0}
             style={{ background: closePrice && !isNaN(cp) && cp > 0 ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: closePrice && !isNaN(cp) && cp > 0 ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: closePrice && !isNaN(cp) && cp > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
-            CONFIRM CLOSE
+            {isPartial ? `CLOSE ${partialPct}%` : "CONFIRM CLOSE"}
           </button>
         </div>
       </div>
@@ -847,7 +964,6 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: qPnL >= 0 ? "#22c55e" : "#ef4444" }}>{fmtUSD(qPnL)}</span>
-                    {/* DELETE QUARTER BUTTON */}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -855,11 +971,10 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                           onDeleteQuarter(tabId, q);
                         }
                       }}
-                      title={`Clear ${getQuarterLabel(q)} — remove after report is sent`}
-                      style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 10px", borderRadius: 4, cursor: "pointer", textTransform: "uppercase", transition: "all 0.2s", whiteSpace: "nowrap" }}
+                      title={`Clear ${getQuarterLabel(q)}`}
+                      style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.15)", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 10px", borderRadius: 4, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}
                       onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.35)"; e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = "#555"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.15)"; e.currentTarget.style.background = "rgba(239,68,68,0.06)"; }}
-                    >
+                      onMouseLeave={e => { e.currentTarget.style.color = "#555"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.15)"; e.currentTarget.style.background = "rgba(239,68,68,0.06)"; }}>
                       ✕ CLEAR QUARTER
                     </button>
                     <span onClick={() => setExpandedQ(isExpQ ? null : q)} style={{ fontSize: 10, color: "#333", cursor: "pointer" }}>{isExpQ ? "▲" : "▼"}</span>
@@ -879,7 +994,10 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                       <tbody>
                         {qTrades.sort((a, b) => b.closedAt - a.closedAt).map(c => (
                           <tr key={c.id} style={{ borderBottom: "1px solid #111" }}>
-                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{c.ticker}</td>
+                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>
+                              {c.ticker}
+                              {c.partialPct && <span style={{ fontSize: 9, color: "#fb923c", marginLeft: 4 }}>[{c.partialPct}%]</span>}
+                            </td>
                             <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: c.direction === "LONG" ? "#22c55e" : "#ef4444" }}>{c.direction}</td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.entry ? fmtPrice(parseFloat(c.entry)) : "—"}</td>
@@ -959,13 +1077,19 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     return 0;
   });
 
-
   return (
     <div>
       {closingPosition && (
-        <ClosePositionModal position={closingPosition} tabId={tab.id} tabLabel={tab.label}
+        <ClosePositionModal
+          position={closingPosition}
+          tabId={tab.id}
+          tabLabel={tab.label}
           onClose={() => setClosingPosition(null)}
-          onConfirm={(record) => { onClosePosition(record, closingPosition.id); setClosingPosition(null); }} />
+          onConfirm={(record, remainingQty) => {
+            onClosePosition(record, closingPosition.id, remainingQty);
+            setClosingPosition(null);
+          }}
+        />
       )}
       {tab.id === "stocks" && (
         <div className="hint-bar"><span className="hint-label">FORMAT</span>{STOCK_HINT}</div>
@@ -977,7 +1101,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
         </button>
         <input className="search-inp" placeholder="Search ticker, date, direction…" value={search} onChange={e => setSearch(e.target.value)} />
         <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 30s AUTO"}</span>
-
       </div>
       <div className="table-wrap">
         <table>
@@ -991,7 +1114,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               <th>SL DIST %</th>
               <SortTh label="ENTRY DATE" k="date" />
               <th>LIVE PRICE</th>
-              <th>VALUE</th>
+              {/* ── FIX 1: column header updated for Shorts ── */}
+              <th>VALUE <span style={{ fontSize: 7, opacity: 0.5, letterSpacing: "0.1em" }}>L=MKT / S=EXP</span></th>
               <SortTh label="PNL %" k="pnl" />
               <th>FLAG</th>
               <th></th>
@@ -1005,7 +1129,9 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const sl = parseFloat(p.sl);
               const pnl = calcPnL(p.direction, entry, p.currentPrice);
               const dist = calcSLDist(p.direction, p.currentPrice, sl);
-              const posValue = fmtValue(p.qty, p.currentPrice);
+              // ── FIX 1: use corrected value calc ───────────────────────────
+              const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
+              const posValue = fmtValue(posValueNum);
               const flagged = isFlagged(p);
               const flagCfg = flagged ? FLAGS[p.flag] : null;
               const timeLeft = flagged ? Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000) : 0;
@@ -1035,7 +1161,11 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   <td><span className="dist-val">{dist !== null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—"}</span></td>
                   <td><input className="cell-input date-inp" type="date" value={p.date} onChange={(e) => update(p.id, "date", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td>{p.loading ? <span className="fetching">LOADING</span> : p.error ? <span className="price-err">N/A</span> : p.currentPrice !== null ? <span className="price-val">{fmtPrice(p.currentPrice)}</span> : <span className="price-dim">—</span>}</td>
-                  <td>{posValue !== null ? <span className="value-val">{posValue}</span> : <span className="price-dim">—</span>}</td>
+                  <td>
+                    {posValue !== null
+                      ? <span className={p.direction === "SHORT" ? "value-short" : "value-val"}>{posValue}</span>
+                      : <span className="price-dim">—</span>}
+                  </td>
                   <td>{pnl !== null && !isNaN(pnl) ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -1045,6 +1175,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                         <option value="new_position">NEW POSITION</option>
                         <option value="stop_adjust">STOP ADJUST</option>
                         <option value="added">ADDED</option>
+                        {/* ── FIX 2: Partials option ── */}
+                        <option value="partials">PARTIALS</option>
                       </select>
                       {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
                     </div>
@@ -1107,12 +1239,25 @@ export default function App() {
     return next;
   });
 
-  const handleClosePosition = (record, positionId) => {
+  // ── FIX 3: handleClosePosition handles partial — updates qty instead of removing ──
+  const handleClosePosition = (record, positionId, remainingQty) => {
     const newClosed = [...closedPositions, record];
     setClosedPositions(newClosed);
     saveClosedToStorage({ list: newClosed });
     setAllPositions(prev => {
-      const next = { ...prev, [record.tabId]: prev[record.tabId].filter(p => p.id !== positionId) };
+      let next;
+      if (record.isPartial && remainingQty != null) {
+        // Partial: update qty on the open position, keep it open
+        next = {
+          ...prev,
+          [record.tabId]: prev[record.tabId].map(p =>
+            p.id !== positionId ? p : { ...p, qty: remainingQty }
+          ),
+        };
+      } else {
+        // Full close: remove the position
+        next = { ...prev, [record.tabId]: prev[record.tabId].filter(p => p.id !== positionId) };
+      }
       const toSave = Object.fromEntries(Object.entries(next).map(([id, rows]) => [id, rows.map(({ currentPrice, loading, error, ...r }) => r)]));
       saveToStorage(toSave);
       return next;
@@ -1253,6 +1398,8 @@ export default function App() {
         .dist-val { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; }
         .price-val { color: var(--white); font-family: 'DM Mono', monospace; }
         .value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; }
+        /* ── FIX 1: Short value displayed in orange/red to signal exposure ── */
+        .value-short { color: #fb923c; font-family: 'DM Mono', monospace; font-size: 12px; }
         .fetching { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
         .price-err { color: var(--red); font-size: 10px; } .price-dim { color: var(--text-mute); }
         .pnl-pos { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
@@ -1272,16 +1419,10 @@ export default function App() {
         .flag-sel option { background: var(--black3); color: var(--text); }
       `}</style>
 
-      {/* QUARTERLY REPORT PANEL */}
       {showReport && (
-        <QuarterlyReportPanel
-          closedPositions={closedPositions}
-          allPositions={allPositions}
-          onClose={() => setShowReport(false)}
-        />
+        <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} onClose={() => setShowReport(false)} />
       )}
 
-      {/* HEADER */}
       <div className="header">
         <div className="logo-area">
           <VSXLogo size={72} />
@@ -1328,12 +1469,12 @@ export default function App() {
             <div className="live-badge"><div className="live-dot" /> ALL LIVE</div>
             {newCount > 0 && <div className="new-count-badge">{newCount} NEW</div>}
             {closedPositions.length > 0 && (
-              <button
-                onClick={() => setShowReport(true)}
+              <button onClick={() => setShowReport(true)}
                 style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.28)", color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
                 onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}
-              >▤ QUARTERLY REPORT</button>
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
+                ▤ QUARTERLY REPORT
+              </button>
             )}
             <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
             {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
@@ -1341,7 +1482,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* TABS */}
       <div className="tabs-wrap">
         {TABS.map((t) => {
           const count = (allPositions[t.id] || []).filter((p) => p.ticker).length;
@@ -1359,7 +1499,6 @@ export default function App() {
         })}
       </div>
 
-      {/* CONTENT */}
       <div className="content">
         <PositionTable
           tab={currentTab}
