@@ -22,7 +22,7 @@ const FLAGS = {
   "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "99,182,255",  textColor: "#63b6ff" },
   "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" },
   // ── FIX 2: new PARTIALS flag ──────────────────────────────────────────────
-  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "251,146,60",  textColor: "#fb923c" },
+  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "212,175,55",  textColor: "#d4af37" },
 };
 
 const CLOSE_REASONS = {
@@ -142,21 +142,17 @@ const fmtPrice = (p) => {
   return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
-// ── FIX 1: Value-Berechnung korrekt für LONG und SHORT ───────────────────────
-// Für LONG: Marktwert = qty * currentPrice (was die Position jetzt wert ist)
-// Für SHORT: Entry-Exposure = qty * entryPrice (was du geshortet hast)
-// Das macht konzeptuell Sinn: bei Longs siehst du deinen aktuellen Wert,
-// bei Shorts siehst du dein Exposure (was zurückgekauft werden muss × Entry).
 const calcPositionValue = (direction, qty, entryPrice, currentPrice) => {
   if (!qty || isNaN(parseFloat(qty))) return null;
+  if (!currentPrice || isNaN(currentPrice)) return null;
   const q = parseFloat(qty);
   if (direction === "LONG") {
-    if (!currentPrice || isNaN(currentPrice)) return null;
     return q * currentPrice;
   } else {
-    // SHORT: zeige Entry-Exposure (qty × entry), da das dein geöffnetes Exposure ist
+    // SHORT: aktueller Wert = Entry-Exposure + unrealisierter PnL
+    // steigt wenn Preis fällt: qty * (2*entry - currentPrice)
     if (!entryPrice || isNaN(parseFloat(entryPrice))) return null;
-    return q * parseFloat(entryPrice);
+    return q * (2 * parseFloat(entryPrice) - currentPrice);
   }
 };
 const fmtValue = (val) => {
@@ -652,7 +648,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#333" }}>{String(i + 1).padStart(2, "0")}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>
                         {c.ticker}
-                        {c.partialPct && <span style={{ fontSize: 9, color: "#fb923c", marginLeft: 4 }}>[{c.partialPct}%]</span>}
+                        {c.partialPct && <span style={{ fontSize: 9, color: "#d4af37", marginLeft: 4 }}>[{c.partialPct}%]</span>}
                       </td>
                       <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#b99c64", letterSpacing: "0.08em" }}>{c.tabLabel}</td>
                       <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: c.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: c.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{c.direction}</span></td>
@@ -690,25 +686,52 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
 
   // ── PARTIAL STATE ──────────────────────────────────────────────────────────
   const [isPartial, setIsPartial] = useState(false);
+  const [partialMode, setPartialMode] = useState("pct"); // "pct" | "qty"
   const [partialPct, setPartialPct] = useState(50);
-  const [partialInput, setPartialInput] = useState("50");
-
-  const handleSliderChange = (v) => {
-    const n = Math.min(99, Math.max(1, parseInt(v) || 1));
-    setPartialPct(n);
-    setPartialInput(String(n));
-  };
-  const handlePartialInput = (v) => {
-    setPartialInput(v);
-    const n = parseInt(v);
-    if (!isNaN(n) && n >= 1 && n <= 99) setPartialPct(n);
-  };
+  const [partialPctInput, setPartialPctInput] = useState("50");
+  const [partialQtyInput, setPartialQtyInput] = useState("");
 
   const entry = parseFloat(position.entry);
   const cp = parseFloat(closePrice);
   const totalQty = parseFloat(position.qty) || 0;
-  const effectiveQty = isPartial ? totalQty * (partialPct / 100) : totalQty;
+
+  // Sync: when % changes → update qty display; when qty changes → update % display
+  const handleSliderChange = (v) => {
+    const n = Math.min(99, Math.max(1, parseInt(v) || 1));
+    setPartialPct(n);
+    setPartialPctInput(String(n));
+    if (totalQty > 0) setPartialQtyInput(String(parseFloat((totalQty * n / 100).toFixed(8)).toString()));
+  };
+  const handlePctInput = (v) => {
+    setPartialPctInput(v);
+    const n = parseFloat(v);
+    if (!isNaN(n) && n >= 0.01 && n <= 99.99) {
+      setPartialPct(Math.round(n));
+      if (totalQty > 0) setPartialQtyInput(String(parseFloat((totalQty * n / 100).toFixed(8))));
+    }
+  };
+  const handleQtyInput = (v) => {
+    setPartialQtyInput(v);
+    const q = parseFloat(v);
+    if (!isNaN(q) && q > 0 && q < totalQty && totalQty > 0) {
+      const pct = Math.min(99, Math.max(1, Math.round((q / totalQty) * 100)));
+      setPartialPct(pct);
+      setPartialPctInput(String(pct));
+    }
+  };
+  // On toggle open: init qty field
+  const togglePartial = () => {
+    if (!isPartial && totalQty > 0) setPartialQtyInput(String(parseFloat((totalQty * 0.5).toFixed(8))));
+    setIsPartial(p => !p);
+  };
+
+  const effectiveQty = isPartial
+    ? (partialMode === "qty" && parseFloat(partialQtyInput) > 0 && parseFloat(partialQtyInput) < totalQty
+        ? parseFloat(partialQtyInput)
+        : totalQty * (partialPct / 100))
+    : totalQty;
   const remainingQty = totalQty - effectiveQty;
+  const effectivePct = totalQty > 0 ? (effectiveQty / totalQty) * 100 : partialPct;
 
   const pnlPct = (!isNaN(entry) && !isNaN(cp) && cp > 0) ? calcPnL(position.direction, entry, cp) : null;
   const pnlUSD = (!isNaN(entry) && !isNaN(cp) && cp > 0 && effectiveQty > 0)
@@ -756,60 +779,88 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
         </div>
 
         {/* ── PARTIAL TOGGLE ────────────────────────────────────────────── */}
-        <div style={{ marginBottom: 14, background: isPartial ? "rgba(251,146,60,0.05)" : "#0a0a0a", border: `1px solid ${isPartial ? "rgba(251,146,60,0.3)" : "#1a1a1a"}`, borderRadius: 8, padding: "14px 16px", transition: "all 0.2s" }}>
+        <div style={{ marginBottom: 14, background: isPartial ? "rgba(212,175,55,0.04)" : "#0a0a0a", border: `1px solid ${isPartial ? "rgba(212,175,55,0.3)" : "#1a1a1a"}`, borderRadius: 8, padding: "14px 16px", transition: "all 0.2s" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isPartial ? 14 : 0 }}>
             <div>
-              <div style={{ fontSize: 9, letterSpacing: "0.2em", color: isPartial ? "#fb923c" : "#888", textTransform: "uppercase", fontWeight: 700, marginBottom: 2 }}>PARTIAL CLOSE</div>
-              <div style={{ fontSize: 10, color: "#444", letterSpacing: "0.02em" }}>Close only a portion — rest stays open</div>
+              <div style={{ fontSize: 9, letterSpacing: "0.2em", color: isPartial ? "#d4af37" : "#888", textTransform: "uppercase", fontWeight: 700, marginBottom: 2 }}>PARTIAL CLOSE</div>
+              <div style={{ fontSize: 10, color: "#444" }}>Close only a portion — rest stays open</div>
             </div>
-            {/* Toggle switch */}
-            <div onClick={() => setIsPartial(p => !p)} style={{ cursor: "pointer", width: 42, height: 22, borderRadius: 11, background: isPartial ? "rgba(251,146,60,0.7)" : "#222", border: `1px solid ${isPartial ? "rgba(251,146,60,0.5)" : "#333"}`, position: "relative", transition: "all 0.2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 2, left: isPartial ? 20 : 2, width: 16, height: 16, borderRadius: 8, background: isPartial ? "#fb923c" : "#555", transition: "left 0.2s", boxShadow: isPartial ? "0 0 8px rgba(251,146,60,0.5)" : "none" }} />
+            <div onClick={togglePartial} style={{ cursor: "pointer", width: 42, height: 22, borderRadius: 11, background: isPartial ? "rgba(212,175,55,0.7)" : "#222", border: `1px solid ${isPartial ? "rgba(212,175,55,0.4)" : "#333"}`, position: "relative", transition: "all 0.2s", flexShrink: 0 }}>
+              <div style={{ position: "absolute", top: 2, left: isPartial ? 20 : 2, width: 16, height: 16, borderRadius: 8, background: isPartial ? "#d4af37" : "#555", transition: "left 0.2s" }} />
             </div>
           </div>
 
           {isPartial && (
             <div>
-              {/* Slider + input row */}
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <input
-                  type="range" min="1" max="99" value={partialPct}
-                  onChange={e => handleSliderChange(e.target.value)}
-                  style={{ flex: 1, accentColor: "#fb923c", height: 4, cursor: "pointer" }}
-                />
-                <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
-                  <input
-                    type="number" min="1" max="99" value={partialInput}
-                    onChange={e => handlePartialInput(e.target.value)}
-                    onBlur={() => handleSliderChange(partialInput)}
-                    style={{ width: 52, background: "#111", border: "1px solid rgba(251,146,60,0.3)", color: "#fb923c", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.04em", padding: "4px 8px", borderRadius: 5, outline: "none", textAlign: "center" }}
-                  />
-                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#fb923c" }}>%</span>
-                </div>
-              </div>
-
-              {/* Preset quick picks */}
+              {/* Mode selector */}
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-                {[10, 25, 33, 50, 75].map(v => (
-                  <button key={v} onClick={() => handleSliderChange(v)}
-                    style={{ padding: "3px 10px", background: partialPct === v ? "rgba(251,146,60,0.2)" : "transparent", border: `1px solid ${partialPct === v ? "rgba(251,146,60,0.5)" : "#222"}`, color: partialPct === v ? "#fb923c" : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", borderRadius: 4, cursor: "pointer", transition: "all 0.15s" }}>
-                    {v}%
+                {[{ id: "pct", label: "BY %" }, { id: "qty", label: "BY QTY" }].map(m => (
+                  <button key={m.id} onClick={() => setPartialMode(m.id)}
+                    style={{ padding: "5px 14px", background: partialMode === m.id ? "rgba(212,175,55,0.14)" : "transparent", border: `1px solid ${partialMode === m.id ? "rgba(212,175,55,0.4)" : "#222"}`, color: partialMode === m.id ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", borderRadius: 5, cursor: "pointer", transition: "all 0.15s" }}>
+                    {m.label}
                   </button>
                 ))}
               </div>
 
-              {/* Qty breakdown */}
+              {partialMode === "pct" ? (
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <input type="range" min="1" max="99" value={partialPct} onChange={e => handleSliderChange(e.target.value)}
+                      style={{ flex: 1, accentColor: "#d4af37", height: 4, cursor: "pointer" }} />
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                      <input type="number" min="1" max="99" step="0.1" value={partialPctInput}
+                        onChange={e => handlePctInput(e.target.value)}
+                        onBlur={() => handleSliderChange(partialPctInput)}
+                        style={{ width: 52, background: "#111", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.04em", padding: "4px 8px", borderRadius: 5, outline: "none", textAlign: "center" }} />
+                      <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#d4af37" }}>%</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+                    {[10, 25, 33, 50, 75].map(v => (
+                      <button key={v} onClick={() => handleSliderChange(v)}
+                        style={{ padding: "3px 10px", background: partialPct === v ? "rgba(212,175,55,0.15)" : "transparent", border: `1px solid ${partialPct === v ? "rgba(212,175,55,0.4)" : "#222"}`, color: partialPct === v ? "#d4af37" : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", borderRadius: 4, cursor: "pointer", transition: "all 0.15s" }}>
+                        {v}%
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                    <input type="number" min="0" max={totalQty} step="any" value={partialQtyInput}
+                      onChange={e => handleQtyInput(e.target.value)}
+                      placeholder={`Max ${totalQty}`}
+                      style={{ flex: 1, background: "#111", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", fontFamily: "'DM Mono', monospace", fontSize: 15, padding: "9px 12px", borderRadius: 6, outline: "none" }} />
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flexShrink: 0 }}>/ {totalQty || "—"} total</div>
+                  </div>
+                  {totalQty > 0 && (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      {[10, 25, 33, 50, 75].map(v => {
+                        const qv = parseFloat((totalQty * v / 100).toFixed(8));
+                        return (
+                          <button key={v} onClick={() => handleQtyInput(String(qv))}
+                            style={{ padding: "3px 8px", background: "transparent", border: "1px solid #222", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", borderRadius: 4, cursor: "pointer" }}>
+                            {v}%
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Qty breakdown cards */}
               {totalQty > 0 && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <div style={{ background: "#111", border: "1px solid rgba(251,146,60,0.15)", borderRadius: 6, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#fb923c", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Closing</div>
-                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#fb923c" }}>{qtyDisplay(effectiveQty)}</div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{partialPct}% of position</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                  <div style={{ background: "#111", border: "1px solid rgba(212,175,55,0.12)", borderRadius: 6, padding: "10px 12px" }}>
+                    <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#d4af37", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Closing</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#d4af37" }}>{qtyDisplay(effectiveQty)}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{effectivePct.toFixed(1)}% of position</div>
                   </div>
                   <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 6, padding: "10px 12px" }}>
                     <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Remaining Open</div>
                     <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#888" }}>{qtyDisplay(remainingQty)}</div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{100 - partialPct}% of position</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{(100 - effectivePct).toFixed(1)}% of position</div>
                   </div>
                 </div>
               )}
@@ -856,7 +907,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
         <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 8, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 5 }}>
-              {isPartial ? `Realised P&L (${partialPct}%)` : "Realised P&L"}
+              {isPartial ? `Realised P&L (${effectivePct.toFixed(1)}%)` : "Realised P&L"}
             </div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: isPos === null ? "#444" : isPos ? "#22c55e" : "#ef4444" }}>
               {pnlPct !== null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}
@@ -996,7 +1047,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                           <tr key={c.id} style={{ borderBottom: "1px solid #111" }}>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>
                               {c.ticker}
-                              {c.partialPct && <span style={{ fontSize: 9, color: "#fb923c", marginLeft: 4 }}>[{c.partialPct}%]</span>}
+                              {c.partialPct && <span style={{ fontSize: 9, color: "#d4af37", marginLeft: 4 }}>[{c.partialPct}%]</span>}
                             </td>
                             <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: c.direction === "LONG" ? "#22c55e" : "#ef4444" }}>{c.direction}</td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
@@ -1114,8 +1165,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               <th>SL DIST %</th>
               <SortTh label="ENTRY DATE" k="date" />
               <th>LIVE PRICE</th>
-              {/* ── FIX 1: column header updated for Shorts ── */}
-              <th>VALUE <span style={{ fontSize: 7, opacity: 0.5, letterSpacing: "0.1em" }}>L=MKT / S=EXP</span></th>
+              <th>VALUE</th>
               <SortTh label="PNL %" k="pnl" />
               <th>FLAG</th>
               <th></th>
@@ -1163,7 +1213,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   <td>{p.loading ? <span className="fetching">LOADING</span> : p.error ? <span className="price-err">N/A</span> : p.currentPrice !== null ? <span className="price-val">{fmtPrice(p.currentPrice)}</span> : <span className="price-dim">—</span>}</td>
                   <td>
                     {posValue !== null
-                      ? <span className={p.direction === "SHORT" ? "value-short" : "value-val"}>{posValue}</span>
+                      ? <span className="value-val">{posValue}</span>
                       : <span className="price-dim">—</span>}
                   </td>
                   <td>{pnl !== null && !isNaN(pnl) ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
@@ -1398,8 +1448,6 @@ export default function App() {
         .dist-val { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; }
         .price-val { color: var(--white); font-family: 'DM Mono', monospace; }
         .value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; }
-        /* ── FIX 1: Short value displayed in orange/red to signal exposure ── */
-        .value-short { color: #fb923c; font-family: 'DM Mono', monospace; font-size: 12px; }
         .fetching { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
         .price-err { color: var(--red); font-size: 10px; } .price-dim { color: var(--text-mute); }
         .pnl-pos { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
