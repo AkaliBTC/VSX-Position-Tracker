@@ -39,7 +39,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     // Hide elements that look bad in screenshot
     const style = document.createElement("style");
     style.id = "screenshot-hide";
-    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; }";
+    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; } .dir-long { background: #14532d !important; color: #22c55e !important; border: 1px solid #22c55e !important; } .dir-short { background: #7f1d1d !important; color: #ef4444 !important; border: 1px solid #ef4444 !important; }";
     document.head.appendChild(style);
     const canvas = await html2canvas(el, {
       backgroundColor: "#0a0a0a",
