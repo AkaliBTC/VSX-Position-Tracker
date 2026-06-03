@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { db } from "./firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const STORAGE_KEY = "position_monitor_v1";
 const CLOSED_STORAGE_KEY = "closed_positions_v1";
@@ -21,7 +23,6 @@ const FLAGS = {
   "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55",  textColor: "#d4af37" },
   "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "99,182,255",  textColor: "#63b6ff" },
   "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" },
-  // ── FIX 2: new PARTIALS flag ──────────────────────────────────────────────
   "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "212,175,55",  textColor: "#d4af37" },
 };
 
@@ -55,14 +56,33 @@ const sortedQuarters = (list) => [...new Set(list)].sort((a, b) => {
   return parseInt(qb.slice(1)) - parseInt(qa.slice(1));
 });
 
-const loadFromStorage = () => {
-  try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; } catch { return null; }
+// ── FIREBASE STORAGE FUNCTIONS (replacing localStorage) ───────────────────────
+const loadFromStorage = async () => {
+  try {
+    const snap = await getDoc(doc(db, "tracker", STORAGE_KEY));
+    return snap.exists() ? snap.data().value : null;
+  } catch { return null; }
 };
-const saveToStorage = (d) => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} };
-const loadClosedFromStorage = () => {
-  try { const r = localStorage.getItem(CLOSED_STORAGE_KEY); return r ? JSON.parse(r) : {}; } catch { return {}; }
+
+const saveToStorage = async (d) => {
+  try {
+    await setDoc(doc(db, "tracker", STORAGE_KEY), { value: d });
+  } catch {}
 };
-const saveClosedToStorage = (d) => { try { localStorage.setItem(CLOSED_STORAGE_KEY, JSON.stringify(d)); } catch {} };
+
+const loadClosedFromStorage = async () => {
+  try {
+    const snap = await getDoc(doc(db, "tracker", CLOSED_STORAGE_KEY));
+    return snap.exists() ? snap.data().value : {};
+  } catch { return {}; }
+};
+
+const saveClosedToStorage = async (d) => {
+  try {
+    await setDoc(doc(db, "tracker", CLOSED_STORAGE_KEY), { value: d });
+  } catch {}
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
 const isFlagged = (p) => p.flag && p.flaggedAt && (Date.now() - p.flaggedAt) < NEW_TTL;
 const isNew = (p) => isFlagged(p);
@@ -149,8 +169,6 @@ const calcPositionValue = (direction, qty, entryPrice, currentPrice) => {
   if (direction === "LONG") {
     return q * currentPrice;
   } else {
-    // SHORT: aktueller Wert = Entry-Exposure + unrealisierter PnL
-    // steigt wenn Preis fällt: qty * (2*entry - currentPrice)
     if (!entryPrice || isNaN(parseFloat(entryPrice))) return null;
     return q * (2 * parseFloat(entryPrice) - currentPrice);
   }
@@ -677,16 +695,15 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   );
 }
 
-// ── FIX 3: CLOSE POSITION MODAL — mit Partial Close Option ───────────────────
+// ── CLOSE POSITION MODAL ──────────────────────────────────────────────────────
 function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   const [closePrice, setClosePrice] = useState(position.currentPrice ? String(position.currentPrice) : "");
   const [quarter, setQuarter] = useState(getQuarter(new Date()));
   const [reason, setReason] = useState("tp");
   const [note, setNote] = useState("");
 
-  // ── PARTIAL STATE ──────────────────────────────────────────────────────────
   const [isPartial, setIsPartial] = useState(false);
-  const [partialMode, setPartialMode] = useState("pct"); // "pct" | "qty"
+  const [partialMode, setPartialMode] = useState("pct");
   const [partialPct, setPartialPct] = useState(50);
   const [partialPctInput, setPartialPctInput] = useState("50");
   const [partialQtyInput, setPartialQtyInput] = useState("");
@@ -695,7 +712,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   const cp = parseFloat(closePrice);
   const totalQty = parseFloat(position.qty) || 0;
 
-  // Sync: when % changes → update qty display; when qty changes → update % display
   const handleSliderChange = (v) => {
     const n = Math.min(99, Math.max(1, parseInt(v) || 1));
     setPartialPct(n);
@@ -719,7 +735,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
       setPartialPctInput(String(pct));
     }
   };
-  // On toggle open: init qty field
   const togglePartial = () => {
     if (!isPartial && totalQty > 0) setPartialQtyInput(String(parseFloat((totalQty * 0.5).toFixed(8))));
     setIsPartial(p => !p);
@@ -748,8 +763,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
       <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 540, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)", maxHeight: "92vh", overflowY: "auto" }}>
-
-        {/* HEADER */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: "0.18em", color: "#f8e49b", lineHeight: 1 }}>CLOSE POSITION</div>
@@ -761,7 +774,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 4 }}>✕</button>
         </div>
 
-        {/* POSITION INFO */}
         <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 8, padding: "14px 16px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px 12px" }}>
           {[
             { label: "Ticker", val: position.ticker, color: "#d4af37" },
@@ -778,7 +790,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           ))}
         </div>
 
-        {/* ── PARTIAL TOGGLE ────────────────────────────────────────────── */}
         <div style={{ marginBottom: 14, background: isPartial ? "rgba(212,175,55,0.04)" : "#0a0a0a", border: `1px solid ${isPartial ? "rgba(212,175,55,0.3)" : "#1a1a1a"}`, borderRadius: 8, padding: "14px 16px", transition: "all 0.2s" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isPartial ? 14 : 0 }}>
             <div>
@@ -792,7 +803,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
 
           {isPartial && (
             <div>
-              {/* Mode selector */}
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {[{ id: "pct", label: "BY %" }, { id: "qty", label: "BY QTY" }].map(m => (
                   <button key={m.id} onClick={() => setPartialMode(m.id)}
@@ -849,7 +859,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
                 </div>
               )}
 
-              {/* Qty breakdown cards */}
               {totalQty > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
                   <div style={{ background: "#111", border: "1px solid rgba(212,175,55,0.12)", borderRadius: 6, padding: "10px 12px" }}>
@@ -868,7 +877,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           )}
         </div>
 
-        {/* CLOSE PRICE */}
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Close Price (USD)</label>
           <input type="number" value={closePrice} onChange={e => setClosePrice(e.target.value)} placeholder="Enter close price…"
@@ -880,7 +888,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           )}
         </div>
 
-        {/* QUARTER + REASON */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           <div>
             <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Quarter</label>
@@ -896,14 +903,12 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           </div>
         </div>
 
-        {/* NOTE */}
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Note (optional)</label>
           <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Wave 5 complete, target hit"
             style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none" }} />
         </div>
 
-        {/* PNL PREVIEW */}
         <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 8, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 5 }}>
@@ -923,7 +928,6 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           </div>
         </div>
 
-        {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
           <button
@@ -949,12 +953,10 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
                 tabLabel,
                 daysHeld,
                 closedAt: Date.now(),
-                // ── partial meta ───────────────────────────────────────
                 isPartial,
                 partialPct: isPartial ? partialPct : null,
                 remainingQty: isPartial ? qtyDisplay(remainingQty) : null,
               };
-              // Pass remaining qty back so App can update the open position
               onConfirm(record, isPartial ? qtyDisplay(remainingQty) : null);
             }}
             disabled={!closePrice || isNaN(cp) || cp <= 0}
@@ -1179,7 +1181,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const sl = parseFloat(p.sl);
               const pnl = calcPnL(p.direction, entry, p.currentPrice);
               const dist = calcSLDist(p.direction, p.currentPrice, sl);
-              // ── FIX 1: use corrected value calc ───────────────────────────
               const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
               const posValue = fmtValue(posValueNum);
               const flagged = isFlagged(p);
@@ -1225,7 +1226,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                         <option value="new_position">NEW POSITION</option>
                         <option value="stop_adjust">STOP ADJUST</option>
                         <option value="added">ADDED</option>
-                        {/* ── FIX 2: Partials option ── */}
                         <option value="partials">PARTIALS</option>
                       </select>
                       {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
@@ -1253,17 +1253,30 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
 // ── APP ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [activeTab, setActiveTab] = useState("crypto");
-  const [allPositions, setAllPositions] = useState(() => {
-    const stored = loadFromStorage();
-    if (!stored) return EMPTY_STATE;
-    return Object.fromEntries(Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))]));
-  });
-  const [closedPositions, setClosedPositions] = useState(() => loadClosedFromStorage().list || []);
+  const [allPositions, setAllPositions] = useState(EMPTY_STATE);
+  const [closedPositions, setClosedPositions] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState({});
   const [lastRefresh, setLastRefresh] = useState(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const anyFocused = useRef(false);
+
+  // ── Load from Firebase on startup ─────────────────────────────────────────
+  useEffect(() => {
+    const init = async () => {
+      const stored = await loadFromStorage();
+      if (stored) {
+        setAllPositions(Object.fromEntries(
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
+        ));
+      }
+      const closedStored = await loadClosedFromStorage();
+      setClosedPositions(closedStored.list || []);
+      setIsLoading(false);
+    };
+    init();
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -1273,7 +1286,10 @@ export default function App() {
           if (p.flaggedAt && !isFlagged(p)) { changed = true; return { ...p, flag: null, flaggedAt: null }; }
           return p;
         })]));
-        if (changed) { const toSave = Object.fromEntries(Object.entries(next).map(([id, rows]) => [id, rows.map(({ currentPrice, loading, error, ...r }) => r)])); saveToStorage(toSave); }
+        if (changed) {
+          const toSave = Object.fromEntries(Object.entries(next).map(([id, rows]) => [id, rows.map(({ currentPrice, loading, error, ...r }) => r)]));
+          saveToStorage(toSave);
+        }
         return changed ? next : prev;
       });
     }, 60000);
@@ -1289,7 +1305,6 @@ export default function App() {
     return next;
   });
 
-  // ── FIX 3: handleClosePosition handles partial — updates qty instead of removing ──
   const handleClosePosition = (record, positionId, remainingQty) => {
     const newClosed = [...closedPositions, record];
     setClosedPositions(newClosed);
@@ -1297,7 +1312,6 @@ export default function App() {
     setAllPositions(prev => {
       let next;
       if (record.isPartial && remainingQty != null) {
-        // Partial: update qty on the open position, keep it open
         next = {
           ...prev,
           [record.tabId]: prev[record.tabId].map(p =>
@@ -1305,7 +1319,6 @@ export default function App() {
           ),
         };
       } else {
-        // Full close: remove the position
         next = { ...prev, [record.tabId]: prev[record.tabId].filter(p => p.id !== positionId) };
       }
       const toSave = Object.fromEntries(Object.entries(next).map(([id, rows]) => [id, rows.map(({ currentPrice, loading, error, ...r }) => r)]));
@@ -1351,6 +1364,7 @@ export default function App() {
   }, [allPositions]);
 
   useEffect(() => {
+    if (isLoading) return;
     const intervals = TABS.map((tab) => {
       const ms = tab.source === "binance" ? 15000 : 30000;
       return setInterval(() => {
@@ -1358,7 +1372,7 @@ export default function App() {
       }, ms);
     });
     return () => intervals.forEach(clearInterval);
-  }, [allPositions, refreshTab]);
+  }, [allPositions, refreshTab, isLoading]);
 
   const allRows = Object.values(allPositions).flat();
   const totalPositions = allRows.filter((p) => p.ticker).length;
@@ -1374,6 +1388,16 @@ export default function App() {
   const currentQ = getQuarter(new Date());
   const currentQPnL = closedPositions.filter(c => c.quarter === currentQ).reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const hasCurrentQData = closedPositions.some(c => c.quarter === currentQ);
+
+  if (isLoading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20 }}>
+        <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width={72} height={72} alt="VisionX" style={{ filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))", animation: "spin 2s linear infinite" }} />
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.3em", color: "#d4af37" }}>LOADING VISIONX...</div>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
