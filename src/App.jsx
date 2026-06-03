@@ -1339,6 +1339,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [focusedId, setFocusedId] = useState(null);
   const [closingPosition, setClosingPosition] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState(null);
 
