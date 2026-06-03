@@ -292,6 +292,21 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   const shortPnL    = shortTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const allOpen     = TABS.flatMap(t => (allPositions[t.id] || []).filter(p => p.ticker.trim()).map(p => ({ ...p, tabLabel: t.label })));
 
+  // Floating PnL calculations
+  const calcFloatUSD = (p) => {
+    const ep = parseFloat(p.entry); const q = parseFloat(p.qty);
+    if (!p.currentPrice || !ep || !q || isNaN(ep) || isNaN(q)) return null;
+    return p.direction === "LONG" ? (p.currentPrice - ep) * q : (ep - p.currentPrice) * q;
+  };
+  const totalFloatUSD = allOpen.reduce((s, p) => s + (calcFloatUSD(p) || 0), 0);
+  const floatByPack = TABS.map(t => {
+    const positions = allOpen.filter(p => p.tabLabel === t.label);
+    const pnl = positions.reduce((s, p) => s + (calcFloatUSD(p) || 0), 0);
+    const winners = positions.filter(p => (calcFloatUSD(p) || 0) > 0).length;
+    return { tab: t, positions, pnl, winners };
+  }).filter(p => p.positions.length > 0);
+  const hasFloatData = allOpen.some(p => p.currentPrice);
+
   const qList   = getQuarterOptions();
   const qIdx    = qList.indexOf(selectedQ);
   const prevQ   = qIdx < qList.length - 1 ? qList[qIdx + 1] : null;
@@ -670,6 +685,33 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {hasFloatData && allOpen.length > 0 && (
+            <div style={S.section}>
+              <div style={S.sectionTitle}>Floating P&L — Open Positions</div>
+              <div style={{ background: "#111", border: `1px solid ${totalFloatUSD >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalFloatUSD >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 10, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 8 }}>Total Floating P&L — All Packs</div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: "0.04em", color: totalFloatUSD >= 0 ? "#22c55e" : "#ef4444", lineHeight: 1 }}>{fmtUSD(totalFloatUSD)}</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", marginTop: 5 }}>Unrealised · {allOpen.filter(p => p.currentPrice).length} positions with live price</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 3 }}>Open Positions</div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#d4af37" }}>{allOpen.length}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid #1a1a1a", borderRadius: 8, overflow: "hidden" }}>
+                {floatByPack.map(({ tab, positions, pnl, winners }, i) => (
+                  <div key={tab.id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < floatByPack.length - 1 ? "1px solid #111" : "none", background: i % 2 === 0 ? "#0f0f0f" : "#111" }}>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#d4af37", letterSpacing: "0.1em", width: 110 }}>{tab.label.toUpperCase()}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 80 }}>{positions.length} position{positions.length !== 1 ? "s" : ""}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flex: 1 }}>{winners}↑ / {positions.length - winners}↓</div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: pnl >= 0 ? "#22c55e" : "#ef4444" }}>{fmtUSD(pnl)}</div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
