@@ -60,9 +60,9 @@ const PLACEHOLDERS = {
 const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  ·  CH: NESN.SW  ·  JP: 7203.T";
 
 const FLAGS = {
-  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55", textColor: "#000", solidBg: "#d4af37", solidBorder: "#d4af37" },
+  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55", textColor: "#fff", solidBg: "#d4af37", solidBorder: "#d4af37" },
   "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "239,68,68",  textColor: "#fff", solidBg: "#ef4444", solidBorder: "#ef4444" },
-  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",  textColor: "#000", solidBg: "#22c55e", solidBorder: "#22c55e" },
+  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",  textColor: "#fff", solidBg: "#22c55e", solidBorder: "#22c55e" },
   "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247", textColor: "#fff", solidBg: "#a855f7", solidBorder: "#a855f7" },
 };
 
