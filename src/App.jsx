@@ -14,16 +14,56 @@ const TABS = [
   { id: "etfs",        label: "ETFs",        source: "yahoo"   },
 ];
 
+const DISCORD_WEBHOOKS = {
+  crypto:      "https://discord.com/api/webhooks/1511534525824630864/eX28AHnoVCsrJboN-40Puy2B4Te5mbHUIKCCnwby4EHC7ydJGUksecw3Ejv8FEqzIO_L",
+  stocks:      "https://discord.com/api/webhooks/1511535014544801852/PoL6psyWo2rhN4q2zoWoLAuC53taTQtWR38SvbTB5EFZPwHbI2kYYSd6kJ7NzAzuyK-y",
+  indices:     "https://discord.com/api/webhooks/1511535136074633327/ZwQnf5V2ac6Kxj3JYnakQ58ljK9Hf7R4cudhCFwfjheedwh_e4casaMmwPP9bHl6wwus",
+  commodities: "https://discord.com/api/webhooks/1511535267725443224/ZAgFTla-ytfk7ippnSDh7VOhyyug7fUdjjF3G9smaxC312q4BcEQriTGCIgQmfa1upTZ",
+  etfs:        "https://discord.com/api/webhooks/1511535403746853104/DPOGxol_dxf5VUw7Zt0LBTriO2LNXWFIn-CQ1c1q8oDwZjFtP4IC_qT4KZqLfsDwS1_i",
+};
+
+const loadHtml2Canvas = () => new Promise((resolve, reject) => {
+  if (window.html2canvas) { resolve(window.html2canvas); return; }
+  const s = document.createElement("script");
+  s.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+  s.onload = () => resolve(window.html2canvas);
+  s.onerror = reject;
+  document.head.appendChild(s);
+});
+
+const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl) => {
+  const el = document.getElementById(elementId);
+  if (!el) return { ok: false, error: "Element not found" };
+  try {
+    const html2canvas = await loadHtml2Canvas();
+    const canvas = await html2canvas(el, {
+      backgroundColor: "#0a0a0a",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+    const form = new FormData();
+    const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    form.append("content", `📊 **${tabLabel.toUpperCase()} PACK** · ${now}`);
+    form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
+    const res = await fetch(webhookUrl, { method: "POST", body: form });
+    return { ok: res.ok };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+};
+
 const PLACEHOLDERS = {
   crypto: "BTC", stocks: "MSFT", indices: "^GSPC", commodities: "GC=F", etfs: "SPY",
 };
 const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  ·  CH: NESN.SW  ·  JP: 7203.T";
 
 const FLAGS = {
-  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55",  textColor: "#d4af37" },
-  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "99,182,255",  textColor: "#63b6ff" },
-  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" },
-  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "212,175,55",  textColor: "#d4af37" },
+  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55",  textColor: "#d4af37" }, // gold
+  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "251,146,60",  textColor: "#fb923c" }, // orange
+  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" }, // green
+  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247",  textColor: "#a855f7" }, // purple
 };
 
 const CLOSE_REASONS = {
@@ -969,6 +1009,117 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   );
 }
 
+// ── ADD POSITION MODAL ───────────────────────────────────────────────────────
+function AddPositionModal({ tab, onClose, onConfirm }) {
+  const [ticker, setTicker] = useState("");
+  const [direction, setDirection] = useState("LONG");
+  const [qty, setQty] = useState("");
+  const [entry, setEntry] = useState("");
+  const [sl, setSl] = useState("");
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [flag, setFlag] = useState("");
+
+  const PLACEHOLDERS_MAP = { crypto: "BTC", stocks: "MSFT", indices: "^GSPC", commodities: "GC=F", etfs: "SPY" };
+
+  const ep = parseFloat(entry);
+  const slp = parseFloat(sl);
+  const slDist = ep && slp ? calcSLDist(direction, ep, slp) : null;
+
+  const canConfirm = ticker.trim().length > 0;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 500, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
+
+        {/* HEADER */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
+          <div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: "0.18em", color: "#f8e49b", lineHeight: 1 }}>NEW POSITION</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", color: "#d4af37", fontWeight: 700 }}>{tab.label.toUpperCase()} PACK</span>
+              <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "1px solid #222", color: "#666", fontWeight: 600 }}>{tab.source === "binance" ? "BINANCE" : "YAHOO FINANCE"}</span>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px" }}>✕</button>
+        </div>
+
+        {/* TICKER + DIRECTION */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div>
+            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Ticker</label>
+            <input autoFocus type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} placeholder={PLACEHOLDERS_MAP[tab.id] || "BTC"}
+              style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#f8e49b", fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none" }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Direction</label>
+            <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
+              {["LONG", "SHORT"].map(d => (
+                <button key={d} onClick={() => setDirection(d)}
+                  style={{ flex: 1, padding: "10px", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", borderRadius: 6, cursor: "pointer", border: `1px solid ${direction === d ? (d === "LONG" ? "rgba(34,197,94,0.5)" : "rgba(239,68,68,0.5)") : "#222"}`, background: direction === d ? (d === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)") : "transparent", color: direction === d ? (d === "LONG" ? "#22c55e" : "#ef4444") : "#444", transition: "all 0.15s" }}>
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* QTY + ENTRY + SL */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 14 }}>
+          {[
+            { label: "Quantity", val: qty, set: setQty, placeholder: "0" },
+            { label: "Entry Price", val: entry, set: setEntry, placeholder: "0.00" },
+            { label: "Stop Loss", val: sl, set: setSl, placeholder: "0.00" },
+          ].map(({ label, val, set, placeholder }) => (
+            <div key={label}>
+              <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>{label}</label>
+              <input type="number" value={val} onChange={e => set(e.target.value)} placeholder={placeholder}
+                style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 14, padding: "10px 12px", borderRadius: 6, outline: "none" }} />
+            </div>
+          ))}
+        </div>
+
+        {/* SL DIST PREVIEW */}
+        {slDist !== null && !isNaN(slDist) && (
+          <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 6, padding: "8px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 8, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase" }}>SL Distance</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: slDist >= 0 ? "#c59958" : "#ef4444" }}>{slDist.toFixed(2)}%</span>
+          </div>
+        )}
+
+        {/* DATE + FLAG */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 22 }}>
+          <div>
+            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Entry Date</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 13, padding: "10px 12px", borderRadius: 6, outline: "none", colorScheme: "dark" }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Flag</label>
+            <select value={flag} onChange={e => setFlag(e.target.value)}
+              style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag && FLAGS[flag] ? `rgba(${FLAGS[flag].color},0.4)` : "#222"}`, color: flag && FLAGS[flag] ? FLAGS[flag].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase" }}>
+              <option value="">— NONE —</option>
+              <option value="new_position">NEW POSITION</option>
+              <option value="stop_adjust">STOP ADJUST</option>
+              <option value="added">ADDED</option>
+              <option value="partials">PARTIALS</option>
+            </select>
+          </div>
+        </div>
+
+        {/* ACTIONS */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
+          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flag: flag || null, flaggedAt: flag ? Date.now() : null })}
+            disabled={!canConfirm}
+            style={{ background: canConfirm ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: canConfirm ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: canConfirm ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
+            + ADD POSITION
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── CLOSED POSITIONS PANEL ────────────────────────────────────────────────────
 function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDeleteQuarter }) {
   const [expanded, setExpanded] = useState(false);
@@ -1092,13 +1243,30 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState(null);
   const [closingPosition, setClosingPosition] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [posting, setPosting] = useState(false);
+  const [postResult, setPostResult] = useState(null);
+
+  const handleDiscordPost = async () => {
+    setPosting(true);
+    setPostResult(null);
+    const result = await postScreenshotToDiscord(
+      `table-capture-${tab.id}`,
+      tab.id,
+      tab.label,
+      DISCORD_WEBHOOKS[tab.id]
+    );
+    setPosting(false);
+    setPostResult(result.ok ? "ok" : "error");
+    setTimeout(() => setPostResult(null), 3000);
+  };
 
   const setFocus = (id) => { setFocusedId(id); if (anyFocused) anyFocused.current = true; };
   const clearFocus = () => { setFocusedId(null); if (anyFocused) anyFocused.current = false; };
 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
-  const add = () => setPositions((prev) => [...prev, newRow()]);
+  const add = (row) => setPositions((prev) => [...prev, row]);
   const setFlag = (id, type) => setPositions((prev) => prev.map((p) => p.id !== id ? p : { ...p, flag: type || null, flaggedAt: type ? Date.now() : null }));
 
   const handleSort = (key) => {
@@ -1132,6 +1300,13 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
 
   return (
     <div>
+      {showAddModal && (
+        <AddPositionModal
+          tab={tab}
+          onClose={() => setShowAddModal(false)}
+          onConfirm={(row) => { add(row); setShowAddModal(false); }}
+        />
+      )}
       {closingPosition && (
         <ClosePositionModal
           position={closingPosition}
@@ -1148,14 +1323,18 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
         <div className="hint-bar"><span className="hint-label">FORMAT</span>{STOCK_HINT}</div>
       )}
       <div className="toolbar">
-        <button className="btn btn-add" onClick={add}>+ ADD POSITION</button>
+        <button className="btn btn-add" onClick={() => setShowAddModal(true)}>+ ADD POSITION</button>
         <button className="btn btn-refresh" onClick={onRefresh} disabled={isRefreshing}>
           {isRefreshing ? <span className="spin">↻</span> : "↻"} REFRESH
         </button>
         <input className="search-inp" placeholder="Search ticker, date, direction…" value={search} onChange={e => setSearch(e.target.value)} />
         <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 30s AUTO"}</span>
+        <button className="btn btn-discord" onClick={handleDiscordPost} disabled={posting}
+          style={{ marginLeft: "auto", background: posting ? "#1a1a1a" : postResult === "ok" ? "rgba(34,197,94,0.15)" : postResult === "error" ? "rgba(239,68,68,0.15)" : "rgba(88,101,242,0.15)", border: `1px solid ${postResult === "ok" ? "rgba(34,197,94,0.4)" : postResult === "error" ? "rgba(239,68,68,0.4)" : "rgba(88,101,242,0.4)"}`, color: postResult === "ok" ? "#22c55e" : postResult === "error" ? "#ef4444" : "#8b9cf4", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "8px 16px", borderRadius: 6, cursor: posting ? "not-allowed" : "pointer", textTransform: "uppercase", transition: "all 0.2s", opacity: posting ? 0.5 : 1 }}>
+          {posting ? "⏳ POSTING..." : postResult === "ok" ? "✓ POSTED!" : postResult === "error" ? "✕ FAILED" : "📸 POST TO DISCORD"}
+        </button>
       </div>
-      <div className="table-wrap">
+      <div id={`table-capture-${tab.id}`} className="table-wrap">
         <table>
           <thead>
             <tr>
