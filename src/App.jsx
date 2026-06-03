@@ -1472,7 +1472,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   });
   const sorted = [...filtered].sort((a, b) => {
     if (!sortKey) return 0;
-    if (a.id === focusedId || b.id === focusedId) return 0;
+    if (focusedId) return 0; // freeze sort while any input is focused
     let va, vb;
     if (sortKey === "ticker") { va = a.ticker; vb = b.ticker; }
     else if (sortKey === "date") { va = a.date; vb = b.date; }
