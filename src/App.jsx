@@ -60,10 +60,10 @@ const PLACEHOLDERS = {
 const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  ·  CH: NESN.SW  ·  JP: 7203.T";
 
 const FLAGS = {
-  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55",  textColor: "#d4af37" }, // gold
-  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "239,68,68",   textColor: "#ef4444" }, // red
-  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" }, // green
-  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247",  textColor: "#a855f7" }, // purple
+  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55", textColor: "#000", solidBg: "#d4af37", solidBorder: "#d4af37" },
+  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "239,68,68",  textColor: "#fff", solidBg: "#ef4444", solidBorder: "#ef4444" },
+  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",  textColor: "#000", solidBg: "#22c55e", solidBorder: "#22c55e" },
+  "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247", textColor: "#fff", solidBg: "#a855f7", solidBorder: "#a855f7" },
 };
 
 const CLOSE_REASONS = {
@@ -1375,7 +1375,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                         onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
                         onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
                       {flagged && flagCfg && (
-                        <span className="flag-badge" style={{ color: "#fff", borderColor: `rgba(${flagCfg.color},0.8)`, background: `rgba(${flagCfg.color},0.85)`, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{flagCfg.short}</span>
+                        <span className="flag-badge" style={{ color: "#fff", borderColor: flagCfg.solidBorder, background: flagCfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{flagCfg.short}</span>
                       )}
                     </div>
                   </td>
