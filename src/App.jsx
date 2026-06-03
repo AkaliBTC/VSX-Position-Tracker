@@ -48,7 +48,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     dirSelects.forEach(sel => {
       const isLong = sel.value === "LONG";
       const div = document.createElement("div");
-      div.style.cssText = "display:inline-block;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:0.15em;border-radius:4px;font-family:Montserrat,sans-serif;" + (isLong ? "background:#14532d;color:#22c55e;border:1px solid #22c55e;" : "background:#7f1d1d;color:#ef4444;border:1px solid #ef4444;");
+      div.style.cssText = "display:inline-block;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:0.15em;border-radius:4px;font-family:Montserrat,sans-serif;" + (isLong ? "background:rgba(34,197,94,0.12);color:#22c55e;" : "background:rgba(239,68,68,0.12);color:#ef4444;");
       div.textContent = isLong ? "LONG" : "SHORT";
       sel.parentNode.insertBefore(div, sel);
       sel.style.display = "none";
