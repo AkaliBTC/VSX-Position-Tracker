@@ -61,7 +61,7 @@ const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  · 
 
 const FLAGS = {
   "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55",  textColor: "#d4af37" }, // gold
-  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "251,146,60",  textColor: "#fb923c" }, // orange
+  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "239,68,68",   textColor: "#ef4444" }, // red
   "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",   textColor: "#22c55e" }, // green
   "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247",  textColor: "#a855f7" }, // purple
 };
@@ -1375,7 +1375,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                         onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
                         onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
                       {flagged && flagCfg && (
-                        <span className="flag-badge" style={{ color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.12)` }}>{flagCfg.short}</span>
+                        <span className="flag-badge" style={{ color: "#fff", borderColor: `rgba(${flagCfg.color},0.8)`, background: `rgba(${flagCfg.color},0.85)`, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{flagCfg.short}</span>
                       )}
                     </div>
                   </td>
