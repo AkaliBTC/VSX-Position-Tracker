@@ -1105,10 +1105,11 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
           <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Click to add a block</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {DISCORD_PRESETS.map(p => (
-              <button key={p.id} onClick={() => addPreset(p)}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: "rgba(" + p.color + ",0.08)", border: "1px solid rgba(" + p.color + ",0.3)", borderRadius: 7, cursor: "pointer", transition: "all 0.15s" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(" + p.color + ",0.18)"; e.currentTarget.style.borderColor = "rgba(" + p.color + ",0.6)"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(" + p.color + ",0.08)"; e.currentTarget.style.borderColor = "rgba(" + p.color + ",0.3)"; }}>
+              <button key={p.id} onClick={() => { if (!ticker.trim()) return; addPreset(p); setTicker(""); }}
+                disabled={!ticker.trim()}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: ticker.trim() ? "rgba(" + p.color + ",0.08)" : "#0d0d0d", border: "1px solid rgba(" + p.color + "," + (ticker.trim() ? "0.3" : "0.1") + ")", borderRadius: 7, cursor: ticker.trim() ? "pointer" : "not-allowed", transition: "all 0.15s", opacity: ticker.trim() ? 1 : 0.35 }}
+                onMouseEnter={e => { if (!ticker.trim()) return; e.currentTarget.style.background = "rgba(" + p.color + ",0.18)"; e.currentTarget.style.borderColor = "rgba(" + p.color + ",0.6)"; }}
+                onMouseLeave={e => { if (!ticker.trim()) return; e.currentTarget.style.background = "rgba(" + p.color + ",0.08)"; e.currentTarget.style.borderColor = "rgba(" + p.color + ",0.3)"; }}>
                 <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: p.textColor, textTransform: "uppercase" }}>{p.label}</span>
                 <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: p.textColor, opacity: 0.5 }}>+</span>
               </button>
