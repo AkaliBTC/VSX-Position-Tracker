@@ -39,8 +39,22 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     // Hide elements that look bad in screenshot
     const style = document.createElement("style");
     style.id = "screenshot-hide";
-    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; } .dir-long { background: #14532d !important; color: #22c55e !important; border: 1px solid #22c55e !important; } .dir-short { background: #7f1d1d !important; color: #ef4444 !important; border: 1px solid #ef4444 !important; }";
+    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; }";
     document.head.appendChild(style);
+
+    // Replace dir selects with readable divs
+    const dirSelects = el.querySelectorAll(".dir-sel");
+    const replacements = [];
+    dirSelects.forEach(sel => {
+      const isLong = sel.value === "LONG";
+      const div = document.createElement("div");
+      div.style.cssText = "display:inline-block;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:0.15em;border-radius:4px;font-family:Montserrat,sans-serif;" + (isLong ? "background:#14532d;color:#22c55e;border:1px solid #22c55e;" : "background:#7f1d1d;color:#ef4444;border:1px solid #ef4444;");
+      div.textContent = isLong ? "LONG" : "SHORT";
+      sel.parentNode.insertBefore(div, sel);
+      sel.style.display = "none";
+      replacements.push({ div, sel });
+    });
+
     const canvas = await html2canvas(el, {
       backgroundColor: "#0a0a0a",
       scale: 2,
@@ -48,6 +62,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
       logging: false,
     });
     document.getElementById("screenshot-hide")?.remove();
+    replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
     const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -59,6 +74,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     return { ok: res.ok };
   } catch (e) {
     document.getElementById("screenshot-hide")?.remove();
+    if (typeof replacements !== "undefined") replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
     return { ok: false, error: e.message };
   }
 };
