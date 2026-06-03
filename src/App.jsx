@@ -51,7 +51,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
     const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    const header = `**${tabLabel.toUpperCase()} PACK** | ${now}`;
+    const header = `📊 **${tabLabel.toUpperCase()} PACK** | ${now}`;
     const msgLine = message ? `\n\n${message}` : "";
     form.append("content", header + msgLine);
     form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
@@ -536,7 +536,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
             <div>
               <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.3em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>VISIONX ANALYTICS · QUARTERLY REPORT</div>
-              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: "0.14em", color: "#f8e49b", lineHeight: 1 }}>FULL PORTFOLIO</div>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: "0.14em", color: "#d4af37", lineHeight: 1 }}>FULL PORTFOLIO</div>
               <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", marginTop: 4 }}>Generated {today} · Confidential</div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
