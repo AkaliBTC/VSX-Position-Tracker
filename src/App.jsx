@@ -1019,83 +1019,147 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
 
 // ── DISCORD POST MODAL ───────────────────────────────────────────────────────
 const DISCORD_PRESETS = [
-  { id: "new",     label: "New Position",      icon: "NEW",     text: "New position opened." },
-  { id: "closed",  label: "Position Closed",   icon: "CLOSED",  text: "Position closed." },
-  { id: "partial", label: "Partials Taken",    icon: "PARTIAL", text: "Partials taken." },
-  { id: "sl",      label: "Stop Loss Moved",   icon: "SL MOV",  text: "Stop loss adjusted." },
-  { id: "adding",  label: "Added to Position", icon: "ADDED",   text: "Added to existing position." },
+  {
+    id: "new",
+    label: "New Position",
+    icon: "NEW",
+    color: "34,197,94",
+    textColor: "#22c55e",
+    generate: (ticker, pack) => "🟢 **NEW POSITION | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "A new trade has been opened. Check the tracker for full details including entry, stop loss and targets.",
+  },
+  {
+    id: "closed",
+    label: "Position Closed",
+    icon: "CLOSED",
+    color: "239,68,68",
+    textColor: "#ef4444",
+    generate: (ticker, pack) => "🔴 **POSITION CLOSED | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "This position has been closed. Full P&L details available in the tracker.",
+  },
+  {
+    id: "partial",
+    label: "Partials Taken",
+    icon: "PARTIAL",
+    color: "168,85,247",
+    textColor: "#a855f7",
+    generate: (ticker, pack) => "🟣 **PARTIALS TAKEN | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "Partial profits have been secured on this position. Remaining size still running.",
+  },
+  {
+    id: "sl",
+    label: "Stop Loss Moved",
+    icon: "SL MOV",
+    color: "251,146,60",
+    textColor: "#fb923c",
+    generate: (ticker, pack) => "🟠 **STOP LOSS MOVED | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "Stop loss has been adjusted on this position. Risk is being actively managed.",
+  },
+  {
+    id: "adding",
+    label: "Added to Position",
+    icon: "ADDED",
+    color: "99,182,255",
+    textColor: "#63b6ff",
+    generate: (ticker, pack) => "🔵 **ADDED TO POSITION | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "Size has been added to this position. Check the tracker for the updated entry average.",
+  },
 ];
 
 function DiscordPostModal({ tab, onClose, onConfirm }) {
-  const [selectedPreset, setSelectedPreset] = useState("new");
-  const [customText, setCustomText] = useState("");
+  const [ticker, setTicker] = useState("");
+  const [lines, setLines] = useState([]);
 
-  const preset = DISCORD_PRESETS.find(p => p.id === selectedPreset);
-  const messageText = customText || preset.text;
-  const finalMessage = `${preset.icon} **${tab.label.toUpperCase()} PACK** · ${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}${messageText ? `\n${messageText}` : ""}`;
+  const addPreset = (preset) => {
+    const text = preset.generate(ticker.trim().toUpperCase(), tab.label.toUpperCase());
+    setLines(prev => [...prev, { presetId: preset.id, text }]);
+  };
+
+  const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
+  const fullMessage = lines.map(l => l.text).join("\n\n");
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 520, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(6px)" }}>
+      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 580, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
 
-        {/* HEADER */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: "0.18em", color: "#f8e49b", lineHeight: 1 }}>POST TO DISCORD</div>
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+            <div style={{ marginTop: 8 }}>
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(88,101,242,0.12)", border: "1px solid rgba(88,101,242,0.3)", color: "#8b9cf4", fontWeight: 700 }}>{tab.label.toUpperCase()} CHANNEL</span>
             </div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px" }}>✕</button>
         </div>
 
-        {/* PRESETS */}
-        <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Quick Preset</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 8 }}>
+            Ticker <span style={{ color: "#444", fontSize: 9, letterSpacing: 0, textTransform: "none" }}>(optional — gets woven into the text)</span>
+          </div>
+          <input type="text" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} placeholder="e.g. BTC, SOL, MSFT"
+            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#f8e49b", fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, letterSpacing: "0.1em", padding: "10px 14px", borderRadius: 6, outline: "none" }} />
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Click to add a block</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             {DISCORD_PRESETS.map(p => (
-              <button key={p.id} onClick={() => { setSelectedPreset(p.id); setCustomText(p.text); }}
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: selectedPreset === p.id ? "rgba(88,101,242,0.14)" : "#0a0a0a", border: `1px solid ${selectedPreset === p.id ? "rgba(88,101,242,0.5)" : "#1a1a1a"}`, borderRadius: 7, cursor: "pointer", transition: "all 0.15s", textAlign: "left" }}>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", padding: "2px 7px", borderRadius: 3, background: "rgba(88,101,242,0.15)", color: "#8b9cf4", border: "1px solid rgba(88,101,242,0.3)" }}>{p.icon}</span>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: selectedPreset === p.id ? "#8b9cf4" : "#555", textTransform: "uppercase" }}>{p.label}</span>
+              <button key={p.id} onClick={() => addPreset(p)}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: "rgba(" + p.color + ",0.08)", border: "1px solid rgba(" + p.color + ",0.3)", borderRadius: 7, cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(" + p.color + ",0.18)"; e.currentTarget.style.borderColor = "rgba(" + p.color + ",0.6)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(" + p.color + ",0.08)"; e.currentTarget.style.borderColor = "rgba(" + p.color + ",0.3)"; }}>
+                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: p.textColor, textTransform: "uppercase" }}>{p.label}</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: p.textColor, opacity: 0.5 }}>+</span>
               </button>
             ))}
           </div>
         </div>
 
-        {/* CUSTOM TEXT */}
-        <div style={{ marginBottom: 18 }}>
-          <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 8 }}>Message <span style={{ color: "#444", textTransform: "none", letterSpacing: 0, fontSize: 9 }}>(optional — edit or leave blank)</span></div>
-          <textarea value={messageText} onChange={e => setCustomText(e.target.value)}
-            placeholder="e.g. Closed 3 SOL shorts, 1 BTC long opened at key support…"
-            rows={3}
-            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none", resize: "vertical", lineHeight: 1.6 }} />
-        </div>
+        {lines.length === 0 && (
+          <div style={{ padding: "28px", textAlign: "center", border: "1px dashed #1a1a1a", borderRadius: 8, marginBottom: 22 }}>
+            <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#2a2a2a", textTransform: "uppercase" }}>Click a preset above to build your message</div>
+          </div>
+        )}
 
-        {/* PREVIEW */}
-        <div style={{ background: "#1e1f22", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 16px", marginBottom: 22 }}>
-          <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>Discord Preview</div>
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #d4af37, #c59958)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>V</div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VisionX</span>
-                <span style={{ fontSize: 9, color: "#555" }}>Today at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
-              </div>
-              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#e8e8e8", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                {preset.icon} <strong>{tab.label.toUpperCase()} PACK</strong> · {new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
-                {(customText || preset.text) && <><br />{customText || preset.text}</>}
-                <br /><span style={{ color: "#555", fontSize: 10 }}>[screenshot attached]</span>
+        {lines.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>
+              Message blocks <span style={{ color: "#444", fontSize: 9, letterSpacing: 0, textTransform: "none" }}>(click X to remove)</span>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {lines.map((line, idx) => {
+                const preset = DISCORD_PRESETS.find(p => p.id === line.presetId);
+                return (
+                  <div key={idx} style={{ background: "#0a0a0a", border: "1px solid rgba(" + (preset?.color || "255,255,255") + ",0.15)", borderLeft: "3px solid " + (preset?.textColor || "#555"), borderRadius: 7, padding: "12px 14px", position: "relative" }}>
+                    <button onClick={() => removeLine(idx)} style={{ position: "absolute", top: 8, right: 10, background: "none", border: "none", color: "#333", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }}
+                      onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
+                      onMouseLeave={e => e.currentTarget.style.color = "#333"}>✕</button>
+                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: preset?.textColor || "#555", textTransform: "uppercase", marginBottom: 6 }}>{preset?.label}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", paddingRight: 24 }}>{line.text}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {lines.length > 0 && (
+          <div style={{ background: "#1e1f22", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 16px", marginBottom: 22 }}>
+            <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>Discord Preview</div>
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #d4af37, #c59958)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#000", flexShrink: 0 }}>V</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VisionX</span>
+                  <span style={{ fontSize: 9, color: "#555" }}>Today at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+                </div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#dcddde", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {fullMessage}{"\n"}<span style={{ color: "#555", fontSize: 10 }}>[screenshot attached]</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => onConfirm(customText || preset.text, preset.icon)}
-            style={{ background: "linear-gradient(135deg, #5865f2, #4752c4)", color: "#fff", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: "pointer", border: "none", textTransform: "uppercase" }}>
+          <button onClick={() => lines.length > 0 && onConfirm(fullMessage, "")} disabled={lines.length === 0}
+            style={{ background: lines.length > 0 ? "linear-gradient(135deg, #5865f2, #4752c4)" : "#1a1a1a", color: lines.length > 0 ? "#fff" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: lines.length > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
             SHOOT & POST
           </button>
         </div>
@@ -1103,6 +1167,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
     </div>
   );
 }
+
 
 // ── ADD POSITION MODAL ───────────────────────────────────────────────────────
 function AddPositionModal({ tab, onClose, onConfirm }) {
