@@ -161,22 +161,46 @@ const fetchBinance = async (ticker) => {
 };
 
 const PROXIES = [
+  (u) => fetch(u, { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0" } }).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
   (u) => fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }).then(d => JSON.parse(d.contents)),
   (u) => fetch(`https://corsproxy.io/?${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
   (u) => fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
-  (u) => fetch(`https://yacdn.org/proxy/${u}`).then(r => { if (!r.ok) throw new Error(); return r.json(); }),
 ];
+
+// Direct Yahoo fetch via their public API — no proxy needed
+const fetchYahooDirect = async (ticker) => {
+  const urls = [
+    `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=5d`,
+    `https://query2.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=5d`,
+    `https://query1.finance.yahoo.com/v6/finance/quote?symbols=${ticker}`,
+    `https://query2.finance.yahoo.com/v6/finance/quote?symbols=${ticker}`,
+  ];
+  for (const url of urls) {
+    try {
+      const r = await fetch(url, { headers: { "Accept": "application/json", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" } });
+      if (!r.ok) continue;
+      const d = await r.json();
+      const price = d?.chart?.result?.[0]?.meta?.regularMarketPrice
+        || d?.quoteResponse?.result?.[0]?.regularMarketPrice
+        || d?.quoteResponse?.result?.[0]?.ask;
+      if (price && price > 0) return price;
+    } catch {}
+  }
+  return null;
+};
 
 const fetchYahooSingle = async (ticker) => {
   const raw = ticker.toUpperCase().trim();
+  // Try direct first (works in browser, CORS permitting)
+  const direct = await fetchYahooDirect(raw);
+  if (direct) return direct;
+  // Fall back to proxies
   const pairs = [
     [`https://query1.finance.yahoo.com/v6/finance/quote?symbols=${raw}`, (d) => { const r = d?.quoteResponse?.result?.[0]; return r?.regularMarketPrice || r?.ask || null; }],
-    [`https://query2.finance.yahoo.com/v6/finance/quote?symbols=${raw}`, (d) => { const r = d?.quoteResponse?.result?.[0]; return r?.regularMarketPrice || r?.ask || null; }],
-    [`https://query1.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`, (d) => { const m = d?.chart?.result?.[0]?.meta; return m?.regularMarketPrice || m?.chartPreviousClose || null; }],
     [`https://query2.finance.yahoo.com/v8/finance/chart/${raw}?interval=1d&range=5d`, (d) => { const m = d?.chart?.result?.[0]?.meta; return m?.regularMarketPrice || m?.chartPreviousClose || null; }],
   ];
   for (const [url, extract] of pairs) {
-    for (const px of PROXIES) {
+    for (const px of PROXIES.slice(1)) {
       try { const data = await px(url); const price = extract(data); if (price && price > 0) return price; } catch { continue; }
     }
   }
@@ -1445,6 +1469,10 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     );
     setPosting(false);
     setPostResult(result.ok ? "ok" : "error");
+    if (result.ok) {
+      // Clear all flags on this tab after successful post
+      setPositions(prev => prev.map(p => ({ ...p, flag: null, flaggedAt: null })));
+    }
     setTimeout(() => setPostResult(null), 3000);
   };
 
