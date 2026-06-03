@@ -1647,15 +1647,38 @@ export default function App() {
       const closedStored = await loadClosedFromStorage();
       setClosedPositions(closedStored.list || []);
       setIsLoading(false);
-      // Trigger initial price refresh for all tabs after data loads
-      setTimeout(() => {
-        TABS.forEach(tab => {
-          const rows = (stored || {})[tab.id] || [];
-          if (rows.some(p => p.ticker?.trim())) {
+      // Directly trigger refresh for all tabs with positions
+      if (stored) {
+        const loadedPositions = Object.fromEntries(
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
+        );
+        allPositionsRef.current = loadedPositions;
+        setTimeout(() => {
+          TABS.forEach(async (tab) => {
+            const rows = loadedPositions[tab.id] || [];
+            const active = rows.filter(p => p.ticker?.trim());
+            if (!active.length) return;
             setRefreshing(prev => ({ ...prev, [tab.id]: true }));
-          }
-        });
-      }, 500);
+            let priceMap = {};
+            if (tab.source === "binance") {
+              await Promise.all(active.map(async (p) => { priceMap[p.ticker.trim()] = await fetchBinance(p.ticker.trim()); }));
+            } else {
+              const r = await fetch(`/api/yahoo?symbols=${active.map(p => p.ticker.trim()).join(",")}`);
+              if (r.ok) { const d = await r.json(); priceMap = d?.prices || {}; }
+            }
+            setAllPositions(prev => ({
+              ...prev,
+              [tab.id]: (prev[tab.id] || []).map(p => {
+                if (!p.ticker?.trim()) return p;
+                const fetched = priceMap[p.ticker.trim()];
+                return fetched ? { ...p, currentPrice: fetched, error: false, loading: false } : p;
+              }),
+            }));
+            setRefreshing(prev => ({ ...prev, [tab.id]: false }));
+            setLastRefresh(new Date());
+          });
+        }, 800);
+      }
     };
     init();
   }, []);
