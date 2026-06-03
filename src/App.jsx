@@ -36,12 +36,18 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl) =
   if (!el) return { ok: false, error: "Element not found" };
   try {
     const html2canvas = await loadHtml2Canvas();
+    // Hide elements that look bad in screenshot
+    const style = document.createElement("style");
+    style.id = "screenshot-hide";
+    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; }";
+    document.head.appendChild(style);
     const canvas = await html2canvas(el, {
       backgroundColor: "#0a0a0a",
       scale: 2,
       useCORS: true,
       logging: false,
     });
+    document.getElementById("screenshot-hide")?.remove();
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
     const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -50,6 +56,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl) =
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
   } catch (e) {
+    document.getElementById("screenshot-hide")?.remove();
     return { ok: false, error: e.message };
   }
 };
