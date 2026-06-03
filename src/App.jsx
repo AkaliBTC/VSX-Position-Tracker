@@ -31,7 +31,7 @@ const loadHtml2Canvas = () => new Promise((resolve, reject) => {
   document.head.appendChild(s);
 });
 
-const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl) => {
+const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, message = "", emoji = "📊") => {
   const el = document.getElementById(elementId);
   if (!el) return { ok: false, error: "Element not found" };
   try {
@@ -51,7 +51,8 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl) =
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
     const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    form.append("content", `📊 **${tabLabel.toUpperCase()} PACK** · ${now}`);
+    const msgLine = message ? `\n${message}` : "";
+    form.append("content", `${emoji} **${tabLabel.toUpperCase()} PACK** · ${now}${msgLine}`);
     form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
@@ -1016,6 +1017,96 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   );
 }
 
+// ── DISCORD POST MODAL ───────────────────────────────────────────────────────
+const DISCORD_PRESETS = [
+  { id: "update",   label: "Position Update",    emoji: "📊", text: "" },
+  { id: "new",      label: "New Trade Alert",     emoji: "🚀", text: "New position opened." },
+  { id: "closed",   label: "Positions Closed",    emoji: "✅", text: "Positions closed." },
+  { id: "partial",  label: "Partials Taken",      emoji: "⚡", text: "Partials taken on position." },
+  { id: "sl",       label: "Stop Loss Moved",     emoji: "🛡️", text: "Stop loss adjusted." },
+  { id: "adding",   label: "Adding to Position",  emoji: "➕", text: "Adding to existing position." },
+  { id: "watch",    label: "Watching Closely",    emoji: "👀", text: "Watching this setup closely." },
+  { id: "custom",   label: "Custom",              emoji: "✏️", text: "" },
+];
+
+function DiscordPostModal({ tab, onClose, onConfirm }) {
+  const [selectedPreset, setSelectedPreset] = useState("update");
+  const [customText, setCustomText] = useState("");
+
+  const preset = DISCORD_PRESETS.find(p => p.id === selectedPreset);
+  const messageText = selectedPreset === "custom" ? customText : (customText || preset.text);
+  const finalMessage = `${preset.emoji} **${tab.label.toUpperCase()} PACK** · ${new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}${messageText ? `\n${messageText}` : ""}`;
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 520, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
+
+        {/* HEADER */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
+          <div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: "0.18em", color: "#f8e49b", lineHeight: 1 }}>POST TO DISCORD</div>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(88,101,242,0.12)", border: "1px solid rgba(88,101,242,0.3)", color: "#8b9cf4", fontWeight: 700 }}>{tab.label.toUpperCase()} CHANNEL</span>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px" }}>✕</button>
+        </div>
+
+        {/* PRESETS */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Quick Preset</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {DISCORD_PRESETS.map(p => (
+              <button key={p.id} onClick={() => { setSelectedPreset(p.id); if (p.id !== "custom") setCustomText(p.text); }}
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: selectedPreset === p.id ? "rgba(88,101,242,0.14)" : "#0a0a0a", border: `1px solid ${selectedPreset === p.id ? "rgba(88,101,242,0.5)" : "#1a1a1a"}`, borderRadius: 7, cursor: "pointer", transition: "all 0.15s", textAlign: "left" }}>
+                <span style={{ fontSize: 14 }}>{p.emoji}</span>
+                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: selectedPreset === p.id ? "#8b9cf4" : "#555", textTransform: "uppercase" }}>{p.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* CUSTOM TEXT */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 8 }}>Message <span style={{ color: "#444", textTransform: "none", letterSpacing: 0, fontSize: 9 }}>(optional — edit or leave blank)</span></div>
+          <textarea value={messageText} onChange={e => setCustomText(e.target.value)}
+            placeholder="e.g. Closed 3 SOL shorts, 1 BTC long opened at key support…"
+            rows={3}
+            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none", resize: "vertical", lineHeight: 1.6 }} />
+        </div>
+
+        {/* PREVIEW */}
+        <div style={{ background: "#1e1f22", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 16px", marginBottom: 22 }}>
+          <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>Discord Preview</div>
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #d4af37, #c59958)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>V</div>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VisionX</span>
+                <span style={{ fontSize: 9, color: "#555" }}>Today at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
+              </div>
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#e8e8e8", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                {preset.emoji} <strong>{tab.label.toUpperCase()} PACK</strong> · {new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}
+                {(customText || (selectedPreset !== "custom" && preset.text)) && <><br />{customText || preset.text}</>}
+                <br /><span style={{ color: "#555", fontSize: 10 }}>[screenshot attached]</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ACTIONS */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
+          <button onClick={() => onConfirm(customText || (selectedPreset !== "custom" ? preset.text : ""), preset.emoji)}
+            style={{ background: "linear-gradient(135deg, #5865f2, #4752c4)", color: "#fff", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: "pointer", border: "none", textTransform: "uppercase" }}>
+            📸 SHOOT & POST
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ADD POSITION MODAL ───────────────────────────────────────────────────────
 function AddPositionModal({ tab, onClose, onConfirm }) {
   const [ticker, setTicker] = useState("");
@@ -1254,14 +1345,17 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState(null);
 
-  const handleDiscordPost = async () => {
+  const handleDiscordPost = async (message, emoji) => {
+    setShowDiscordModal(false);
     setPosting(true);
     setPostResult(null);
     const result = await postScreenshotToDiscord(
       `table-capture-${tab.id}`,
       tab.id,
       tab.label,
-      DISCORD_WEBHOOKS[tab.id]
+      DISCORD_WEBHOOKS[tab.id],
+      message,
+      emoji
     );
     setPosting(false);
     setPostResult(result.ok ? "ok" : "error");
@@ -1307,6 +1401,13 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
 
   return (
     <div>
+      {showDiscordModal && (
+        <DiscordPostModal
+          tab={tab}
+          onClose={() => setShowDiscordModal(false)}
+          onConfirm={(message, emoji) => handleDiscordPost(message, emoji)}
+        />
+      )}
       {showAddModal && (
         <AddPositionModal
           tab={tab}
@@ -1336,7 +1437,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
         </button>
         <input className="search-inp" placeholder="Search ticker, date, direction…" value={search} onChange={e => setSearch(e.target.value)} />
         <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 30s AUTO"}</span>
-        <button className="btn btn-discord" onClick={handleDiscordPost} disabled={posting}
+        <button className="btn btn-discord" onClick={() => setShowDiscordModal(true)} disabled={posting}
           style={{ marginLeft: "auto", background: posting ? "#1a1a1a" : postResult === "ok" ? "rgba(34,197,94,0.15)" : postResult === "error" ? "rgba(239,68,68,0.15)" : "rgba(88,101,242,0.15)", border: `1px solid ${postResult === "ok" ? "rgba(34,197,94,0.4)" : postResult === "error" ? "rgba(239,68,68,0.4)" : "rgba(88,101,242,0.4)"}`, color: postResult === "ok" ? "#22c55e" : postResult === "error" ? "#ef4444" : "#8b9cf4", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "8px 16px", borderRadius: 6, cursor: posting ? "not-allowed" : "pointer", textTransform: "uppercase", transition: "all 0.2s", opacity: posting ? 0.5 : 1 }}>
           {posting ? "⏳ POSTING..." : postResult === "ok" ? "✓ POSTED!" : postResult === "error" ? "✕ FAILED" : "📸 POST TO DISCORD"}
         </button>
