@@ -1522,7 +1522,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
           {isRefreshing ? <span className="spin">↻</span> : "↻"} REFRESH
         </button>
         <input className="search-inp" placeholder="Search ticker, date, direction…" value={search} onChange={e => setSearch(e.target.value)} />
-        <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 30s AUTO"}</span>
+        <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 60s AUTO"}</span>
         <button className="btn btn-discord" onClick={() => setShowDiscordModal(true)} disabled={posting}
           style={{ marginLeft: "auto", background: posting ? "#1a1a1a" : postResult === "ok" ? "rgba(34,197,94,0.15)" : postResult === "error" ? "rgba(239,68,68,0.15)" : "rgba(88,101,242,0.15)", border: `1px solid ${postResult === "ok" ? "rgba(34,197,94,0.4)" : postResult === "error" ? "rgba(239,68,68,0.4)" : "rgba(88,101,242,0.4)"}`, color: postResult === "ok" ? "#22c55e" : postResult === "error" ? "#ef4444" : "#8b9cf4", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "8px 16px", borderRadius: 6, cursor: posting ? "not-allowed" : "pointer", textTransform: "uppercase", transition: "all 0.2s", opacity: posting ? 0.5 : 1 }}>
           {posting ? "⏳ POSTING..." : postResult === "ok" ? "✓ POSTED!" : postResult === "error" ? "✕ FAILED" : "📸 POST TO DISCORD"}
@@ -1634,6 +1634,7 @@ export default function App() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [showReport, setShowReport] = useState(false);
   const anyFocused = useRef(false);
+  const allPositionsRef = useRef(allPositions);
 
   // ── Load from Firebase on startup ─────────────────────────────────────────
   useEffect(() => {
@@ -1647,6 +1648,15 @@ export default function App() {
       const closedStored = await loadClosedFromStorage();
       setClosedPositions(closedStored.list || []);
       setIsLoading(false);
+      // Trigger initial price refresh for all tabs after data loads
+      setTimeout(() => {
+        TABS.forEach(tab => {
+          const rows = (stored || {})[tab.id] || [];
+          if (rows.some(p => p.ticker?.trim())) {
+            setRefreshing(prev => ({ ...prev, [tab.id]: true }));
+          }
+        });
+      }, 500);
     };
     init();
   }, []);
@@ -1670,6 +1680,8 @@ export default function App() {
   }, []);
 
   useEffect(() => { setSavedFlash(true); const t = setTimeout(() => setSavedFlash(false), 1400); return () => clearTimeout(t); }, [allPositions, closedPositions]);
+
+  useEffect(() => { allPositionsRef.current = allPositions; }, [allPositions]);
 
   const setPosForTab = (tabId) => (updater) => setAllPositions((prev) => {
     const next = { ...prev, [tabId]: typeof updater === "function" ? updater(prev[tabId]) : updater };
@@ -1713,7 +1725,7 @@ export default function App() {
 
   const refreshTab = useCallback(async (tabId) => {
     const tab = TABS.find((t) => t.id === tabId);
-    const snapshot = allPositions[tabId] || [];
+    const snapshot = allPositionsRef.current[tabId] || [];
     const active = snapshot.filter((p) => p.ticker.trim());
     if (!active.length) return;
     setRefreshing((prev) => ({ ...prev, [tabId]: true }));
@@ -1734,14 +1746,14 @@ export default function App() {
     });
     setLastRefresh(new Date());
     setRefreshing((prev) => ({ ...prev, [tabId]: false }));
-  }, [allPositions]);
+  }, []);
 
   useEffect(() => {
     if (isLoading) return;
     const intervals = TABS.map((tab) => {
-      const ms = tab.source === "binance" ? 15000 : 30000;
+      const ms = tab.source === "binance" ? 15000 : 60000;
       return setInterval(() => {
-        if (!anyFocused.current && (allPositions[tab.id] || []).some((p) => p.ticker.trim())) refreshTab(tab.id);
+        if (!anyFocused.current && (allPositionsRef.current[tab.id] || []).some((p) => p.ticker.trim())) refreshTab(tab.id);
       }, ms);
     });
     return () => intervals.forEach(clearInterval);
