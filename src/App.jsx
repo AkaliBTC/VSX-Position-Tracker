@@ -1420,6 +1420,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [sortDir, setSortDir] = useState("asc");
   const [search, setSearch] = useState("");
   const [focusedId, setFocusedId] = useState(null);
+  const frozenOrder = useRef(null);
   const [closingPosition, setClosingPosition] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDiscordModal, setShowDiscordModal] = useState(false);
@@ -1447,8 +1448,19 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     setTimeout(() => setPostResult(null), 3000);
   };
 
-  const setFocus = (id) => { setFocusedId(id); if (anyFocused) anyFocused.current = true; };
-  const clearFocus = () => { setFocusedId(null); if (anyFocused) anyFocused.current = false; };
+  const setFocus = (id) => {
+    setFocusedId(id);
+    if (anyFocused) anyFocused.current = true;
+    // Freeze the current row order when editing starts
+    if (!frozenOrder.current) {
+      frozenOrder.current = sorted.map(p => p.id);
+    }
+  };
+  const clearFocus = () => {
+    setFocusedId(null);
+    frozenOrder.current = null;
+    if (anyFocused) anyFocused.current = false;
+  };
 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
@@ -1470,19 +1482,26 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     const q = search.trim().toLowerCase();
     return p.ticker.toLowerCase().includes(q) || p.direction.toLowerCase().includes(q) || p.date.includes(q);
   });
-  const sorted = [...filtered].sort((a, b) => {
-    if (!sortKey) return 0;
-    if (focusedId) return 0; // freeze sort while any input is focused
-    let va, vb;
-    if (sortKey === "ticker") { va = a.ticker; vb = b.ticker; }
-    else if (sortKey === "date") { va = a.date; vb = b.date; }
-    else if (sortKey === "entry") { va = parseFloat(a.entry) || 0; vb = parseFloat(b.entry) || 0; }
-    else if (sortKey === "pnl") { va = calcPnL(a.direction, parseFloat(a.entry), a.currentPrice) ?? -Infinity; vb = calcPnL(b.direction, parseFloat(b.entry), b.currentPrice) ?? -Infinity; }
-    else if (sortKey === "dir") { va = a.direction; vb = b.direction; }
-    if (va < vb) return sortDir === "asc" ? -1 : 1;
-    if (va > vb) return sortDir === "asc" ? 1 : -1;
-    return 0;
-  });
+  const sorted = (() => {
+    const base = [...filtered].sort((a, b) => {
+      if (!sortKey) return 0;
+      let va, vb;
+      if (sortKey === "ticker") { va = a.ticker; vb = b.ticker; }
+      else if (sortKey === "date") { va = a.date; vb = b.date; }
+      else if (sortKey === "entry") { va = parseFloat(a.entry) || 0; vb = parseFloat(b.entry) || 0; }
+      else if (sortKey === "pnl") { va = calcPnL(a.direction, parseFloat(a.entry), a.currentPrice) ?? -Infinity; vb = calcPnL(b.direction, parseFloat(b.entry), b.currentPrice) ?? -Infinity; }
+      else if (sortKey === "dir") { va = a.direction; vb = b.direction; }
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    // If editing, use frozen order to prevent rows jumping
+    if (frozenOrder.current) {
+      const orderMap = Object.fromEntries(frozenOrder.current.map((id, i) => [id, i]));
+      return [...base].sort((a, b) => (orderMap[a.id] ?? 999) - (orderMap[b.id] ?? 999));
+    }
+    return base;
+  })();
 
   return (
     <div>
