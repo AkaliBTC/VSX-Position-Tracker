@@ -51,8 +51,9 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
     const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    const msgLine = message ? `\n${message}` : "";
-    form.append("content", `**[${emoji}] ${tabLabel.toUpperCase()} PACK** · ${now}${msgLine}`);
+    const header = `**${tabLabel.toUpperCase()} PACK** | ${now}`;
+    const msgLine = message ? `\n\n${message}` : "";
+    form.append("content", header + msgLine);
     form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
@@ -1023,41 +1024,46 @@ const DISCORD_PRESETS = [
     id: "new",
     label: "New Position",
     icon: "NEW",
+    emoji: "🟢",
     color: "34,197,94",
     textColor: "#22c55e",
-    generate: (ticker, pack) => "🟢 **NEW POSITION | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "A new trade has been opened. Check the tracker for full details including entry, stop loss and targets.",
+    generate: (ticker, pack) => "🟢 " + (ticker ? "New position opened on **" + ticker + "**." : "New position opened."),
   },
   {
     id: "closed",
     label: "Position Closed",
     icon: "CLOSED",
+    emoji: "🔴",
     color: "239,68,68",
     textColor: "#ef4444",
-    generate: (ticker, pack) => "🔴 **POSITION CLOSED | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "This position has been closed. Full P&L details available in the tracker.",
+    generate: (ticker, pack) => "🔴 " + (ticker ? "Position closed on **" + ticker + "**." : "Position closed."),
   },
   {
     id: "partial",
     label: "Partials Taken",
     icon: "PARTIAL",
+    emoji: "🟣",
     color: "168,85,247",
     textColor: "#a855f7",
-    generate: (ticker, pack) => "🟣 **PARTIALS TAKEN | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "Partial profits have been secured on this position. Remaining size still running.",
+    generate: (ticker, pack) => "🟣 " + (ticker ? "Partials taken on **" + ticker + "**." : "Partials taken."),
   },
   {
     id: "sl",
     label: "Stop Loss Moved",
     icon: "SL MOV",
+    emoji: "🟠",
     color: "251,146,60",
     textColor: "#fb923c",
-    generate: (ticker, pack) => "🟠 **STOP LOSS MOVED | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "Stop loss has been adjusted on this position. Risk is being actively managed.",
+    generate: (ticker, pack) => "🟠 " + (ticker ? "Stop loss moved on **" + ticker + "**." : "Stop loss moved."),
   },
   {
     id: "adding",
     label: "Added to Position",
     icon: "ADDED",
+    emoji: "🔵",
     color: "99,182,255",
     textColor: "#63b6ff",
-    generate: (ticker, pack) => "🔵 **ADDED TO POSITION | " + pack + " PACK**\n" + (ticker ? "Ticker: **" + ticker + "**\n" : "") + "Size has been added to this position. Check the tracker for the updated entry average.",
+    generate: (ticker, pack) => "🔵 " + (ticker ? "Added to **" + ticker + "**." : "Added to position."),
   },
 ];
 
@@ -1158,8 +1164,8 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => lines.length > 0 && onConfirm(fullMessage, "")} disabled={lines.length === 0}
-            style={{ background: lines.length > 0 ? "linear-gradient(135deg, #5865f2, #4752c4)" : "#1a1a1a", color: lines.length > 0 ? "#fff" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: lines.length > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
+          <button onClick={() => onConfirm(fullMessage, "")}  disabled={false}
+            style={{ background: "linear-gradient(135deg, #5865f2, #4752c4)", color: "#fff", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: "pointer", border: "none", textTransform: "uppercase" }}>
             SHOOT & POST
           </button>
         </div>
