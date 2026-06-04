@@ -85,9 +85,9 @@ const PLACEHOLDERS = {
 const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  ·  CH: NESN.SW  ·  JP: 7203.T";
 
 const FLAGS = {
-  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "212,175,55", textColor: "#fff", solidBg: "#d4af37", solidBorder: "#d4af37" },
-  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "239,68,68",  textColor: "#fff", solidBg: "#ef4444", solidBorder: "#ef4444" },
-  "added":        { label: "ADDED",        short: "ADDED",    color: "34,197,94",  textColor: "#fff", solidBg: "#22c55e", solidBorder: "#22c55e" },
+  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "34,197,94",  textColor: "#fff", solidBg: "#22c55e", solidBorder: "#22c55e" },
+  "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "212,175,55", textColor: "#fff", solidBg: "#d4af37", solidBorder: "#d4af37" },
+  "added":        { label: "ADDED",        short: "ADDED",    color: "99,182,255", textColor: "#fff", solidBg: "#63b6ff", solidBorder: "#63b6ff" },
   "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247", textColor: "#fff", solidBg: "#a855f7", solidBorder: "#a855f7" },
 };
 
@@ -1107,7 +1107,7 @@ const DISCORD_PRESETS = [
     emoji: "🟠",
     color: "251,146,60",
     textColor: "#fb923c",
-    generate: (ticker, pack) => "🟠 " + (ticker ? "Stop loss moved on **" + ticker + "**." : "Stop loss moved."),
+    generate: (ticker, pack) => "🟡 " + (ticker ? "Stop loss moved on **" + ticker + "**." : "Stop loss moved."),
   },
   {
     id: "adding",
