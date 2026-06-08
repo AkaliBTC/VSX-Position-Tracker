@@ -539,7 +539,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         <td style="padding:9px 11px;color:${floatUSD != null ? gc(floatUSD) : DIM};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${floatUSD != null ? fu(floatUSD) : "—"}</td>
         <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${p.date || "—"}</td>
       </tr>`;
-    }).join("");
+    });
 
     const tradeRows = qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => {
       const rowBg = i % 2 === 0 ? BG2 : BG3;
@@ -557,8 +557,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         <td style="padding:8px 10px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
-    const openRowsStr = openRows.join("");
-
     const packBreakdownPage = `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
@@ -628,32 +626,36 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     </div>` : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
-    const tradeLogPage = totalTrades > 0 ? `
-    <div style="page-break-before:always;background:${BG1};display:flex;flex-direction:column">
+    // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
+    const CHUNK = 22;
+    const tradeChunks = [];
+    for (let i = 0; i < tradeRows.length; i += CHUNK) tradeChunks.push(tradeRows.slice(i, i + CHUNK));
+    const tradeHeader = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
+    const tradeLogPage = totalTrades > 0 ? tradeChunks.map((chunk, ci) => `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
       <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
             <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">COMPLETE TRADE LOG</div>
           </div>
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
         </div>
         <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
-          <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-            ${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
-          </tr></thead>
-          <tbody>${tradeRows}</tbody>
+          ${tradeHeader}
+          <tbody>${chunk.join("")}</tbody>
         </table>
+        ${ci === tradeChunks.length - 1 ? `
         <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
           <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Profit Factor ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
-        </div>
+        </div>` : ""}
         <div style="flex:1"></div>
       </div>
-      ${footer("4")}
+      ${footer(String(4 + ci))}
       ${goldBar}
-    </div>` : "";
+    </div>`).join("") : "";
 
     // ── PAGE 5: DISCLAIMER ────────────────────────────────────────────────────
     const disclaimerPage = `
