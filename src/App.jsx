@@ -384,8 +384,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
 
     const thStyle = `padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap`;
     const goldBar = `<div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>`;
-    const totalPages = totalTrades > 0 ? 5 : 4;
-    const footer = (n, total) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · QUARTERLY PERFORMANCE MEMORANDUM · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n} / ${totalPages}</div></div>`;
+    const footer = (n) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · QUARTERLY PERFORMANCE MEMORANDUM · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}</div></div>`;
     const sectionHdr = (title) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div><div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">${title}</div></div>`;
     const statCard = (label, val, sub, color) => `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:16px 18px"><div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${color || GOLD};line-height:1">${val}</div>${sub ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:4px">${sub}</div>` : ""}</div>`;
 
@@ -419,6 +418,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           </div>
         </div>
       </div>
+      ${footer("1")}
       ${goldBar}
     </div>`;
 
@@ -504,7 +504,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         </div>
         <div style="flex:1"></div>
       </div>
-      ${footer(2)}
+      ${footer("2")}
       ${goldBar}
     </div>`;
 
@@ -602,7 +602,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation. Dashes indicate positions pending next scheduled price refresh.</div>
         <div style="flex:1"></div>
       </div>
-      ${footer(3)}
+      ${footer("3")}
       ${goldBar}
     </div>`;
 
@@ -630,7 +630,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         </div>
         <div style="flex:1"></div>
       </div>
-      ${footer(4, 5)}
+      ${footer("4")}
       ${goldBar}
     </div>` : "";
 
@@ -669,6 +669,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           </div>
         </div>
       </div>
+      ${footer("5")}
       ${goldBar}
     </div>`;
 
@@ -682,6 +683,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         @page{size:A4;margin:0}
         section{break-inside:avoid}
+        tr{page-break-inside:avoid}
+        thead{display:table-header-group}
+        tfoot{display:table-footer-group}
       </style>
     </head><body>
       ${coverPage}
