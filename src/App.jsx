@@ -384,7 +384,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
 
     const thStyle = `padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap`;
     const goldBar = `<div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>`;
-    const footer = (n, total) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · PROPRIETARY TRADING REPORT · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}${total ? " / " + total : ""}</div></div>`;
+    const footer = (n, total) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · QUARTERLY PERFORMANCE MEMORANDUM · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}${total ? " / " + total : ""}</div></div>`;
     const sectionHdr = (title) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div><div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">${title}</div></div>`;
     const statCard = (label, val, sub, color) => `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:16px 18px"><div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${color || GOLD};line-height:1">${val}</div>${sub ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:4px">${sub}</div>` : ""}</div>`;
 
@@ -402,7 +402,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           </div>
         </div>
         <div>
-          <div style="font-size:9px;font-weight:700;letter-spacing:0.4em;color:${GOLD3};text-transform:uppercase;margin-bottom:20px">Proprietary Trading · Performance Report</div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:0.4em;color:${GOLD3};text-transform:uppercase;margin-bottom:20px">Quarterly Performance Memorandum</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:80px;letter-spacing:0.06em;color:${GOLD2};line-height:0.9;margin-bottom:16px">${qLabel.split(" ")[0]}<br><span style="font-size:56px;color:${GOLD3}">${qLabel.split(" ")[1] || ""}</span></div>
           <div style="width:80px;height:3px;background:linear-gradient(90deg,${GOLD},transparent);margin-bottom:24px"></div>
           <div style="font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">Generated ${today}</div>
@@ -593,7 +593,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           ${sectionHdr("Open Positions — All Packs")}
           <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
             <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-              ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
+              ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE *", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
             </tr></thead>
             <tbody>${openRows}</tbody>
           </table>
@@ -606,7 +606,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
     const tradeLogPage = totalTrades > 0 ? `
-    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+    <div style="page-break-before:always;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
       <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
@@ -658,7 +658,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         </div>
         <div style="border-top:1px solid ${BORDER};padding-top:24px;display:flex;justify-content:space-between;align-items:flex-end">
           <div>
-            <div style="font-family:'DM Mono',monospace;font-size:9px;color:${DIM};margin-bottom:4px">VisionX Market Analytics · ${qLabel} · Proprietary Trading Report</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:${DIM};margin-bottom:4px">VisionX Market Analytics · ${qLabel} · Quarterly Performance Memorandum</div>
             <div style="font-family:'DM Mono',monospace;font-size:9px;color:${DIM}">Generated ${today} · Confidential</div>
           </div>
           <div style="text-align:right">
@@ -672,7 +672,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
 
     win.document.write(`<!DOCTYPE html><html><head>
       <meta charset="utf-8">
-      <title>VisionX Market Analytics · ${qLabel} · Proprietary Trading Report</title>
+      <title>VisionX Market Analytics · ${qLabel} · Quarterly Performance Memorandum</title>
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
       <style>
