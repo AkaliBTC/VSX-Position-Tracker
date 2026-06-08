@@ -544,17 +544,17 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     const tradeRows = qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => {
       const rowBg = i % 2 === 0 ? BG2 : BG3;
       return `<tr style="background:${rowBg};page-break-inside:avoid">
-        <td style="padding:8px 10px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
-        <td style="padding:8px 10px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px">${c.ticker}${c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : ""}</td>
-        <td style="padding:8px 10px;font-size:9px;font-weight:700;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
-        <td style="padding:8px 10px"><span style="font-size:8px;font-weight:700;padding:3px 8px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
-        <td style="padding:8px 10px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty || "—"}</td>
-        <td style="padding:8px 10px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.entry ? fp(parseFloat(c.entry)) : "—"}</td>
-        <td style="padding:8px 10px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${fp(c.closePrice)}</td>
-        <td style="padding:8px 10px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
-        <td style="padding:8px 10px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
-        <td style="padding:8px 10px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
-        <td style="padding:8px 10px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
+        <td style="padding:7px 8px;color:${DIM};font-size:9px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
+        <td style="padding:7px 8px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:13px">${c.ticker}${c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : ""}</td>
+        <td style="padding:7px 8px;font-size:8px;font-weight:700;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
+        <td style="padding:7px 8px"><span style="font-size:7px;font-weight:700;padding:2px 6px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
+        <td style="padding:7px 8px;color:#888;font-family:'DM Mono',monospace;font-size:10px">${c.qty || "—"}</td>
+        <td style="padding:7px 8px;color:#888;font-family:'DM Mono',monospace;font-size:10px">${c.entry ? fp(parseFloat(c.entry)) : "—"}</td>
+        <td style="padding:7px 8px;color:${TEXT};font-family:'DM Mono',monospace;font-size:10px">${fp(c.closePrice)}</td>
+        <td style="padding:7px 8px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
+        <td style="padding:7px 8px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
+        <td style="padding:7px 8px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:10px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
+        <td style="padding:7px 8px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
     const packBreakdownPage = `
@@ -630,7 +630,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     const tradeLogPage = totalTrades > 0 ? tradeChunks.map((chunk, ci) => `
     <div style="page-break-before:always;min-height:100vh;width:100%;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
-      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+      <div style="padding:44px 40px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
