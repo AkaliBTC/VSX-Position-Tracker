@@ -284,8 +284,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   const totalPnL    = qData.reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const avgPnLPct   = totalTrades > 0 ? qData.reduce((s, c) => s + (c.pnlPct || 0), 0) / totalTrades : null;
   const avgHold     = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
-  const bestTrade   = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlUSD || 0) > (b.pnlUSD || 0) ? a : b) : null;
-  const worstTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlUSD || 0) < (b.pnlUSD || 0) ? a : b) : null;
+  const bestTrade   = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) > (b.pnlPct || 0) ? a : b) : null;
+  const worstTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) < (b.pnlPct || 0) ? a : b) : null;
   const longTrades  = qData.filter(c => c.direction === "LONG");
   const shortTrades = qData.filter(c => c.direction === "SHORT");
   const longPnL     = longTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
