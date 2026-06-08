@@ -337,202 +337,282 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     const BG1 = "#080808"; const BG2 = "#0f0f0f"; const BG3 = "#141414";
     const BORDER = "#1e1e1e"; const BORDER2 = "#2a2a2a";
     const TEXT = "#e8e8e8"; const MUTE = "#555"; const DIM = "#333";
+    const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const qLabel = getQuarterLabel(selectedQ);
 
-    const thStyle = `padding:11px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap`;
-    const sectionHdr = (title) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:14px"><div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div><div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">${title}</div></div>`;
-    const footer = (n) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX ANALYTICS · FULL PORTFOLIO · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}</div></div>`;
+    // ── Calculations ──────────────────────────────────────────────────────────
+    const calcFloatUSD = (p) => {
+      const ep = parseFloat(p.entry); const q = parseFloat(p.qty);
+      if (!p.currentPrice || !ep || !q || isNaN(ep) || isNaN(q)) return null;
+      return p.direction === "LONG" ? (p.currentPrice - ep) * q : (ep - p.currentPrice) * q;
+    };
+    const allOpenFull = TABS.flatMap(t => (allPositions[t.id] || []).filter(p => p.ticker.trim()).map(p => ({ ...p, tabId: t.id, tabLabel: t.label })));
+    const totalFloatUSD = allOpenFull.reduce((s, p) => s + (calcFloatUSD(p) || 0), 0);
+    const totalPortfolioValue = allOpenFull.reduce((s, p) => {
+      const ep = parseFloat(p.entry); const q = parseFloat(p.qty);
+      if (!ep || !q || isNaN(ep) || isNaN(q)) return s;
+      return s + (p.currentPrice ? p.currentPrice * q : ep * q);
+    }, 0);
+    const longPositions = allOpenFull.filter(p => p.direction === "LONG");
+    const shortPositions = allOpenFull.filter(p => p.direction === "SHORT");
+    const longPct = allOpenFull.length > 0 ? ((longPositions.length / allOpenFull.length) * 100).toFixed(0) : 0;
+    const shortPct = allOpenFull.length > 0 ? ((shortPositions.length / allOpenFull.length) * 100).toFixed(0) : 0;
+    const avgSLDist = allOpenFull.filter(p => p.sl && p.currentPrice).map(p => {
+      const sl = parseFloat(p.sl); const cur = p.currentPrice;
+      return p.direction === "LONG" ? ((cur - sl) / cur) * 100 : ((sl - cur) / cur) * 100;
+    }).filter(v => !isNaN(v) && v > 0).reduce((s, v, _, a) => s + v / a.length, 0);
+    const closedWinners = qData.filter(c => (c.pnlPct || 0) > 0);
+    const closedLosers  = qData.filter(c => (c.pnlPct || 0) <= 0);
+    const avgWinPct  = closedWinners.length > 0 ? closedWinners.reduce((s, c) => s + (c.pnlPct || 0), 0) / closedWinners.length : null;
+    const avgLossPct = closedLosers.length  > 0 ? Math.abs(closedLosers.reduce((s, c) => s + (c.pnlPct || 0), 0) / closedLosers.length) : null;
+    const profitFactor = avgWinPct && avgLossPct ? (avgWinPct / avgLossPct).toFixed(2) : null;
+    const winRate = totalTrades > 0 ? (winners.length / totalTrades) * 100 : null;
+    const avgHold = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
+    const bestTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) > (b.pnlPct || 0) ? a : b) : null;
+    const worstTrade = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) < (b.pnlPct || 0) ? a : b) : null;
+
+    // Pack breakdown — both open and closed
+    const packStats = TABS.map(t => {
+      const closed = qData.filter(c => c.tabId === t.id);
+      const open   = allOpenFull.filter(p => p.tabId === t.id);
+      const realPnL = closed.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+      const floatPnL = open.reduce((s, p) => s + (calcFloatUSD(p) || 0), 0);
+      const wins = closed.filter(c => (c.pnlUSD || 0) > 0).length;
+      const wr = closed.length > 0 ? ((wins / closed.length) * 100).toFixed(0) + "%" : "—";
+      return { tab: t, closed, open, realPnL, floatPnL, wins, wr };
+    });
+
+    const thStyle = `padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap`;
     const goldBar = `<div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>`;
+    const footer = (n, total) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · PROPRIETARY TRADING REPORT · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}${total ? " / " + total : ""}</div></div>`;
+    const sectionHdr = (title) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div><div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">${title}</div></div>`;
+    const statCard = (label, val, sub, color) => `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:16px 18px"><div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${color || GOLD};line-height:1">${val}</div>${sub ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:4px">${sub}</div>` : ""}</div>`;
 
-    const tradeRows = qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => {
+    // ── PAGE 1: COVER ─────────────────────────────────────────────────────────
+    const coverPage = `
+    <div style="min-height:100vh;background:${BG1};display:flex;flex-direction:column;position:relative;overflow:hidden">
+      ${goldBar}
+      <div style="position:absolute;top:0;right:0;width:400px;height:400px;background:radial-gradient(circle,rgba(212,175,55,0.04) 0%,transparent 70%);pointer-events:none"></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:space-between;padding:64px 72px">
+        <div style="display:flex;align-items:center;gap:20px">
+          <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="60" height="60" style="object-fit:contain;filter:drop-shadow(0 0 16px rgba(212,175,55,0.4))">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.3em;color:#fff">VISIONX</div>
+            <div style="font-size:8px;letter-spacing:0.4em;color:${GOLD3};text-transform:uppercase">Market Analytics</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;letter-spacing:0.4em;color:${GOLD3};text-transform:uppercase;margin-bottom:20px">Proprietary Trading · Performance Report</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:80px;letter-spacing:0.06em;color:${GOLD2};line-height:0.9;margin-bottom:16px">${qLabel.split(" ")[0]}<br><span style="font-size:56px;color:${GOLD3}">${qLabel.split(" ")[1] || ""}</span></div>
+          <div style="width:80px;height:3px;background:linear-gradient(90deg,${GOLD},transparent);margin-bottom:24px"></div>
+          <div style="font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">Generated ${today}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:32px">
+          ${statCard("Realised P&L", fu(totalPnL), qLabel, gc(totalPnL))}
+          ${statCard("Floating P&L", fu(totalFloatUSD), "Unrealised", gc(totalFloatUSD))}
+          ${statCard("Active Positions", String(allOpenFull.length), "across all packs", GOLD)}
+        </div>
+        <div style="border-top:1px solid ${BORDER};padding-top:20px">
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:${DIM};line-height:1.8">
+            This report is prepared exclusively for internal use by VisionX Market Analytics. All trading activity represents proprietary capital only. Past performance does not guarantee future results. This document does not constitute investment advice.
+          </div>
+        </div>
+      </div>
+      ${goldBar}
+    </div>`;
+
+    // ── PAGE 2: PERFORMANCE OVERVIEW ─────────────────────────────────────────
+    const overviewPage = `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+      ${goldBar}
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">PERFORMANCE OVERVIEW</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px">
+          <div style="background:${BG2};border:1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"};border-left:4px solid ${gc(totalPnL)};border-radius:12px;padding:24px 28px">
+            <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Realised P&L · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:${gc(totalPnL)};line-height:1">${fu(totalPnL)}</div>
+            ${avgPnLPct !== null ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:${gc(avgPnLPct)};margin-top:6px">Avg ${avgPnLPct >= 0 ? "+" : ""}${avgPnLPct.toFixed(2)}% per trade</div>` : ""}
+          </div>
+          <div style="background:${BG2};border:1px solid ${totalFloatUSD >= 0 ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)"};border-left:4px solid ${gc(totalFloatUSD)};border-radius:12px;padding:24px 28px">
+            <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Floating P&L · Open Positions</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:52px;color:${gc(totalFloatUSD)};line-height:1">${fu(totalFloatUSD)}</div>
+            <div style="font-family:'DM Mono',monospace;font-size:11px;color:${MUTE};margin-top:6px">${allOpenFull.filter(p => p.currentPrice).length} positions with live price</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
+          ${statCard("Win Rate", winRate != null ? winRate.toFixed(0) + "%" : "—", `${winners.length}W / ${totalTrades - winners.length}L`, winRate != null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : MUTE)}
+          ${statCard("Profit Factor", profitFactor || "—", avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : "—", profitFactor >= 1 ? "#22c55e" : "#ef4444")}
+          ${statCard("Avg Hold Time", avgHold != null ? avgHold + "D" : "—", "per closed trade", GOLD)}
+          ${statCard("Avg SL Distance", avgSLDist > 0 ? avgSLDist.toFixed(1) + "%" : "—", "open positions", GOLD3)}
+        </div>
+
+        <div style="margin-bottom:28px">
+          ${sectionHdr("Portfolio Composition — Open Positions")}
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+              <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Direction Split</div>
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <div style="flex:${longPct};height:6px;background:#22c55e;border-radius:3px"></div>
+                <div style="flex:${shortPct};height:6px;background:#ef4444;border-radius:3px"></div>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#22c55e">LONG ${longPct}%</div>
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#ef4444">SHORT ${shortPct}%</div>
+              </div>
+            </div>
+            <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+              <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Total Portfolio Value</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};line-height:1">${totalPortfolioValue > 0 ? "$" + totalPortfolioValue.toLocaleString("en-US", { maximumFractionDigits: 0 }) : "—"}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:4px">Proprietary capital · ${allOpenFull.length} positions</div>
+            </div>
+            <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
+              <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Closed Trades</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};line-height:1">${totalTrades}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:4px">${qLabel} · ${winners.length} winners</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          ${sectionHdr("Trade Highlights")}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            ${[{ label: "BEST TRADE", trade: bestTrade }, { label: "WORST TRADE", trade: worstTrade }].map(({ label, trade }) => {
+              if (!trade) return `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:20px 22px"><div style="font-size:7px;letter-spacing:0.24em;color:${DIM};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="color:${DIM};font-size:13px;font-family:'DM Mono',monospace">—</div></div>`;
+              const tc = trade.pnlPct >= 0 ? "#22c55e" : "#ef4444";
+              const trgb = trade.pnlPct >= 0 ? "34,197,94" : "239,68,68";
+              return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-left:3px solid ${tc};border-radius:10px;padding:20px 22px">
+                <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">${label}</div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                  <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};letter-spacing:0.06em">${trade.ticker}</span>
+                  <span style="font-size:8px;padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)"};color:${trade.direction === "LONG" ? "#22c55e" : "#ef4444"}">${trade.direction}</span>
+                  <span style="font-size:8px;color:${GOLD3};font-family:'Montserrat',sans-serif;font-weight:600">${trade.tabLabel || ""}</span>
+                </div>
+                <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;color:${tc};margin-bottom:4px">${trade.pnlPct != null ? (trade.pnlPct >= 0 ? "+" : "") + trade.pnlPct.toFixed(2) + "%" : "—"}</div>
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${fu(trade.pnlUSD)} · ${trade.daysHeld}d hold</div>
+              </div>`;
+            }).join("")}
+          </div>
+        </div>
+        <div style="flex:1"></div>
+      </div>
+      ${footer(2)}
+      ${goldBar}
+    </div>`;
+
+    // ── PAGE 3: PACK BREAKDOWN ────────────────────────────────────────────────
+    const packRows = packStats.map((ps, i) => {
       const rowBg = i % 2 === 0 ? BG2 : BG3;
-      const partialLabel = c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : "";
+      const totalPnLPack = ps.realPnL + ps.floatPnL;
       return `<tr style="background:${rowBg}">
-        <td style="padding:9px 11px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
-        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${c.ticker}${partialLabel}</td>
-        <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
-        <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
-        <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty || "—"}</td>
-        <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.entry ? fp(parseFloat(c.entry)) : "—"}</td>
-        <td style="padding:9px 11px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${fp(c.closePrice)}</td>
-        <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
-        <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
-        <td style="padding:9px 11px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
-        <td style="padding:9px 11px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
+        <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${GOLD};letter-spacing:0.08em">${ps.tab.label.toUpperCase()}</td>
+        <td style="padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">${ps.closed.length}</td>
+        <td style="padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">${ps.wr}</td>
+        <td style="padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">${ps.open.length}</td>
+        <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:16px;color:${ps.closed.length > 0 ? gc(ps.realPnL) : DIM}">${ps.closed.length > 0 ? fu(ps.realPnL) : "—"}</td>
+        <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:16px;color:${ps.open.length > 0 ? gc(ps.floatPnL) : DIM}">${ps.open.length > 0 ? fu(ps.floatPnL) : "—"}</td>
+        <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${gc(totalPnLPack)};font-weight:700">${fu(totalPnLPack)}</td>
       </tr>`;
     }).join("");
 
-    const openRows = allOpen.map((p, i) => {
-      const ep   = parseFloat(p.entry);
+    const openRows = allOpenFull.map((p, i) => {
+      const ep = parseFloat(p.entry);
+      const floatUSD = calcFloatUSD(p);
       const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
-      const uusd = p.currentPrice && p.qty ? (p.direction === "LONG" ? (p.currentPrice - ep) * parseFloat(p.qty) : (ep - p.currentPrice) * parseFloat(p.qty)) : null;
       const rowBg = i % 2 === 0 ? BG2 : BG3;
       return `<tr style="background:${rowBg}">
         <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${p.ticker}</td>
-        <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${p.tabLabel || "—"}</td>
+        <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${p.tabLabel}</td>
         <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${p.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${p.direction === "LONG" ? "#22c55e" : "#ef4444"}">${p.direction}</span></td>
         <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.qty || "—"}</td>
         <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.entry ? fp(ep) : "—"}</td>
         <td style="padding:9px 11px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${p.currentPrice ? fp(p.currentPrice) : "—"}</td>
         <td style="padding:9px 11px;color:${upct != null ? gc(upct) : DIM};font-family:'DM Mono',monospace;font-size:11px">${upct != null ? (upct >= 0 ? "+" : "") + upct.toFixed(2) + "%" : "—"}</td>
-        <td style="padding:9px 11px;color:${uusd != null ? gc(uusd) : DIM};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(uusd)}</td>
+        <td style="padding:9px 11px;color:${floatUSD != null ? gc(floatUSD) : DIM};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${floatUSD != null ? fu(floatUSD) : "—"}</td>
         <td style="padding:9px 11px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${p.date || "—"}</td>
       </tr>`;
     }).join("");
 
-    const packRows = TABS.map(t => {
-      const pc    = qData.filter(c => c.tabId === t.id);
-      const po    = (allPositions[t.id] || []).filter(p => p.ticker.trim());
-      if (pc.length === 0 && po.length === 0) return "";
-      const ppnl  = pc.reduce((s, c) => s + (c.pnlUSD || 0), 0);
-      const pwins = pc.filter(c => (c.pnlUSD || 0) > 0).length;
-      const pwr   = pc.length > 0 ? ((pwins / pc.length) * 100).toFixed(0) + "%" : "—";
-      return `<tr style="border-bottom:1px solid ${BORDER}">
-        <td style="padding:11px 14px;font-family:'Bebas Neue',sans-serif;font-size:16px;color:${GOLD};letter-spacing:0.08em">${t.label.toUpperCase()}</td>
-        <td style="padding:11px 14px;font-family:'DM Mono',monospace;font-size:12px;color:${MUTE}">${pc.length}</td>
-        <td style="padding:11px 14px;font-family:'DM Mono',monospace;font-size:12px;color:${MUTE}">${pwr}</td>
-        <td style="padding:11px 14px;font-family:'DM Mono',monospace;font-size:12px;color:${MUTE}">${po.length} open</td>
-        <td style="padding:11px 14px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${gc(ppnl)};text-align:right">${pc.length > 0 ? fu(ppnl) : "—"}</td>
+    const tradeRows = qData.sort((a, b) => b.closedAt - a.closedAt).map((c, i) => {
+      const rowBg = i % 2 === 0 ? BG2 : BG3;
+      return `<tr style="background:${rowBg}">
+        <td style="padding:8px 10px;color:${DIM};font-size:10px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
+        <td style="padding:8px 10px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px">${c.ticker}${c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : ""}</td>
+        <td style="padding:8px 10px;font-size:9px;font-weight:700;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
+        <td style="padding:8px 10px"><span style="font-size:8px;font-weight:700;padding:3px 8px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
+        <td style="padding:8px 10px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.qty || "—"}</td>
+        <td style="padding:8px 10px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${c.entry ? fp(parseFloat(c.entry)) : "—"}</td>
+        <td style="padding:8px 10px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${fp(c.closePrice)}</td>
+        <td style="padding:8px 10px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
+        <td style="padding:8px 10px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
+        <td style="padding:8px 10px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
+        <td style="padding:8px 10px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
       </tr>`;
     }).join("");
 
-    const hlHtml = (bestTrade || worstTrade) ? `
-    <section style="margin-bottom:34px;break-inside:avoid">
-      ${sectionHdr("Trade Highlights")}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-        ${[{ label: "BEST TRADE", trade: bestTrade }, { label: "WORST TRADE", trade: worstTrade }].map(({ label, trade }) => {
-          if (!trade) return `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:20px 22px"><div style="font-size:7px;letter-spacing:0.24em;color:${DIM};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="color:${DIM};font-size:13px;font-family:'DM Mono',monospace">—</div></div>`;
-          const tc   = trade.pnlUSD >= 0 ? "#22c55e" : "#ef4444";
-          const trgb = trade.pnlUSD >= 0 ? "34,197,94" : "239,68,68";
-          return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-left:3px solid ${tc};border-radius:10px;padding:20px 22px">
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">${label}</div>
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-              <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};letter-spacing:0.06em">${trade.ticker}</span>
-              <span style="font-size:8px;padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)"};color:${trade.direction === "LONG" ? "#22c55e" : "#ef4444"}">${trade.direction}</span>
-              <span style="font-size:8px;color:${GOLD3};font-family:'Montserrat',sans-serif;font-weight:600;letter-spacing:0.08em">${trade.tabLabel || ""}</span>
-            </div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:30px;color:${tc};margin-bottom:5px">${fu(trade.pnlUSD)}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trade.pnlPct != null ? (trade.pnlPct >= 0 ? "+" : "") + trade.pnlPct.toFixed(2) + "%" : ""} · ${trade.daysHeld}d hold</div>
-          </div>`;
-        }).join("")}
-      </div>
-    </section>` : "";
-
-    const openSection = allOpen.length > 0 ? `
-    <div style="page-break-before:always;min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
+    const packBreakdownPage = `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
       <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">FULL PORTFOLIO — OPEN POSITIONS</div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">PACK BREAKDOWN</div>
           </div>
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
         </div>
-        <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
-          <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-            ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
-          </tr></thead>
-          <tbody>${openRows}</tbody>
-        </table>
-        <div style="flex:1"></div>
-      </div>
-      ${footer(2)}
-      ${goldBar}
-    </div>` : "";
 
-    const logPageNum = allOpen.length > 0 ? 3 : 2;
-
-    win.document.write(`<!DOCTYPE html><html><head>
-      <meta charset="utf-8">
-      <title>VisionX Full Portfolio ${qLabel} Report</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com">
-      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-      <style>
-        *{box-sizing:border-box;margin:0;padding:0}
-        html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-        @page{size:A4;margin:0}
-        section{break-inside:avoid}
-      </style>
-    </head><body>
-    <div style="min-height:100vh;padding:0;display:flex;flex-direction:column;background:${BG1}">
-      ${goldBar}
-      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid ${BORDER};padding-bottom:24px;margin-bottom:32px">
-          <div>
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.36em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">VISIONX ANALYTICS · QUARTERLY PERFORMANCE REPORT</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:54px;letter-spacing:0.12em;color:${GOLD2};line-height:1">FULL PORTFOLIO</div>
-          </div>
-          <div style="text-align:right;padding-top:6px">
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:0.1em;color:${GOLD3};margin-bottom:4px">${qLabel}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
-            <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${DIM};text-transform:uppercase;margin-top:4px">Confidential</div>
-          </div>
-        </div>
-        <section style="background:${BG2};border:1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"};border-left:4px solid ${gc(totalPnL)};border-radius:12px;padding:28px 32px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between">
-          <div>
-            <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Total Realised P&L · ${qLabel}</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:60px;color:${gc(totalPnL)};line-height:1;letter-spacing:0.01em">${fu(totalPnL)}</div>
-            ${avgPnLPct !== null ? `<div style="font-family:'DM Mono',monospace;font-size:12px;color:${gc(avgPnLPct)};margin-top:8px;opacity:0.8">Avg ${avgPnLPct >= 0 ? "+" : ""}${avgPnLPct.toFixed(2)}% per trade</div>` : ""}
-          </div>
-          <div style="text-align:right">
-            ${qoqChange !== null ? `<div style="margin-bottom:10px"><div style="font-size:7px;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase;margin-bottom:4px">vs ${getQuarterLabel(prevQ)}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:22px;color:${gc(qoqChange)}">${qoqChange >= 0 ? "+" : ""}${fu(qoqChange).slice(1)}</div></div>` : ""}
-            <div><div style="font-size:7px;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:4px">Closed Trades</div><div style="font-family:'Bebas Neue',sans-serif;font-size:40px;color:${GOLD};line-height:1">${totalTrades}</div></div>
-          </div>
-        </section>
-        <section style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:24px;break-inside:avoid">
-          <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Win Rate</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${winRate != null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : MUTE}">${winRate != null ? winRate.toFixed(0) + "%" : "—"}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">${winners.length}W / ${totalTrades - winners.length}L</div>
-          </div>
-          <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Avg Hold Time</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${avgHold != null ? avgHold + "D" : "—"}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">per trade</div>
-          </div>
-          <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Open Positions</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:34px;color:${GOLD}">${allOpen.length}</div>
-            <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};margin-top:5px">across all packs</div>
-          </div>
-        </section>
-        <section style="margin-bottom:24px;break-inside:avoid">
-          ${sectionHdr("Performance by Pack")}
+        <div style="margin-bottom:28px">
+          ${sectionHdr("Performance by Pack — Realised & Floating")}
           <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
             <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-              ${["PACK", "TRADES", "WIN RATE", "OPEN", "REALISED P&L"].map((h, i) => `<th style="${thStyle}${i === 4 ? ";text-align:right" : ""}">${h}</th>`).join("")}
+              ${["PACK", "CLOSED", "WIN RATE", "OPEN", "REALISED P&L", "FLOATING P&L", "TOTAL P&L"].map((h, i) => `<th style="${thStyle}${i >= 4 ? ";color:" + GOLD3 : ""}">${h}</th>`).join("")}
             </tr></thead>
             <tbody>${packRows}</tbody>
+            <tfoot><tr style="background:#0c0c0c;border-top:2px solid ${BORDER2}">
+              <td style="padding:12px 14px;font-family:'Montserrat',sans-serif;font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE}">TOTAL</td>
+              <td style="padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">${totalTrades}</td>
+              <td style="padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">${winRate != null ? winRate.toFixed(0) + "%" : "—"}</td>
+              <td style="padding:12px 14px;font-family:'DM Mono',monospace;font-size:11px;color:${MUTE}">${allOpenFull.length}</td>
+              <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${gc(totalPnL)}">${fu(totalPnL)}</td>
+              <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:18px;color:${gc(totalFloatUSD)}">${fu(totalFloatUSD)}</td>
+              <td style="padding:12px 14px;font-family:'Bebas Neue',sans-serif;font-size:20px;color:${gc(totalPnL + totalFloatUSD)};font-weight:700">${fu(totalPnL + totalFloatUSD)}</td>
+            </tr></tfoot>
           </table>
-        </section>
-        <section style="margin-bottom:24px;break-inside:avoid">
-          ${sectionHdr("Long vs Short Breakdown")}
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-            ${[{ label: "LONG POSITIONS", trades: longTrades, pnl: longPnL }, { label: "SHORT POSITIONS", trades: shortTrades, pnl: shortPnL }].map(({ label, trades, pnl }) => {
-              const pc = trades.length === 0 ? DIM : pnl >= 0 ? "#22c55e" : "#ef4444";
-              const br = trades.length === 0 ? "80,80,80" : pnl >= 0 ? "34,197,94" : "239,68,68";
-              return `<div style="background:${BG2};border:1px solid rgba(${br},0.2);border-left:3px solid ${pc};border-radius:10px;padding:18px 20px">
-                <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">${label}</div>
-                <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${pc};margin-bottom:8px">${trades.length > 0 ? fu(pnl) : "—"}</div>
-                <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${trades.length} trade${trades.length !== 1 ? "s" : ""}${trades.length > 0 ? " · " + trades.filter(t => (t.pnlUSD || 0) > 0).length + "W / " + trades.filter(t => (t.pnlUSD || 0) <= 0).length + "L" : ""}</div>
-              </div>`;
-            }).join("")}
-          </div>
-        </section>
-        ${hlHtml}
+        </div>
+
+        ${allOpenFull.length > 0 ? `
+        <div style="flex:1">
+          ${sectionHdr("Open Positions — All Packs")}
+          <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
+            <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
+              ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
+            </tr></thead>
+            <tbody>${openRows}</tbody>
+          </table>
+        </div>` : ""}
         <div style="flex:1"></div>
       </div>
-      ${footer(1)}
+      ${footer(3)}
       ${goldBar}
-    </div>
-    ${openSection}
-    <div style="page-break-before:always;padding:0;background:${BG1}">
+    </div>`;
+
+    // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
+    const tradeLogPage = totalTrades > 0 ? `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
-      <div style="padding:44px 56px 32px">
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:30px">
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX ANALYTICS · ${qLabel}</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:0.14em;color:${GOLD2}">FULL PORTFOLIO — COMPLETE TRADE LOG</div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">COMPLETE TRADE LOG</div>
           </div>
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
         </div>
@@ -543,16 +623,73 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           <tbody>${tradeRows}</tbody>
         </table>
         <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
-          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:0.04em;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
+          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Profit Factor ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
+        </div>
+        <div style="flex:1"></div>
+      </div>
+      ${footer(4)}
+      ${goldBar}
+    </div>` : "";
+
+    // ── PAGE 5: DISCLAIMER ────────────────────────────────────────────────────
+    const disclaimerPage = `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+      ${goldBar}
+      <div style="padding:64px 72px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:20px;margin-bottom:48px">
+          <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="48" height="48" style="object-fit:contain;filter:drop-shadow(0 0 12px rgba(212,175,55,0.4))">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:0.3em;color:#fff">VISIONX <span style="color:${GOLD3}">MARKET ANALYTICS</span></div>
+        </div>
+        <div style="flex:1">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.2em;color:${GOLD3};margin-bottom:32px">LEGAL DISCLAIMER</div>
+          ${[
+            ["Proprietary Capital Only", "All trading activity documented in this report represents exclusively the proprietary capital of VisionX Market Analytics. No third-party or client funds are involved in any of the positions described herein."],
+            ["No Investment Advice", "This report is prepared for internal documentation and transparency purposes only. Nothing contained in this report constitutes financial advice, investment recommendations, or solicitation to buy or sell any financial instrument."],
+            ["Past Performance", "Past performance results documented in this report are not indicative of future results. Trading in financial markets involves substantial risk of loss. Performance data is presented for informational purposes only."],
+            ["Analytical Services", "VisionX Market Analytics provides independent market analysis and educational content. Our analytical services are distinct from and do not constitute portfolio management, asset management, or investment advisory services."],
+            ["Data Accuracy", "All performance data, prices, and calculations contained in this report are derived from our internal tracking systems. While we endeavour to ensure accuracy, we make no warranty regarding the completeness or accuracy of the information presented."],
+            ["Confidentiality", "This document is confidential and intended solely for internal use by VisionX Market Analytics. Unauthorized distribution or reproduction of this report is strictly prohibited."],
+          ].map(([title, text]) => `
+            <div style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid ${BORDER}">
+              <div style="font-family:'Montserrat',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.22em;color:${GOLD3};text-transform:uppercase;margin-bottom:8px">${title}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE};line-height:1.8">${text}</div>
+            </div>`).join("")}
+        </div>
+        <div style="border-top:1px solid ${BORDER};padding-top:24px;display:flex;justify-content:space-between;align-items:flex-end">
+          <div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:${DIM};margin-bottom:4px">VisionX Market Analytics · ${qLabel} · Proprietary Trading Report</div>
+            <div style="font-family:'DM Mono',monospace;font-size:9px;color:${DIM}">Generated ${today} · Confidential</div>
+          </div>
+          <div style="text-align:right">
+            <div style="width:160px;height:1px;background:${BORDER2};margin-bottom:6px"></div>
+            <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">Authorised Signatory</div>
+          </div>
         </div>
       </div>
-      ${footer(logPageNum)}
       ${goldBar}
-    </div>
+    </div>`;
+
+    win.document.write(`<!DOCTYPE html><html><head>
+      <meta charset="utf-8">
+      <title>VisionX Market Analytics · ${qLabel} · Proprietary Trading Report</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+      <style>
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        @page{size:A4;margin:0}
+        section{break-inside:avoid}
+      </style>
+    </head><body>
+      ${coverPage}
+      ${overviewPage}
+      ${packBreakdownPage}
+      ${tradeLogPage}
+      ${disclaimerPage}
     </body></html>`);
     win.document.close();
-    setTimeout(() => { win.focus(); win.print(); }, 1000);
+    setTimeout(() => { win.focus(); win.print(); }, 1200);
   };
 
   return (
