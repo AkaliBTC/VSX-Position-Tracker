@@ -588,42 +588,38 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           </table>
         </div>
 
-        ${allOpenFull.length > 0 ? `
-        <div style="flex:1">
-          ${sectionHdr("Open Positions — All Packs")}
-          <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
-            <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-              ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE *", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
-            </tr></thead>
-            <tbody>${openRows.slice(0, 20).join("")}</tbody>
-          </table>
-        </div>` : ""}
-        <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation. Dashes indicate positions pending next scheduled price refresh.</div>
         <div style="flex:1"></div>
       </div>
       ${footer("3")}
       ${goldBar}
     </div>
-    ${openRows.length > 20 ? `
+    ${allOpenFull.length > 0 ? (() => {
+      const OPEN_CHUNK = 18;
+      const openChunks = [];
+      for (let i = 0; i < openRows.length; i += OPEN_CHUNK) openChunks.push(openRows.slice(i, i + OPEN_CHUNK));
+      const openHdr = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["TICKER","PACK","DIR","QTY","ENTRY","LIVE PRICE *","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
+      return openChunks.map((chunk, ci) => `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
       <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:16px;margin-bottom:20px">
-          <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">VISIONX MARKET ANALYTICS · ${qLabel} · OPEN POSITIONS CONT.</div>
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.14em;color:${GOLD2}">OPEN POSITIONS — ALL PACKS</div>
+          </div>
           <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
         </div>
         <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
-          <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
-            ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE *", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
-          </tr></thead>
-          <tbody>${openRows.slice(20).join("")}</tbody>
+          ${openHdr}
+          <tbody>${chunk.join("")}</tbody>
         </table>
-        <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation.</div>
+        <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation. Dashes indicate positions pending next scheduled price refresh.</div>
         <div style="flex:1"></div>
       </div>
-      ${footer("3b")}
+      ${footer(String(Number("3") + ci + 1))}
       ${goldBar}
-    </div>` : ""}`;
+    </div>`).join("");
+    })() : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
