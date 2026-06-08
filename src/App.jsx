@@ -556,7 +556,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         <td style="padding:8px 10px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:11px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
         <td style="padding:8px 10px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:12px">${fu(c.pnlUSD)}</td>
       </tr>`;
-    }).join("");
+    });
+    const openRowsStr = openRows.join("");
 
     const packBreakdownPage = `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
@@ -596,7 +597,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
               ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE *", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
             </tr></thead>
-            <tbody>${openRows}</tbody>
+            <tbody>${openRows.slice(0, 20).join("")}</tbody>
           </table>
         </div>` : ""}
         <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation. Dashes indicate positions pending next scheduled price refresh.</div>
@@ -604,7 +605,27 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       </div>
       ${footer("3")}
       ${goldBar}
-    </div>`;
+    </div>
+    ${openRows.length > 20 ? `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+      ${goldBar}
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:16px;margin-bottom:20px">
+          <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">VISIONX MARKET ANALYTICS · ${qLabel} · OPEN POSITIONS CONT.</div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+        </div>
+        <table style="width:100%;border-collapse:collapse;border:1px solid ${BORDER}">
+          <thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">
+            ${["TICKER", "PACK", "DIR", "QTY", "ENTRY", "LIVE PRICE *", "UNRLSD %", "UNRLSD USD", "ENTRY DATE"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}
+          </tr></thead>
+          <tbody>${openRows.slice(20).join("")}</tbody>
+        </table>
+        <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation.</div>
+        <div style="flex:1"></div>
+      </div>
+      ${footer("3b")}
+      ${goldBar}
+    </div>` : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
     const tradeLogPage = totalTrades > 0 ? `
@@ -683,6 +704,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         html,body{background:${BG1};color:${TEXT};font-family:'Montserrat',sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
         @page{size:A4;margin:0}
         section{break-inside:avoid}
+
         tr{page-break-inside:avoid}
         thead{display:table-header-group}
         tfoot{display:table-footer-group}
