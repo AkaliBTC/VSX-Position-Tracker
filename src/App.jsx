@@ -594,7 +594,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       ${goldBar}
     </div>
     ${allOpenFull.length > 0 ? (() => {
-      const OPEN_CHUNK = 22;
+      const OPEN_CHUNK = 24;
       const openChunks = [];
       for (let i = 0; i < openRows.length; i += OPEN_CHUNK) openChunks.push(openRows.slice(i, i + OPEN_CHUNK));
       const openHdr = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["TICKER","PACK","DIR","QTY","ENTRY","LIVE PRICE *","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
@@ -623,7 +623,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
-    const CHUNK = 26;
+    const CHUNK = 22;
     const tradeChunks = [];
     for (let i = 0; i < tradeRows.length; i += CHUNK) tradeChunks.push(tradeRows.slice(i, i + CHUNK));
     const tradeHeader = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
