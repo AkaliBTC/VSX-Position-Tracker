@@ -594,7 +594,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       ${goldBar}
     </div>
     ${allOpenFull.length > 0 ? (() => {
-      const OPEN_CHUNK = 24;
+      const OPEN_CHUNK = 23;
       const openChunks = [];
       for (let i = 0; i < openRows.length; i += OPEN_CHUNK) openChunks.push(openRows.slice(i, i + OPEN_CHUNK));
       const openHdr = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["TICKER","PACK","DIR","QTY","ENTRY","LIVE PRICE *","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
