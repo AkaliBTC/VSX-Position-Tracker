@@ -903,9 +903,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
     // ── PAGE 2: PERFORMANCE OVERVIEW ─────────────────────────────────────────
     const overviewPage = `
-    <div style="page-break-before:always;background:${BG1}">
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
-      <div style="padding:44px 56px">
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
@@ -981,6 +981,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             }).join("")}
           </div>
         </div>
+        <div style="flex:1"></div>
       </div>
       ${footer()}
       ${goldBar}
@@ -1098,9 +1099,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     })() : "";
 
     const packBreakdownPage = `
-    <div style="page-break-before:always;background:${BG1}">
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
-      <div style="padding:44px 56px">
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
@@ -1127,20 +1128,20 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             </tr></tfoot>
           </table>
         </div>
-
+        <div style="flex:1"></div>
       </div>
       ${footer()}
       ${goldBar}
     </div>
     ${allOpenFull.length > 0 ? (() => {
-      const OPEN_CHUNK = 19;
+      const OPEN_CHUNK = 17;
       const openChunks = [];
       for (let i = 0; i < openRows.length; i += OPEN_CHUNK) openChunks.push(openRows.slice(i, i + OPEN_CHUNK));
       const openHdr = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["TICKER","PACK","DIR","QTY","ENTRY","LIVE PRICE *","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
       return openChunks.map((chunk, ci) => `
-    <div style="page-break-before:always;background:${BG1}">
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
-      <div style="padding:44px 56px">
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:16px;margin-bottom:20px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
@@ -1153,6 +1154,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <tbody>${chunk.join("")}</tbody>
         </table>
         <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation. Dashes indicate positions pending next scheduled price refresh.</div>
+        <div style="flex:1"></div>
       </div>
       ${footer()}
       ${goldBar}
@@ -1160,14 +1162,14 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     })() : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
-    const CHUNK = 18;
+    const CHUNK = 16;
     const tradeChunks = [];
     for (let i = 0; i < tradeRows.length; i += CHUNK) tradeChunks.push(tradeRows.slice(i, i + CHUNK));
     const tradeHeader = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
     const tradeLogPage = totalTrades > 0 ? tradeChunks.map((chunk, ci) => `
-    <div style="page-break-before:always;width:100%;background:${BG1}">
+    <div style="page-break-before:always;min-height:100vh;width:100%;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
-      <div style="padding:44px 40px">
+      <div style="padding:44px 40px;flex:1;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
@@ -1184,6 +1186,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Profit Factor ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
         </div>` : ""}
+        <div style="flex:1"></div>
       </div>
       ${footer()}
       ${goldBar}
