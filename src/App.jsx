@@ -206,6 +206,12 @@ const fetchYahooBatch = async (tickers) => {
   return results;
 };
 
+// ── TRADE CLASSIFICATION · win / loss / break-even (scratch) ────────────────
+const EPS_USD = 0.005;
+const isWin   = (c) => (c.pnlUSD || 0) >  EPS_USD;
+const isLoss  = (c) => (c.pnlUSD || 0) < -EPS_USD;
+const isBE    = (c) => !isWin(c) && !isLoss(c);
+
 const calcPnL = (dir, entry, cur) => {
   if (!entry || !cur || isNaN(entry) || isNaN(cur)) return null;
   return dir === "LONG" ? ((cur - entry) / entry) * 100 : ((entry - cur) / entry) * 100;
@@ -308,13 +314,16 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     const pClosed = qData.filter(c => c.tabId === t.id);
     const pOpen   = (allPositions[t.id] || []).filter(p => p.ticker.trim());
     const pPnL    = pClosed.reduce((s, c) => s + (c.pnlUSD || 0), 0);
-    const pWins   = pClosed.filter(c => (c.pnlUSD || 0) > 0).length;
+    const pWins   = pClosed.filter(isWin).length;
     return { tab: t, closed: pClosed, open: pOpen, pnl: pPnL, wins: pWins };
   }).filter(p => p.closed.length > 0 || p.open.length > 0);
 
   const totalTrades = qData.length;
-  const winners     = qData.filter(c => (c.pnlUSD || 0) > 0);
-  const winRate     = totalTrades > 0 ? (winners.length / totalTrades) * 100 : null;
+  const winners     = qData.filter(isWin);
+  const losers      = qData.filter(isLoss);
+  const scratches   = qData.filter(isBE);
+  const decided     = winners.length + losers.length;
+  const winRate     = decided > 0 ? (winners.length / decided) * 100 : null;
   const totalPnL    = qData.reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const avgPnLPct   = totalTrades > 0 ? qData.reduce((s, c) => s + (c.pnlPct || 0), 0) / totalTrades : null;
   const avgHold     = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
@@ -395,12 +404,12 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       const sl = parseFloat(p.sl); const cur = p.currentPrice;
       return p.direction === "LONG" ? ((cur - sl) / cur) * 100 : ((sl - cur) / cur) * 100;
     }).filter(v => !isNaN(v) && v > 0).reduce((s, v, _, a) => s + v / a.length, 0);
-    const closedWinners = qData.filter(c => (c.pnlPct || 0) > 0);
-    const closedLosers  = qData.filter(c => (c.pnlPct || 0) <= 0);
+    const closedWinners = qData.filter(isWin);
+    const closedLosers  = qData.filter(isLoss);
     const avgWinPct  = closedWinners.length > 0 ? closedWinners.reduce((s, c) => s + (c.pnlPct || 0), 0) / closedWinners.length : null;
     const avgLossPct = closedLosers.length  > 0 ? Math.abs(closedLosers.reduce((s, c) => s + (c.pnlPct || 0), 0) / closedLosers.length) : null;
     const profitFactor = avgWinPct && avgLossPct ? (avgWinPct / avgLossPct).toFixed(2) : null;
-    const winRate = totalTrades > 0 ? (winners.length / totalTrades) * 100 : null;
+    const winRate = (winners.length + losers.length) > 0 ? (winners.length / (winners.length + losers.length)) * 100 : null;
     const avgHold = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
     const bestTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) > (b.pnlPct || 0) ? a : b) : null;
     const worstTrade = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) < (b.pnlPct || 0) ? a : b) : null;
@@ -411,7 +420,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
       const open   = allOpenFull.filter(p => p.tabId === t.id);
       const realPnL = closed.reduce((s, c) => s + (c.pnlUSD || 0), 0);
       const floatPnL = open.reduce((s, p) => s + (calcFloatUSD(p) || 0), 0);
-      const wins = closed.filter(c => (c.pnlUSD || 0) > 0).length;
+      const wins = closed.filter(isWin).length;
       const wr = closed.length > 0 ? ((wins / closed.length) * 100).toFixed(0) + "%" : "—";
       return { tab: t, closed, open, realPnL, floatPnL, wins, wr };
     });
@@ -587,8 +596,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         <td style="padding:7px 8px;color:${TEXT};font-family:'DM Mono',monospace;font-size:10px">${fp(c.closePrice)}</td>
         <td style="padding:7px 8px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
         <td style="padding:7px 8px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
-        <td style="padding:7px 8px;color:${gc(c.pnlPct || 0)};font-family:'DM Mono',monospace;font-size:10px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
-        <td style="padding:7px 8px;color:${gc(c.pnlUSD || 0)};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
+        <td style="padding:7px 8px;color:${isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : GOLD};font-family:'DM Mono',monospace;font-size:10px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
+        <td style="padding:7px 8px;color:${isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
     const packBreakdownPage = `
@@ -974,7 +983,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{c.closeDate || "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#555" }}>{c.daysHeld != null ? `${c.daysHeld}d` : "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct != null ? (c.pnlPct >= 0 ? "#22c55e" : "#ef4444") : "#555" }}>{c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}</td>
-                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: (c.pnlUSD || 0) >= 0 ? "#22c55e" : "#ef4444" }}>{c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : "#d4af37" }}>{c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#444", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.note || "—"}</td>
                     </tr>
                   ))}
@@ -1559,7 +1568,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
   const sortedQs = sortedQuarters(Object.keys(byQuarter));
   const totalPnL = tabClosed.reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const totalTrades = tabClosed.length;
-  const winners = tabClosed.filter(c => (c.pnlUSD || 0) > 0).length;
+  const winners = tabClosed.filter(isWin).length;
 
   return (
     <div style={{ marginTop: 32, border: "1px solid #1a1a1a", borderRadius: 16, overflow: "hidden", background: "rgba(13,13,13,0.6)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", transition: "border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }}>
@@ -1582,7 +1591,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
           {sortedQs.map(q => {
             const qTrades = byQuarter[q];
             const qPnL = qTrades.reduce((s, c) => s + (c.pnlUSD || 0), 0);
-            const qWin = qTrades.filter(c => (c.pnlUSD || 0) > 0).length;
+            const qWin = qTrades.filter(isWin).length;
             const isExpQ = expandedQ === q;
 
             return (
@@ -1639,7 +1648,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct >= 0 ? "#22c55e" : "#ef4444" }}>
                               {c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}
                             </td>
-                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: (c.pnlUSD || 0) >= 0 ? "#22c55e" : "#ef4444" }}>
+                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : "#d4af37" }}>
                               {c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}
                             </td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#444", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.note || "—"}</td>
