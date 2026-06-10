@@ -862,7 +862,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
     const thStyle = `padding:10px 12px;font-family:'Montserrat',sans-serif;font-size:7px;letter-spacing:0.2em;color:${MUTE};text-align:left;font-weight:700;white-space:nowrap`;
     const goldBar = `<div style="height:4px;background:linear-gradient(90deg,${GOLD3},${GOLD},${GOLD2},${GOLD})"></div>`;
-    const footer = (n) => `<div style="padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · QUARTERLY PERFORMANCE MEMORANDUM · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${n}</div></div>`;
+    let pdfPageNo = 0;
+    const footer = () => { pdfPageNo += 1; return `<div style="page-break-inside:avoid;padding:14px 56px;border-top:1px solid ${BORDER};display:flex;justify-content:space-between;align-items:center"><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};letter-spacing:0.1em">VISIONX MARKET ANALYTICS · QUARTERLY PERFORMANCE MEMORANDUM · ${qLabel} · CONFIDENTIAL</div><div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM}">${pdfPageNo}</div></div>`; };
     const sectionHdr = (title) => `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="width:3px;height:16px;background:${GOLD3};border-radius:2px"></div><div style="font-size:8px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">${title}</div></div>`;
     const statCard = (label, val, sub, color) => `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:16px 18px"><div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:${color || GOLD};line-height:1">${val}</div>${sub ? `<div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:4px">${sub}</div>` : ""}</div>`;
 
@@ -896,15 +897,15 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           </div>
         </div>
       </div>
-      ${footer("1")}
+      ${footer()}
       ${goldBar}
     </div>`;
 
     // ── PAGE 2: PERFORMANCE OVERVIEW ─────────────────────────────────────────
     const overviewPage = `
-    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+    <div style="page-break-before:always;background:${BG1}">
       ${goldBar}
-      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+      <div style="padding:44px 56px">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
@@ -980,9 +981,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             }).join("")}
           </div>
         </div>
-        <div style="flex:1"></div>
       </div>
-      ${footer("2")}
+      ${footer()}
       ${goldBar}
     </div>`;
 
@@ -1035,10 +1035,72 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         <td style="padding:7px 8px;color:${isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
-    const packBreakdownPage = `
+    // ── PAGE: EQUITY CURVE · daily 00:00 CET/CEST snapshots, incl. open positions ──
+    const dCurve = computeDailyEquityCurve(closedPositions, perfSegments || [], equitySnapshots || {});
+    const equityCurvePage = dCurve.points.length > 0 ? (() => {
+      const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
+      const pts = dCurve.points;
+      const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = Math.max(t1 - t0, 1);
+      const vals = [100, ...pts.map(p => p.index)];
+      const vMin = Math.min(...vals), vMax = Math.max(...vals);
+      const vPad = Math.max((vMax - vMin) * 0.15, 1.5);
+      const yLo = vMin - vPad, yHi = vMax + vPad;
+      const X = (t) => pts.length === 1 ? W / 2 : P.l + ((t - t0) / span) * (W - P.l - P.r);
+      const Y = (v) => H - P.b - ((v - yLo) / (yHi - yLo)) * (H - P.t - P.b);
+      const path = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.index).toFixed(1)}`).join(" ");
+      const last = pts[pts.length - 1];
+      const grid = [yLo, (yLo + yHi) / 2, yHi].map(v =>
+        `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="#1d1d1d" stroke-width="1"/><text x="${P.l - 10}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:#666">${v.toFixed(1)}</text>`).join("");
+      const dots = pts.map(p => `<circle cx="${X(p.t).toFixed(1)}" cy="${Y(p.index).toFixed(1)}" r="2.6" fill="#0d0d0d" stroke="${GOLD2}" stroke-width="1.6"/>`).join("");
+      const fc = (v) => v > 0.005 ? "#22c55e" : v < -0.005 ? "#ef4444" : GOLD2;
+      const curveStat = (l, v, c) => `<div style="text-align:right"><div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:${MUTE};text-transform:uppercase">${l}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:26px;color:${c}">${v}</div></div>`;
+      return `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
       ${goldBar}
       <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">EQUITY CURVE</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${GOLD3};text-transform:uppercase">REALIZED INDEX INCL. OPEN POSITIONS · DAILY CLOSE 00:00 CET/CEST · BASE 100</div>
+          <div style="display:flex;gap:28px">
+            ${curveStat("Index", last.index.toFixed(2), last.index >= 100 ? "#22c55e" : "#ef4444")}
+            ${curveStat("Float", (last.floatPct >= 0 ? "+" : "") + last.floatPct.toFixed(2) + "%", fc(last.floatPct))}
+            ${curveStat("Max DD", "-" + dCurve.maxDrawdownPct.toFixed(2) + "%", "#ef4444")}
+            ${curveStat("Snapshots", String(pts.length), GOLD2)}
+          </div>
+        </div>
+        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:12px;padding:24px 26px;page-break-inside:avoid">
+          <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
+            ${grid}
+            <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
+            <path d="${path} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
+            <path d="${path}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
+            ${dots}
+            <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${last.index >= 100 ? "#22c55e" : "#ef4444"}">${last.index.toFixed(2)}</text>
+            <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
+            <text x="${P.l}" y="${H - 14}" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${pts[0].day}</text>
+            <text x="${W - P.r}" y="${H - 14}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${last.day}</text>
+          </svg>
+        </div>
+        <div style="margin-top:18px;font-size:8px;line-height:1.7;color:${DIM};letter-spacing:0.04em">
+          Same chained quarterly methodology as the realized performance index, plus floating P&L of open positions expressed as % of segment-start capital. Each data point is a daily snapshot taken at 00:00 Europe/Berlin (CET/CEST) — no intraday or live data. ${METHODOLOGY_NOTE}
+        </div>
+        <div style="flex:1"></div>
+      </div>
+      ${footer()}
+      ${goldBar}
+    </div>`;
+    })() : "";
+
+    const packBreakdownPage = `
+    <div style="page-break-before:always;background:${BG1}">
+      ${goldBar}
+      <div style="padding:44px 56px">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
@@ -1066,20 +1128,19 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           </table>
         </div>
 
-        <div style="flex:1"></div>
       </div>
-      ${footer("3")}
+      ${footer()}
       ${goldBar}
     </div>
     ${allOpenFull.length > 0 ? (() => {
-      const OPEN_CHUNK = 23;
+      const OPEN_CHUNK = 19;
       const openChunks = [];
       for (let i = 0; i < openRows.length; i += OPEN_CHUNK) openChunks.push(openRows.slice(i, i + OPEN_CHUNK));
       const openHdr = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["TICKER","PACK","DIR","QTY","ENTRY","LIVE PRICE *","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
       return openChunks.map((chunk, ci) => `
-    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+    <div style="page-break-before:always;background:${BG1}">
       ${goldBar}
-      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+      <div style="padding:44px 56px">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:16px;margin-bottom:20px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
@@ -1092,22 +1153,21 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <tbody>${chunk.join("")}</tbody>
         </table>
         <div style="font-family:'DM Mono',monospace;font-size:8px;color:${DIM};margin-top:10px;padding:8px 4px">* Live Price reflects last available market data at time of report generation. Dashes indicate positions pending next scheduled price refresh.</div>
-        <div style="flex:1"></div>
       </div>
-      ${footer(String(Number("3") + ci + 1))}
+      ${footer()}
       ${goldBar}
     </div>`).join("");
     })() : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
-    const CHUNK = 22;
+    const CHUNK = 18;
     const tradeChunks = [];
     for (let i = 0; i < tradeRows.length; i += CHUNK) tradeChunks.push(tradeRows.slice(i, i + CHUNK));
     const tradeHeader = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
     const tradeLogPage = totalTrades > 0 ? tradeChunks.map((chunk, ci) => `
-    <div style="page-break-before:always;min-height:100vh;width:100%;background:${BG1};display:flex;flex-direction:column">
+    <div style="page-break-before:always;width:100%;background:${BG1}">
       ${goldBar}
-      <div style="padding:44px 40px;flex:1;display:flex;flex-direction:column">
+      <div style="padding:44px 40px">
         <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
           <div>
             <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}${ci > 0 ? " · CONT." : ""}</div>
@@ -1124,9 +1184,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Profit Factor ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
         </div>` : ""}
-        <div style="flex:1"></div>
       </div>
-      ${footer(String(4 + ci))}
+      ${footer()}
       ${goldBar}
     </div>`).join("") : "";
 
@@ -1165,7 +1224,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           </div>
         </div>
       </div>
-      ${footer("5")}
+      ${footer()}
       ${goldBar}
     </div>`;
 
@@ -1187,6 +1246,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     </head><body>
       ${coverPage}
       ${overviewPage}
+      ${equityCurvePage}
       ${packBreakdownPage}
       ${tradeLogPage}
       ${disclaimerPage}
