@@ -2062,7 +2062,7 @@ export default function App() {
           --green:#22c55e; --red:#ef4444;
           --ease: cubic-bezier(0.22, 1, 0.36, 1);
           --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
-          --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+          --r-sm: 10px; --r-md: 16px; --r-lg: 22px;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         html { scroll-behavior: smooth; }
@@ -2097,20 +2097,31 @@ export default function App() {
         .logo-area img { transition: transform 0.6s var(--spring), filter 0.4s var(--ease); }
         .logo-area:hover img { transform: scale(1.06) rotate(-2deg); filter: drop-shadow(0 0 26px rgba(212,175,55,0.75)) !important; }
         .logo-divider { width: 1px; height: 40px; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent); margin: 0 6px; }
-        .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--white); line-height: 1;
-          background: linear-gradient(110deg, #fff 0%, #e8e8e8 35%, #f8e49b 50%, #b99c64 62%, #e8e8e8 75%, #fff 100%);
+        .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--gold2); line-height: 1;
+          background: linear-gradient(110deg, #b99c64 0%, #d4af37 30%, #f8e49b 50%, #d4af37 70%, #b99c64 100%);
           background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-          animation: goldShimmer 7s var(--ease) infinite; }
-        @keyframes goldShimmer { 0%, 55% { background-position: 110% 0; } 90%, 100% { background-position: -60% 0; } }
+          animation: goldShimmer 8s var(--ease) infinite; }
+        @keyframes goldShimmer { 0%, 50% { background-position: 100% 0; } 92%, 100% { background-position: 0% 0; } }
         .logo-sub { font-size: 8px; letter-spacing: 0.4em; color: var(--gold1); line-height: 1.6; font-weight: 500; text-transform: uppercase; }
-        .header-right { display: flex; align-items: center; gap: 0; }
-        .stat-block { padding: 0 22px; border-left: 1px solid rgba(255,255,255,0.06); text-align: right; transition: background 0.35s var(--ease); cursor: default; }
-        .stat-block:hover { background: rgba(255,255,255,0.025); }
-        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
+        .header-right { display: flex; align-items: center; gap: 10px; }
+        .stat-block { padding: 10px 18px; text-align: left; cursor: default; border-radius: 16px;
+          background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05);
+          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+          transition: background 0.45s var(--ease), border-color 0.45s var(--ease), transform 0.45s var(--spring), box-shadow 0.45s var(--ease);
+          animation: statIn 0.7s var(--ease) both; }
+        .stat-block:nth-child(1) { animation-delay: 0.08s; } .stat-block:nth-child(2) { animation-delay: 0.14s; }
+        .stat-block:nth-child(3) { animation-delay: 0.20s; } .stat-block:nth-child(4) { animation-delay: 0.26s; }
+        .stat-block:nth-child(5) { animation-delay: 0.32s; } .stat-block:nth-child(6) { animation-delay: 0.38s; }
+        @keyframes statIn { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
+        .stat-block:hover { background: rgba(212,175,55,0.05); border-color: rgba(212,175,55,0.18); transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(212,175,55,0.04); }
+        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px;
+          transition: color 0.4s var(--ease); }
+        .stat-block:hover .stat-label { color: var(--gold1); }
         .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; font-variant-numeric: tabular-nums;
-          transition: color 0.45s var(--ease), transform 0.35s var(--spring), text-shadow 0.45s var(--ease); }
-        .stat-block:hover .stat-val { transform: translateY(-1px) scale(1.05); text-shadow: 0 0 18px currentColor; }
-        .status-block { padding: 0 0 0 22px; border-left: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+          transition: color 0.45s var(--ease), text-shadow 0.45s var(--ease); }
+        .stat-block:hover .stat-val { text-shadow: 0 0 18px currentColor; }
+        .status-block { padding: 10px 0 10px 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
         .live-badge { display: flex; align-items: center; gap: 7px; padding: 5px 14px; border: 1px solid rgba(34,197,94,0.2);
           background: rgba(34,197,94,0.06); border-radius: 20px; font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--green);
           transition: all 0.3s var(--ease); }
@@ -2125,21 +2136,21 @@ export default function App() {
         @keyframes badgePop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
 
         /* ── TABS · animated gold indicator ─────────────────────── */
-        .tabs-wrap { display: flex; background: rgba(10,10,10,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 56px; gap: 4px; position: sticky; top: 100px; z-index: 90; }
-        .tab { padding: 18px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
-          color: var(--text-dim); cursor: pointer; border: none; background: transparent; position: relative;
-          transition: color 0.35s var(--ease), background 0.35s var(--ease); display: flex; align-items: center; gap: 9px; border-radius: 8px 8px 0 0; }
-        .tab::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px; border-radius: 2px;
-          background: linear-gradient(90deg, var(--gold3), var(--gold2), var(--gold4));
-          transform: scaleX(0); transform-origin: center; transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease); }
-        .tab:hover { color: var(--text); background: rgba(255,255,255,0.025); }
-        .tab:hover::after { transform: scaleX(0.45); }
-        .tab.active { color: var(--gold4); }
-        .tab.active::after { transform: scaleX(1); box-shadow: 0 0 14px rgba(212,175,55,0.45); }
-        .tab:active { transform: scale(0.98); }
+        .tabs-wrap { display: flex; background: rgba(10,10,10,0.7); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
+          border-bottom: 1px solid rgba(255,255,255,0.05); padding: 12px 56px; gap: 8px; position: sticky; top: 100px; z-index: 90; }
+        .tab { padding: 11px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+          color: var(--text-dim); cursor: pointer; border: 1px solid transparent; background: transparent; position: relative;
+          transition: color 0.4s var(--ease), background 0.4s var(--ease), border-color 0.4s var(--ease), transform 0.35s var(--spring), box-shadow 0.5s var(--ease);
+          display: flex; align-items: center; gap: 9px; border-radius: 999px; }
+        .tab:hover { color: var(--text); background: rgba(255,255,255,0.035); transform: translateY(-1px); }
+        .tab.active { color: var(--gold4); background: linear-gradient(135deg, rgba(212,175,55,0.14), rgba(185,156,100,0.07));
+          border-color: rgba(212,175,55,0.28);
+          box-shadow: 0 4px 18px rgba(212,175,55,0.12), inset 0 1px 0 rgba(255,255,255,0.06); }
+        .tab.active:hover { transform: none; }
+        .tab:active { transform: scale(0.96); }
         .tab-count { font-size: 9px; padding: 2px 8px; border: 1px solid var(--border2); border-radius: 20px; color: var(--text-dim);
-          font-family: 'DM Mono', monospace; background: var(--black3); transition: all 0.35s var(--ease); }
-        .tab.active .tab-count { border-color: rgba(212,175,55,0.3); color: var(--gold2); background: rgba(212,175,55,0.08); }
+          font-family: 'DM Mono', monospace; background: rgba(26,26,26,0.8); transition: all 0.4s var(--ease); }
+        .tab.active .tab-count { border-color: rgba(212,175,55,0.35); color: var(--black); background: linear-gradient(135deg, var(--gold2), var(--gold3)); font-weight: 700; }
         .live-pip { width: 4px; height: 4px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: glow 2s ease-in-out infinite; }
 
         /* ── CONTENT · fluid tab transitions ─────────────────────── */
@@ -2147,14 +2158,14 @@ export default function App() {
         @keyframes contentIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
         .hint-bar { display: flex; align-items: center; gap: 20px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em;
           margin-bottom: 24px; padding: 12px 20px; border: 1px solid var(--border); background: rgba(17,17,17,0.7); backdrop-filter: blur(10px);
-          border-radius: var(--r-md); font-family: 'DM Mono', monospace; transition: border-color 0.4s var(--ease), transform 0.4s var(--ease); }
-        .hint-bar:hover { border-color: rgba(212,175,55,0.3); transform: translateY(-1px); }
+          border-radius: 999px; font-family: 'DM Mono', monospace; transition: border-color 0.5s var(--ease), transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
+        .hint-bar:hover { border-color: rgba(212,175,55,0.3); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
         .hint-label { font-size: 8px; font-weight: 700; letter-spacing: 0.25em; color: var(--gold2); white-space: nowrap; padding-right: 20px; border-right: 1px solid var(--border); }
         .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 
         /* ── BUTTONS · Apple-style press & lift ─────────────────── */
         .btn { padding: 10px 22px; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; border: none; cursor: pointer;
-          text-transform: uppercase; border-radius: 10px; transition: all 0.35s var(--spring); will-change: transform;
+          text-transform: uppercase; border-radius: 999px; transition: all 0.4s var(--spring); will-change: transform;
           position: relative; overflow: hidden; }
         .btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: -80%; width: 50%;
           background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
@@ -2167,7 +2178,7 @@ export default function App() {
         .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: rgba(255,255,255,0.05); transform: translateY(-1px); }
         .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
         .search-inp { background: rgba(17,17,17,0.8); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace;
-          font-size: 11px; padding: 9px 14px; border-radius: 10px; outline: none; width: 220px; letter-spacing: 0.04em;
+          font-size: 11px; padding: 10px 18px; border-radius: 999px; outline: none; width: 220px; letter-spacing: 0.04em;
           transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), width 0.4s var(--ease), background 0.3s var(--ease); }
         .search-inp:focus { border-color: rgba(212,175,55,0.5); background: rgba(212,175,55,0.04); width: 280px;
           box-shadow: 0 0 0 3px rgba(212,175,55,0.1); }
@@ -2182,15 +2193,15 @@ export default function App() {
             linear-gradient(rgba(17,17,17,0.92), rgba(17,17,17,0.92)) padding-box,
             conic-gradient(from var(--vsx-angle), rgba(212,175,55,0.45), rgba(42,42,42,0.9) 18%, rgba(34,34,34,0.8) 50%, rgba(185,156,100,0.3) 78%, rgba(212,175,55,0.45)) border-box;
           animation: borderSpin 9s linear infinite;
-          border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: box-shadow 0.4s var(--ease); }
+          border-radius: var(--r-lg); overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: box-shadow 0.4s var(--ease); }
         @keyframes borderSpin { to { --vsx-angle: 360deg; } }
         .table-wrap:hover { box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 32px rgba(212,175,55,0.07); }
         table { width: 100%; border-collapse: collapse; min-width: 1100px; }
         thead tr { background: rgba(26,26,26,0.9); border-bottom: 1px solid var(--border); }
-        th { padding: 14px 12px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
+        th { padding: 16px 14px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
         th:hover { color: var(--gold1); }
         th:first-child { color: var(--gold1); }
-        tbody tr { border-bottom: 1px solid rgba(34,34,34,0.6); transition: background 0.3s var(--ease); animation: rowIn 0.5s var(--ease) both; }
+        tbody tr { border-bottom: 1px solid rgba(34,34,34,0.45); transition: background 0.35s var(--ease), box-shadow 0.35s var(--ease); animation: rowIn 0.55s var(--ease) both; }
         tbody tr:nth-child(1) { animation-delay: 0.03s; } tbody tr:nth-child(2) { animation-delay: 0.07s; }
         tbody tr:nth-child(3) { animation-delay: 0.11s; } tbody tr:nth-child(4) { animation-delay: 0.15s; }
         tbody tr:nth-child(5) { animation-delay: 0.19s; } tbody tr:nth-child(6) { animation-delay: 0.23s; }
@@ -2198,11 +2209,11 @@ export default function App() {
         tbody tr:nth-child(n+9) { animation-delay: 0.35s; }
         @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover { background: rgba(212,175,55,0.04); }
+        tbody tr:hover { background: rgba(212,175,55,0.035); box-shadow: inset 3px 0 0 rgba(212,175,55,0.55); }
         tbody tr:hover .ticker-inp { color: var(--gold4); }
         tbody tr:hover .pnl-pos { text-shadow: 0 0 14px rgba(34,197,94,0.5); }
         tbody tr:hover .pnl-neg { text-shadow: 0 0 14px rgba(239,68,68,0.5); }
-        td { padding: 12px 12px; }
+        td { padding: 14px 14px; }
         .cell-input { background: transparent; border: 1px solid transparent; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
           outline: none; padding: 5px 7px; width: 100%; border-radius: 7px; transition: background 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
         .cell-input:hover { background: rgba(255,255,255,0.03); }
@@ -2265,13 +2276,12 @@ export default function App() {
           .logo-sub { font-size: 7px; letter-spacing: 0.28em; }
           .logo-divider { display: none; }
           .header-right { width: 100%; justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; padding-bottom: 2px; }
-          .stat-block { padding: 0 14px; flex: 0 0 auto; text-align: left; }
-          .stat-block:first-child { border-left: none; padding-left: 0; }
+          .stat-block { padding: 8px 14px; flex: 0 0 auto; border-radius: 14px; animation: none; }
           .stat-val { font-size: 18px; }
-          .status-block { padding: 0 0 0 14px; flex: 0 0 auto; align-items: flex-start; }
-          .tabs-wrap { padding: 0 8px; top: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+          .status-block { padding: 8px 0 8px 6px; flex: 0 0 auto; align-items: flex-start; }
+          .tabs-wrap { padding: 10px 10px; top: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
           .tabs-wrap::-webkit-scrollbar { display: none; }
-          .tab { padding: 14px 12px; font-size: 9px; letter-spacing: 0.12em; flex: 0 0 auto; }
+          .tab { padding: 9px 14px; font-size: 9px; letter-spacing: 0.12em; flex: 0 0 auto; }
           .content { padding: 20px 14px; }
           .hint-bar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; font-size: 9px; }
           .hint-label { border-right: none; padding-right: 0; }
