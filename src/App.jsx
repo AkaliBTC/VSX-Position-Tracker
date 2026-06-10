@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { db } from "./firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
@@ -750,7 +751,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     setTimeout(() => { win.focus(); win.print(); }, 1200);
   };
 
-  return (
+  return createPortal(
     <div className="report-overlay" style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="report-panel" style={S.panel}>
         <div style={S.stickyHdr}>
@@ -989,7 +990,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         </>)}
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ── CLOSE POSITION MODAL ──────────────────────────────────────────────────────
@@ -1058,7 +1059,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
     return Number.isInteger(n) ? String(n) : n.toFixed(4).replace(/\.?0+$/, "");
   };
 
-  return (
+  return createPortal(
     <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(8px)" }}>
       <div className="modal-card" style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 18, width: 540, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
@@ -1270,7 +1271,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
 
 
@@ -1336,7 +1337,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
   const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
   const fullMessage = lines.map(l => l.text).join("\n\n");
 
-  return (
+  return createPortal(
     <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
       <div className="modal-card" style={{ background: "rgba(17,17,17,0.97)", border: "1px solid #2a2a2a", borderRadius: 18, width: 580, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
 
@@ -1429,7 +1430,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
 
 
@@ -1452,7 +1453,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
 
   const canConfirm = ticker.trim().length > 0;
 
-  return (
+  return createPortal(
     <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
       <div className="modal-card" style={{ background: "rgba(17,17,17,0.97)", border: "1px solid #2a2a2a", borderRadius: 18, width: 500, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
 
@@ -1542,7 +1543,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
         </div>
       </div>
     </div>
-  );
+  , document.body);
 }
 
 // ── CLOSED POSITIONS PANEL ────────────────────────────────────────────────────
