@@ -22,6 +22,10 @@ const DISCORD_WEBHOOKS = {
   etfs:        "https://discord.com/api/webhooks/1511535403746853104/DPOGxol_dxf5VUw7Zt0LBTriO2LNXWFIn-CQ1c1q8oDwZjFtP4IC_qT4KZqLfsDwS1_i",
 };
 
+// ── MOTION TOKENS · Apple-style fluid easing ─────────────────────────────────
+const EASE   = "cubic-bezier(0.22, 1, 0.36, 1)";
+const SPRING = "cubic-bezier(0.34, 1.4, 0.64, 1)";
+
 const loadHtml2Canvas = () => new Promise((resolve, reject) => {
   if (window.html2canvas) { resolve(window.html2canvas); return; }
   const s = document.createElement("script");
@@ -39,7 +43,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     // Hide elements that look bad in screenshot
     const style = document.createElement("style");
     style.id = "screenshot-hide";
-    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; }";
+    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; animation: none !important; } .table-wrap, tbody tr { animation: none !important; backdrop-filter: none !important; }";
     document.head.appendChild(style);
 
     // Replace dir selects with readable divs
@@ -319,10 +323,10 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   const S = {
     overlay:      { position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9998, display: "flex", justifyContent: "flex-end", backdropFilter: "blur(6px)" },
     panel:        { width: 780, maxWidth: "96vw", height: "100vh", overflowY: "auto", background: "#0d0d0d", borderLeft: "1px solid #222", display: "flex", flexDirection: "column" },
-    stickyHdr:    { padding: "24px 32px 18px", borderBottom: "1px solid #1a1a1a", background: "#0a0a0a", position: "sticky", top: 0, zIndex: 10 },
+    stickyHdr:    { padding: "24px 32px 18px", borderBottom: "1px solid #1a1a1a", background: "rgba(10,10,10,0.85)", backdropFilter: "blur(20px)", position: "sticky", top: 0, zIndex: 10 },
     section:      { padding: "22px 32px", borderBottom: "1px solid #111" },
     sectionTitle: { fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.28em", color: "#555", textTransform: "uppercase", marginBottom: 14 },
-    statCard:     { background: "#111", border: "1px solid #1a1a1a", borderRadius: 8, padding: "12px 14px" },
+    statCard:     { background: "#111", border: "1px solid #1a1a1a", borderRadius: 10, padding: "12px 14px", transition: `all 0.3s ${EASE}` },
     statLabel:    { fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 5 },
     statVal:      { fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: "0.04em", lineHeight: 1 },
     statSub:      { fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 3 },
@@ -622,7 +626,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
     })() : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
-    // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
     const CHUNK = 22;
     const tradeChunks = [];
     for (let i = 0; i < tradeRows.length; i += CHUNK) tradeChunks.push(tradeRows.slice(i, i + CHUNK));
@@ -719,8 +722,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   };
 
   return (
-    <div style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={S.panel}>
+    <div className="report-overlay" style={S.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="report-panel" style={S.panel}>
         <div style={S.stickyHdr}>
           <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 14 }}>
             <div>
@@ -730,26 +733,26 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <select value={selectedQ} onChange={e => setSelectedQ(e.target.value)}
-                style={{ background: "#111", border: "1px solid #222", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 6, outline: "none", cursor: "pointer" }}>
+                style={{ background: "#111", border: "1px solid #222", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, letterSpacing: "0.1em", padding: "7px 14px", borderRadius: 8, outline: "none", cursor: "pointer", transition: `all 0.3s ${EASE}` }}>
                 {quarters.length > 0 ? quarters.map(q => <option key={q} value={q}>{getQuarterLabel(q)}</option>) : <option value="">{getQuarterLabel(selectedQ)}</option>}
               </select>
               <button onClick={generatePDF}
-                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
-                onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; }}
-                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; }}>
+                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.25)", color: "#b99c64", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "7px 14px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", transition: `all 0.3s ${EASE}` }}
+                onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.boxShadow = "0 4px 18px rgba(212,175,55,0.18)"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.boxShadow = "none"; }}>
                 ⬇ PDF
               </button>
               <button onClick={onClose}
-                style={{ background: "none", border: "1px solid #222", color: "#444", cursor: "pointer", fontSize: 14, padding: "7px 12px", borderRadius: 6 }}
-                onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)"; }}
-                onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.borderColor = "#222"; }}>✕</button>
+                style={{ background: "none", border: "1px solid #222", color: "#444", cursor: "pointer", fontSize: 14, padding: "7px 12px", borderRadius: 8, transition: `all 0.25s ${EASE}` }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "rgba(239,68,68,0.3)"; e.currentTarget.style.transform = "rotate(90deg)"; }}
+                onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.borderColor = "#222"; e.currentTarget.style.transform = "none"; }}>✕</button>
             </div>
           </div>
           {quarters.length > 1 && (
             <div style={{ display: "flex", gap: 6 }}>
               {quarters.map(q => (
                 <button key={q} onClick={() => setSelectedQ(q)}
-                  style={{ background: selectedQ === q ? "rgba(212,175,55,0.12)" : "transparent", border: `1px solid ${selectedQ === q ? "rgba(212,175,55,0.35)" : "#1a1a1a"}`, color: selectedQ === q ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "5px 14px", borderRadius: 20, cursor: "pointer" }}>
+                  style={{ background: selectedQ === q ? "rgba(212,175,55,0.12)" : "transparent", border: `1px solid ${selectedQ === q ? "rgba(212,175,55,0.35)" : "#1a1a1a"}`, color: selectedQ === q ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "5px 14px", borderRadius: 20, cursor: "pointer", transition: `all 0.35s ${EASE}` }}>
                   {getQuarterLabel(q)}
                 </button>
               ))}
@@ -762,7 +765,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
         ) : (<>
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
-            <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 10, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 8 }}>Total Realised P&L · {qLabel}</div>
                 <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: "0.04em", color: totalPnL >= 0 ? "#22c55e" : "#ef4444", lineHeight: 1 }}>{fmtUSD(totalPnL)}</div>
@@ -795,9 +798,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           {packData.length > 0 && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Performance by Pack</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid #1a1a1a", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid #1a1a1a", borderRadius: 10, overflow: "hidden" }}>
                 {packData.map(({ tab, closed, open, pnl, wins }, i) => (
-                  <div key={tab.id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < packData.length - 1 ? "1px solid #111" : "none", background: i % 2 === 0 ? "#0f0f0f" : "#111" }}>
+                  <div key={tab.id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < packData.length - 1 ? "1px solid #111" : "none", background: i % 2 === 0 ? "#0f0f0f" : "#111", transition: `background 0.25s ${EASE}` }}>
                     <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#d4af37", letterSpacing: "0.1em", width: 110 }}>{tab.label.toUpperCase()}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 70 }}>{closed.length} trade{closed.length !== 1 ? "s" : ""}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 60 }}>{closed.length > 0 ? `${((wins / closed.length) * 100).toFixed(0)}% WR` : "—"}</div>
@@ -816,7 +819,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                 const pnlColor = trades.length === 0 ? "#555" : pnl >= 0 ? "#22c55e" : "#ef4444";
                 const borderRgb = trades.length === 0 ? "255,255,255" : pnl >= 0 ? "34,197,94" : "239,68,68";
                 return (
-                  <div key={label} style={{ background: "#111", border: `1px solid rgba(${borderRgb},0.12)`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 8, padding: "14px 16px" }}>
+                  <div key={label} style={{ background: "#111", border: `1px solid rgba(${borderRgb},0.12)`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 10, padding: "14px 16px" }}>
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
                     <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 24, color: pnlColor, marginBottom: 6 }}>{trades.length > 0 ? fmtUSD(pnl) : "—"}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{trades.length} trade{trades.length !== 1 ? "s" : ""}{trades.length > 0 ? ` · ${trades.filter(t => (t.pnlUSD || 0) > 0).length}W / ${trades.filter(t => (t.pnlUSD || 0) <= 0).length}L` : ""}</div>
@@ -834,7 +837,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                   const _tc   = trade ? (trade.pnlUSD >= 0 ? "#22c55e" : "#ef4444") : "#ef4444";
                   const _trgb = trade ? (trade.pnlUSD >= 0 ? "34,197,94" : "239,68,68") : "239,68,68";
                   return (
-                    <div key={label} style={{ background: "#111", border: `1px solid rgba(${_trgb},0.15)`, borderLeft: `3px solid ${_tc}`, borderRadius: 8, padding: "14px 16px" }}>
+                    <div key={label} style={{ background: "#111", border: `1px solid rgba(${_trgb},0.15)`, borderLeft: `3px solid ${_tc}`, borderRadius: 10, padding: "14px 16px" }}>
                       <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
                       {trade ? (<>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -855,7 +858,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
           {hasFloatData && allOpen.length > 0 && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Floating P&L — Open Positions</div>
-              <div style={{ background: "#111", border: `1px solid ${totalFloatUSD >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalFloatUSD >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 10, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ background: "#111", border: `1px solid ${totalFloatUSD >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalFloatUSD >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 8 }}>Total Floating P&L — All Packs</div>
                   <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 42, letterSpacing: "0.04em", color: totalFloatUSD >= 0 ? "#22c55e" : "#ef4444", lineHeight: 1 }}>{fmtUSD(totalFloatUSD)}</div>
@@ -866,7 +869,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
                   <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#d4af37" }}>{allOpen.length}</div>
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid #1a1a1a", borderRadius: 8, overflow: "hidden" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0, border: "1px solid #1a1a1a", borderRadius: 10, overflow: "hidden" }}>
                 {floatByPack.map(({ tab, positions, pnl, winners }, i) => (
                   <div key={tab.id} style={{ display: "flex", alignItems: "center", padding: "12px 16px", borderBottom: i < floatByPack.length - 1 ? "1px solid #111" : "none", background: i % 2 === 0 ? "#0f0f0f" : "#111" }}>
                     <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#d4af37", letterSpacing: "0.1em", width: 110 }}>{tab.label.toUpperCase()}</div>
@@ -1026,8 +1029,8 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 540, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)", maxHeight: "92vh", overflowY: "auto" }}>
+    <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(8px)" }}>
+      <div className="modal-card" style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 18, width: 540, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", maxHeight: "92vh", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
           <div>
             <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: "0.18em", color: "#f8e49b", lineHeight: 1 }}>CLOSE POSITION</div>
@@ -1036,10 +1039,12 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "1px solid #222", color: "#666", fontWeight: 600 }}>{tabLabel.toUpperCase()} PACK</span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 4 }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 4, transition: `all 0.25s ${EASE}` }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.transform = "rotate(90deg)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.transform = "none"; }}>✕</button>
         </div>
 
-        <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 8, padding: "14px 16px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px 12px" }}>
+        <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 10, padding: "14px 16px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px 12px" }}>
           {[
             { label: "Ticker", val: position.ticker, color: "#d4af37" },
             { label: "Direction", val: position.direction, color: position.direction === "LONG" ? "#22c55e" : "#ef4444" },
@@ -1055,14 +1060,14 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
           ))}
         </div>
 
-        <div style={{ marginBottom: 14, background: isPartial ? "rgba(212,175,55,0.04)" : "#0a0a0a", border: `1px solid ${isPartial ? "rgba(212,175,55,0.3)" : "#1a1a1a"}`, borderRadius: 8, padding: "14px 16px", transition: "all 0.2s" }}>
+        <div style={{ marginBottom: 14, background: isPartial ? "rgba(212,175,55,0.04)" : "#0a0a0a", border: `1px solid ${isPartial ? "rgba(212,175,55,0.3)" : "#1a1a1a"}`, borderRadius: 10, padding: "14px 16px", transition: `all 0.35s ${EASE}` }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: isPartial ? 14 : 0 }}>
             <div>
-              <div style={{ fontSize: 9, letterSpacing: "0.2em", color: isPartial ? "#d4af37" : "#888", textTransform: "uppercase", fontWeight: 700, marginBottom: 2 }}>PARTIAL CLOSE</div>
+              <div style={{ fontSize: 9, letterSpacing: "0.2em", color: isPartial ? "#d4af37" : "#888", textTransform: "uppercase", fontWeight: 700, marginBottom: 2, transition: `color 0.3s ${EASE}` }}>PARTIAL CLOSE</div>
               <div style={{ fontSize: 10, color: "#444" }}>Close only a portion — rest stays open</div>
             </div>
-            <div onClick={togglePartial} style={{ cursor: "pointer", width: 42, height: 22, borderRadius: 11, background: isPartial ? "rgba(212,175,55,0.7)" : "#222", border: `1px solid ${isPartial ? "rgba(212,175,55,0.4)" : "#333"}`, position: "relative", transition: "all 0.2s", flexShrink: 0 }}>
-              <div style={{ position: "absolute", top: 2, left: isPartial ? 20 : 2, width: 16, height: 16, borderRadius: 8, background: isPartial ? "#d4af37" : "#555", transition: "left 0.2s" }} />
+            <div onClick={togglePartial} style={{ cursor: "pointer", width: 42, height: 22, borderRadius: 11, background: isPartial ? "rgba(212,175,55,0.7)" : "#222", border: `1px solid ${isPartial ? "rgba(212,175,55,0.4)" : "#333"}`, position: "relative", transition: `all 0.35s ${SPRING}`, flexShrink: 0, boxShadow: isPartial ? "0 0 14px rgba(212,175,55,0.25)" : "none" }}>
+              <div style={{ position: "absolute", top: 2, left: isPartial ? 20 : 2, width: 16, height: 16, borderRadius: 8, background: isPartial ? "#d4af37" : "#555", transition: `left 0.35s ${SPRING}, background 0.3s ${EASE}` }} />
             </div>
           </div>
 
@@ -1071,7 +1076,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                 {[{ id: "pct", label: "BY %" }, { id: "qty", label: "BY QTY" }].map(m => (
                   <button key={m.id} onClick={() => setPartialMode(m.id)}
-                    style={{ padding: "5px 14px", background: partialMode === m.id ? "rgba(212,175,55,0.14)" : "transparent", border: `1px solid ${partialMode === m.id ? "rgba(212,175,55,0.4)" : "#222"}`, color: partialMode === m.id ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", borderRadius: 5, cursor: "pointer", transition: "all 0.15s" }}>
+                    style={{ padding: "5px 14px", background: partialMode === m.id ? "rgba(212,175,55,0.14)" : "transparent", border: `1px solid ${partialMode === m.id ? "rgba(212,175,55,0.4)" : "#222"}`, color: partialMode === m.id ? "#d4af37" : "#444", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", borderRadius: 6, cursor: "pointer", transition: `all 0.25s ${EASE}` }}>
                     {m.label}
                   </button>
                 ))}
@@ -1086,14 +1091,14 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
                       <input type="number" min="1" max="99" step="0.1" value={partialPctInput}
                         onChange={e => handlePctInput(e.target.value)}
                         onBlur={() => handleSliderChange(partialPctInput)}
-                        style={{ width: 52, background: "#111", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.04em", padding: "4px 8px", borderRadius: 5, outline: "none", textAlign: "center" }} />
+                        style={{ width: 52, background: "#111", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.04em", padding: "4px 8px", borderRadius: 6, outline: "none", textAlign: "center" }} />
                       <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: "#d4af37" }}>%</span>
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
                     {[10, 25, 33, 50, 75].map(v => (
                       <button key={v} onClick={() => handleSliderChange(v)}
-                        style={{ padding: "3px 10px", background: partialPct === v ? "rgba(212,175,55,0.15)" : "transparent", border: `1px solid ${partialPct === v ? "rgba(212,175,55,0.4)" : "#222"}`, color: partialPct === v ? "#d4af37" : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", borderRadius: 4, cursor: "pointer", transition: "all 0.15s" }}>
+                        style={{ padding: "3px 10px", background: partialPct === v ? "rgba(212,175,55,0.15)" : "transparent", border: `1px solid ${partialPct === v ? "rgba(212,175,55,0.4)" : "#222"}`, color: partialPct === v ? "#d4af37" : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", borderRadius: 5, cursor: "pointer", transition: `all 0.25s ${EASE}` }}>
                         {v}%
                       </button>
                     ))}
@@ -1105,7 +1110,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
                     <input type="number" min="0" max={totalQty} step="any" value={partialQtyInput}
                       onChange={e => handleQtyInput(e.target.value)}
                       placeholder={`Max ${totalQty}`}
-                      style={{ flex: 1, background: "#111", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", fontFamily: "'DM Mono', monospace", fontSize: 15, padding: "9px 12px", borderRadius: 6, outline: "none" }} />
+                      style={{ flex: 1, background: "#111", border: "1px solid rgba(212,175,55,0.3)", color: "#d4af37", fontFamily: "'DM Mono', monospace", fontSize: 15, padding: "9px 12px", borderRadius: 8, outline: "none" }} />
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flexShrink: 0 }}>/ {totalQty || "—"} total</div>
                   </div>
                   {totalQty > 0 && (
@@ -1114,7 +1119,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
                         const qv = parseFloat((totalQty * v / 100).toFixed(8));
                         return (
                           <button key={v} onClick={() => handleQtyInput(String(qv))}
-                            style={{ padding: "3px 8px", background: "transparent", border: "1px solid #222", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", borderRadius: 4, cursor: "pointer" }}>
+                            style={{ padding: "3px 8px", background: "transparent", border: "1px solid #222", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.08em", borderRadius: 5, cursor: "pointer", transition: `all 0.25s ${EASE}` }}>
                             {v}%
                           </button>
                         );
@@ -1126,12 +1131,12 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
 
               {totalQty > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
-                  <div style={{ background: "#111", border: "1px solid rgba(212,175,55,0.12)", borderRadius: 6, padding: "10px 12px" }}>
+                  <div style={{ background: "#111", border: "1px solid rgba(212,175,55,0.12)", borderRadius: 8, padding: "10px 12px" }}>
                     <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#d4af37", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Closing</div>
                     <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#d4af37" }}>{qtyDisplay(effectiveQty)}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{effectivePct.toFixed(1)}% of position</div>
                   </div>
-                  <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 6, padding: "10px 12px" }}>
+                  <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 8, padding: "10px 12px" }}>
                     <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginBottom: 4, fontWeight: 700 }}>Remaining Open</div>
                     <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: "#888" }}>{qtyDisplay(remainingQty)}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 2 }}>{(100 - effectivePct).toFixed(1)}% of position</div>
@@ -1145,7 +1150,9 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
         <div style={{ marginBottom: 14 }}>
           <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Close Price (USD)</label>
           <input type="number" value={closePrice} onChange={e => setClosePrice(e.target.value)} placeholder="Enter close price…"
-            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 14, padding: "10px 12px", borderRadius: 6, outline: "none" }} />
+            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 14, padding: "10px 12px", borderRadius: 8, outline: "none", transition: `border-color 0.3s ${EASE}, box-shadow 0.3s ${EASE}` }}
+            onFocus={e => { e.target.style.borderColor = "rgba(212,175,55,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(212,175,55,0.1)"; }}
+            onBlur={e => { e.target.style.borderColor = "#222"; e.target.style.boxShadow = "none"; }} />
           {position.currentPrice && (
             <div style={{ fontSize: 10, color: "#444", marginTop: 5 }}>
               Live price: {fmtPrice(position.currentPrice)} · <span onClick={() => setClosePrice(String(position.currentPrice))} style={{ color: "#b99c64", cursor: "pointer", textDecoration: "underline" }}>use live price</span>
@@ -1156,13 +1163,13 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           <div>
             <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Quarter</label>
-            <select value={quarter} onChange={e => setQuarter(e.target.value)} style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none" }}>
+            <select value={quarter} onChange={e => setQuarter(e.target.value)} style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 8, outline: "none" }}>
               {getQuarterOptions().map(q => <option key={q} value={q}>{q.replace("-", " ")}</option>)}
             </select>
           </div>
           <div>
             <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Close Reason</label>
-            <select value={reason} onChange={e => setReason(e.target.value)} style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none" }}>
+            <select value={reason} onChange={e => setReason(e.target.value)} style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 8, outline: "none" }}>
               {Object.entries(CLOSE_REASONS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
@@ -1171,15 +1178,17 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
         <div style={{ marginBottom: 16 }}>
           <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Note (optional)</label>
           <input type="text" value={note} onChange={e => setNote(e.target.value)} placeholder="e.g. Wave 5 complete, target hit"
-            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 6, outline: "none" }} />
+            style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "10px 12px", borderRadius: 8, outline: "none", transition: `border-color 0.3s ${EASE}, box-shadow 0.3s ${EASE}` }}
+            onFocus={e => { e.target.style.borderColor = "rgba(212,175,55,0.5)"; e.target.style.boxShadow = "0 0 0 3px rgba(212,175,55,0.1)"; }}
+            onBlur={e => { e.target.style.borderColor = "#222"; e.target.style.boxShadow = "none"; }} />
         </div>
 
-        <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 8, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`, borderRadius: 10, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", transition: `border-color 0.4s ${EASE}` }}>
           <div>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 5 }}>
               {isPartial ? `Realised P&L (${effectivePct.toFixed(1)}%)` : "Realised P&L"}
             </div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: isPos === null ? "#444" : isPos ? "#22c55e" : "#ef4444" }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: isPos === null ? "#444" : isPos ? "#22c55e" : "#ef4444", transition: `color 0.4s ${EASE}` }}>
               {pnlPct !== null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}
             </div>
             {isPartial && effectiveQty > 0 && (
@@ -1188,13 +1197,13 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               </div>
             )}
           </div>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, letterSpacing: "0.04em", color: isPos === null ? "#333" : isPos ? "#22c55e" : "#ef4444" }}>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, letterSpacing: "0.04em", color: isPos === null ? "#333" : isPos ? "#22c55e" : "#ef4444", transition: `color 0.4s ${EASE}` }}>
             {pnlUSD !== null ? fmtUSD(pnlUSD) : "—"}
           </div>
         </div>
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
-          <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
+          <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}` }}>CANCEL</button>
           <button
             onClick={() => {
               const closedQty = isPartial ? qtyDisplay(effectiveQty) : position.qty;
@@ -1225,7 +1234,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               onConfirm(record, isPartial ? qtyDisplay(remainingQty) : null);
             }}
             disabled={!closePrice || isNaN(cp) || cp <= 0}
-            style={{ background: closePrice && !isNaN(cp) && cp > 0 ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: closePrice && !isNaN(cp) && cp > 0 ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: closePrice && !isNaN(cp) && cp > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
+            style={{ background: closePrice && !isNaN(cp) && cp > 0 ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: closePrice && !isNaN(cp) && cp > 0 ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 8, cursor: closePrice && !isNaN(cp) && cp > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase", transition: `all 0.3s ${SPRING}`, boxShadow: closePrice && !isNaN(cp) && cp > 0 ? "0 4px 18px rgba(212,175,55,0.25)" : "none" }}>
             {isPartial ? `CLOSE ${partialPct}%` : "CONFIRM CLOSE"}
           </button>
         </div>
@@ -1233,6 +1242,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
     </div>
   );
 }
+
 
 // ── DISCORD POST MODAL ───────────────────────────────────────────────────────
 const DISCORD_PRESETS = [
@@ -1296,8 +1306,8 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
   const fullMessage = lines.map(l => l.text).join("\n\n");
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(6px)" }}>
-      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 580, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
+    <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+      <div className="modal-card" style={{ background: "rgba(17,17,17,0.97)", border: "1px solid #2a2a2a", borderRadius: 18, width: 580, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
 
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
@@ -1306,7 +1316,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(88,101,242,0.12)", border: "1px solid rgba(88,101,242,0.3)", color: "#8b9cf4", fontWeight: 700 }}>{tab.label.toUpperCase()} CHANNEL</span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px" }}>✕</button>
+          <button onClick={onClose} onMouseEnter={e => { e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.transform = "rotate(90deg)"; }} onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.transform = "none"; }} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 8, transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)" }}>✕</button>
         </div>
 
         <div style={{ marginBottom: 18 }}>
@@ -1411,8 +1421,8 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
   const canConfirm = ticker.trim().length > 0;
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(4px)" }}>
-      <div style={{ background: "#111", border: "1px solid #2a2a2a", borderRadius: 14, width: 500, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", boxShadow: "0 0 80px rgba(0,0,0,0.8)" }}>
+    <div className="modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+      <div className="modal-card" style={{ background: "rgba(17,17,17,0.97)", border: "1px solid #2a2a2a", borderRadius: 18, width: 500, maxWidth: "95vw", padding: "28px 28px 24px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
 
         {/* HEADER */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 22 }}>
@@ -1423,7 +1433,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "1px solid #222", color: "#666", fontWeight: 600 }}>{tab.source === "binance" ? "BINANCE" : "YAHOO FINANCE"}</span>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px" }}>✕</button>
+          <button onClick={onClose} onMouseEnter={e => { e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.transform = "rotate(90deg)"; }} onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.transform = "none"; }} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 8, transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)" }}>✕</button>
         </div>
 
         {/* TICKER + DIRECTION */}
@@ -1519,7 +1529,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
   const winners = tabClosed.filter(c => (c.pnlUSD || 0) > 0).length;
 
   return (
-    <div style={{ marginTop: 32, border: "1px solid #1a1a1a", borderRadius: 12, overflow: "hidden" }}>
+    <div style={{ marginTop: 32, border: "1px solid #1a1a1a", borderRadius: 16, overflow: "hidden", background: "rgba(13,13,13,0.6)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", transition: "border-color 0.4s cubic-bezier(0.22, 1, 0.36, 1)" }}>
       <div onClick={() => setExpanded(e => !e)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", background: "#0d0d0d", cursor: "pointer", userSelect: "none" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase" }}>CLOSED POSITIONS — {tabLabel.toUpperCase()}</div>
@@ -2022,10 +2032,10 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20 }}>
+      <div style={{ minHeight: "100vh", background: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 20, animation: "vsxFadeIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
         <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width={72} height={72} alt="VisionX" style={{ filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))", animation: "spin 2s linear infinite" }} />
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.3em", color: "#d4af37" }}>LOADING VISIONX...</div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } } @keyframes vsxFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
       </div>
     );
   }
@@ -2034,92 +2044,186 @@ export default function App() {
     <div className="app">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
-        :root { --black:#0a0a0a; --black2:#111111; --black3:#1a1a1a; --border:#222222; --border2:#2a2a2a; --gold1:#b99c64; --gold2:#d4af37; --gold3:#c59958; --gold4:#f8e49b; --white:#fdfdfd; --text:#e8e8e8; --text-dim:#666; --text-mute:#333; --green:#22c55e; --red:#ef4444; }
+        :root {
+          --black:#0a0a0a; --black2:#111111; --black3:#1a1a1a; --border:#222222; --border2:#2a2a2a;
+          --gold1:#b99c64; --gold2:#d4af37; --gold3:#c59958; --gold4:#f8e49b;
+          --white:#fdfdfd; --text:#e8e8e8; --text-dim:#666; --text-mute:#333;
+          --green:#22c55e; --red:#ef4444;
+          --ease: cubic-bezier(0.22, 1, 0.36, 1);
+          --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+          --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+        }
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        html { scroll-behavior: smooth; }
         body { background: var(--black); }
+        ::selection { background: rgba(212,175,55,0.25); color: var(--gold4); }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: var(--black); }
+        ::-webkit-scrollbar-thumb { background: #1e1e1e; border-radius: 6px; border: 2px solid var(--black); transition: background 0.3s; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.35); }
+        :focus-visible { outline: 2px solid rgba(212,175,55,0.6); outline-offset: 2px; border-radius: 4px; }
+
         .app { min-height: 100vh; background: var(--black); font-family: 'Montserrat', sans-serif; color: var(--text); }
-        .header { height: 100px; padding: 0 56px; display: flex; align-items: center; justify-content: space-between; background: rgba(10,10,10,0.85); backdrop-filter: blur(24px); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
+        .app::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+          background: radial-gradient(ellipse 900px 480px at 50% -10%, rgba(212,175,55,0.05), transparent 60%); }
+
+        /* ── HEADER · frosted glass ───────────────────────────────── */
+        .header { height: 100px; padding: 0 56px; display: flex; align-items: center; justify-content: space-between;
+          background: rgba(10,10,10,0.6); backdrop-filter: blur(32px) saturate(170%); -webkit-backdrop-filter: blur(32px) saturate(170%);
+          border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; z-index: 100;
+          animation: headerIn 0.7s var(--ease) both; }
+        @keyframes headerIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
         .logo-area { display: flex; align-items: center; gap: 16px; }
+        .logo-area img { transition: transform 0.6s var(--spring), filter 0.4s var(--ease); }
+        .logo-area:hover img { transform: scale(1.06) rotate(-2deg); filter: drop-shadow(0 0 26px rgba(212,175,55,0.75)) !important; }
         .logo-divider { width: 1px; height: 40px; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent); margin: 0 6px; }
-        .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--white); line-height: 1; background: linear-gradient(135deg, #fff 0%, #e8e8e8 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-        .logo-sub { font-size: 8px; letter-spacing: 0.4em; color: var(--gold1); line-height: 1.6; font-family: 'Montserrat', sans-serif; font-weight: 500; text-transform: uppercase; }
+        .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--white); line-height: 1;
+          background: linear-gradient(135deg, #fff 0%, #e8e8e8 55%, #b99c64 130%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-sub { font-size: 8px; letter-spacing: 0.4em; color: var(--gold1); line-height: 1.6; font-weight: 500; text-transform: uppercase; }
         .header-right { display: flex; align-items: center; gap: 0; }
-        .stat-block { padding: 0 22px; border-left: 1px solid var(--border); text-align: right; transition: background 0.25s; cursor: default; }
-        .stat-block:hover { background: rgba(255,255,255,0.02); }
+        .stat-block { padding: 0 22px; border-left: 1px solid rgba(255,255,255,0.06); text-align: right; transition: background 0.35s var(--ease); cursor: default; }
+        .stat-block:hover { background: rgba(255,255,255,0.025); }
         .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px; }
-        .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; transition: color 0.4s, transform 0.2s; }
-        .stat-block:hover .stat-val { transform: scale(1.03); }
-        .status-block { padding: 0 0 0 22px; border-left: 1px solid var(--border); display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-        .live-badge { display: flex; align-items: center; gap: 7px; padding: 5px 14px; border: 1px solid rgba(34,197,94,0.2); background: rgba(34,197,94,0.06); border-radius: 20px; font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--green); }
+        .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; font-variant-numeric: tabular-nums;
+          transition: color 0.45s var(--ease), transform 0.35s var(--spring), text-shadow 0.45s var(--ease); }
+        .stat-block:hover .stat-val { transform: translateY(-1px) scale(1.05); text-shadow: 0 0 18px currentColor; }
+        .status-block { padding: 0 0 0 22px; border-left: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
+        .live-badge { display: flex; align-items: center; gap: 7px; padding: 5px 14px; border: 1px solid rgba(34,197,94,0.2);
+          background: rgba(34,197,94,0.06); border-radius: 20px; font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--green);
+          transition: all 0.3s var(--ease); }
+        .live-badge:hover { background: rgba(34,197,94,0.12); box-shadow: 0 0 18px rgba(34,197,94,0.15); }
         .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: glow 2s ease-in-out infinite; }
         @keyframes glow { 0%,100% { opacity: 1; box-shadow: 0 0 10px var(--green); } 50% { opacity: 0.3; box-shadow: 0 0 3px var(--green); } }
-        .save-flash { font-size: 8px; letter-spacing: 0.18em; color: var(--gold2); transition: opacity 0.4s; font-weight: 500; }
-        .save-flash.on { opacity: 1; } .save-flash.off { opacity: 0; }
-        .refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; }
-        .new-count-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 10px; border-radius: 20px; background: rgba(212,175,55,0.12); color: var(--gold2); border: 1px solid rgba(212,175,55,0.3); }
-        .tabs-wrap { display: flex; background: var(--black); border-bottom: 1px solid var(--border); padding: 0 56px; gap: 4px; }
-        .tab { padding: 18px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-dim); cursor: pointer; border: none; background: transparent; border-bottom: 1px solid transparent; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); position: relative; bottom: -1px; display: flex; align-items: center; gap: 9px; }
-        .tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
-        .tab.active { color: var(--gold4); border-bottom-color: var(--gold2); }
-        .tab-count { font-size: 9px; padding: 2px 8px; border: 1px solid var(--border2); border-radius: 20px; color: var(--text-dim); font-family: 'DM Mono', monospace; background: var(--black3); transition: all 0.25s; }
+        .save-flash { font-size: 8px; letter-spacing: 0.18em; color: var(--gold2); transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); font-weight: 500; }
+        .save-flash.on { opacity: 1; transform: translateY(0); } .save-flash.off { opacity: 0; transform: translateY(3px); }
+        .refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
+        .new-count-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 10px; border-radius: 20px;
+          background: rgba(212,175,55,0.12); color: var(--gold2); border: 1px solid rgba(212,175,55,0.3); animation: badgePop 0.5s var(--spring) both; }
+        @keyframes badgePop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
+
+        /* ── TABS · animated gold indicator ─────────────────────── */
+        .tabs-wrap { display: flex; background: rgba(10,10,10,0.85); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); padding: 0 56px; gap: 4px; position: sticky; top: 100px; z-index: 90; }
+        .tab { padding: 18px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+          color: var(--text-dim); cursor: pointer; border: none; background: transparent; position: relative;
+          transition: color 0.35s var(--ease), background 0.35s var(--ease); display: flex; align-items: center; gap: 9px; border-radius: 8px 8px 0 0; }
+        .tab::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px; border-radius: 2px;
+          background: linear-gradient(90deg, var(--gold3), var(--gold2), var(--gold4));
+          transform: scaleX(0); transform-origin: center; transition: transform 0.45s var(--ease), box-shadow 0.45s var(--ease); }
+        .tab:hover { color: var(--text); background: rgba(255,255,255,0.025); }
+        .tab:hover::after { transform: scaleX(0.45); }
+        .tab.active { color: var(--gold4); }
+        .tab.active::after { transform: scaleX(1); box-shadow: 0 0 14px rgba(212,175,55,0.45); }
+        .tab:active { transform: scale(0.98); }
+        .tab-count { font-size: 9px; padding: 2px 8px; border: 1px solid var(--border2); border-radius: 20px; color: var(--text-dim);
+          font-family: 'DM Mono', monospace; background: var(--black3); transition: all 0.35s var(--ease); }
         .tab.active .tab-count { border-color: rgba(212,175,55,0.3); color: var(--gold2); background: rgba(212,175,55,0.08); }
         .live-pip { width: 4px; height: 4px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: glow 2s ease-in-out infinite; }
-        .content { padding: 36px 56px; }
-        .hint-bar { display: flex; align-items: center; gap: 20px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em; margin-bottom: 24px; padding: 12px 20px; border: 1px solid var(--border); background: var(--black2); border-radius: 8px; font-family: 'DM Mono', monospace; }
-        .hint-bar:hover { border-color: var(--gold1); }
+
+        /* ── CONTENT · fluid tab transitions ─────────────────────── */
+        .content { padding: 36px 56px; animation: contentIn 0.5s var(--ease) both; position: relative; z-index: 1; }
+        @keyframes contentIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+        .hint-bar { display: flex; align-items: center; gap: 20px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em;
+          margin-bottom: 24px; padding: 12px 20px; border: 1px solid var(--border); background: rgba(17,17,17,0.7); backdrop-filter: blur(10px);
+          border-radius: var(--r-md); font-family: 'DM Mono', monospace; transition: border-color 0.4s var(--ease), transform 0.4s var(--ease); }
+        .hint-bar:hover { border-color: rgba(212,175,55,0.3); transform: translateY(-1px); }
         .hint-label { font-size: 8px; font-weight: 700; letter-spacing: 0.25em; color: var(--gold2); white-space: nowrap; padding-right: 20px; border-right: 1px solid var(--border); }
         .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-        .btn { padding: 10px 22px; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; border: none; cursor: pointer; transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); text-transform: uppercase; border-radius: 6px; }
-        .btn-add { background: linear-gradient(135deg, var(--gold2), var(--gold3)); color: var(--black); box-shadow: 0 0 20px rgba(212,175,55,0.2); }
-        .btn-add:hover { background: linear-gradient(135deg, var(--gold4), var(--gold2)); box-shadow: 0 0 35px rgba(212,175,55,0.4); transform: translateY(-2px) scale(1.02); }
-        .btn-refresh { background: transparent; color: var(--text-dim); border: 1px solid var(--border); border-radius: 6px; }
-        .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: var(--black2); transform: translateY(-1px); }
+
+        /* ── BUTTONS · Apple-style press & lift ─────────────────── */
+        .btn { padding: 10px 22px; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; border: none; cursor: pointer;
+          text-transform: uppercase; border-radius: 10px; transition: all 0.35s var(--spring); will-change: transform; }
+        .btn:active { transform: scale(0.96) !important; transition-duration: 0.1s; }
+        .btn-add { background: linear-gradient(135deg, var(--gold2), var(--gold3)); color: var(--black); box-shadow: 0 4px 20px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,255,255,0.25); }
+        .btn-add:hover { background: linear-gradient(135deg, var(--gold4), var(--gold2)); box-shadow: 0 8px 32px rgba(212,175,55,0.4), inset 0 1px 0 rgba(255,255,255,0.35); transform: translateY(-2px); }
+        .btn-refresh { background: rgba(255,255,255,0.02); color: var(--text-dim); border: 1px solid var(--border); }
+        .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: rgba(255,255,255,0.05); transform: translateY(-1px); }
         .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
-        .search-inp { background: var(--black2); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace; font-size: 11px; padding: 8px 14px; border-radius: 6px; outline: none; width: 220px; letter-spacing: 0.04em; transition: border-color 0.2s; }
-        .search-inp:focus { border-color: var(--gold1); background: rgba(212,175,55,0.04); }
+        .search-inp { background: rgba(17,17,17,0.8); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace;
+          font-size: 11px; padding: 9px 14px; border-radius: 10px; outline: none; width: 220px; letter-spacing: 0.04em;
+          transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), width 0.4s var(--ease), background 0.3s var(--ease); }
+        .search-inp:focus { border-color: rgba(212,175,55,0.5); background: rgba(212,175,55,0.04); width: 280px;
+          box-shadow: 0 0 0 3px rgba(212,175,55,0.1); }
         .search-inp::placeholder { color: var(--text-mute); }
         .source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; }
-        .table-wrap { border: 1px solid var(--border); overflow-x: auto; background: var(--black2); border-radius: 12px; overflow: hidden; }
-        .table-wrap:hover { border-color: var(--border2); }
+
+        /* ── TABLE · soft card, staggered rows ───────────────────── */
+        .table-wrap { border: 1px solid var(--border); overflow-x: auto; background: rgba(17,17,17,0.65); backdrop-filter: blur(12px);
+          border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: border-color 0.4s var(--ease), box-shadow 0.4s var(--ease); }
+        .table-wrap:hover { border-color: rgba(212,175,55,0.18); box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.06); }
         table { width: 100%; border-collapse: collapse; min-width: 1100px; }
-        thead tr { background: var(--black3); border-bottom: 1px solid var(--border); }
-        th { padding: 14px 12px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; }
+        thead tr { background: rgba(26,26,26,0.9); border-bottom: 1px solid var(--border); }
+        th { padding: 14px 12px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
+        th:hover { color: var(--gold1); }
         th:first-child { color: var(--gold1); }
-        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.2s; }
+        tbody tr { border-bottom: 1px solid rgba(34,34,34,0.6); transition: background 0.3s var(--ease); animation: rowIn 0.5s var(--ease) both; }
+        tbody tr:nth-child(1) { animation-delay: 0.03s; } tbody tr:nth-child(2) { animation-delay: 0.07s; }
+        tbody tr:nth-child(3) { animation-delay: 0.11s; } tbody tr:nth-child(4) { animation-delay: 0.15s; }
+        tbody tr:nth-child(5) { animation-delay: 0.19s; } tbody tr:nth-child(6) { animation-delay: 0.23s; }
+        tbody tr:nth-child(7) { animation-delay: 0.27s; } tbody tr:nth-child(8) { animation-delay: 0.31s; }
+        tbody tr:nth-child(n+9) { animation-delay: 0.35s; }
+        @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover { background: rgba(212,175,55,0.03); }
+        tbody tr:hover { background: rgba(212,175,55,0.04); }
         tbody tr:hover .ticker-inp { color: var(--gold4); }
-        tbody tr:hover .pnl-pos { text-shadow: 0 0 12px rgba(34,197,94,0.4); }
-        tbody tr:hover .pnl-neg { text-shadow: 0 0 12px rgba(239,68,68,0.4); }
+        tbody tr:hover .pnl-pos { text-shadow: 0 0 14px rgba(34,197,94,0.5); }
+        tbody tr:hover .pnl-neg { text-shadow: 0 0 14px rgba(239,68,68,0.5); }
         td { padding: 12px 12px; }
-        .cell-input { background: transparent; border: none; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px; outline: none; padding: 4px 6px; width: 100%; transition: background 0.2s; border-radius: 4px; }
-        .cell-input:focus { background: rgba(212,175,55,0.05); }
+        .cell-input { background: transparent; border: 1px solid transparent; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
+          outline: none; padding: 5px 7px; width: 100%; border-radius: 7px; transition: background 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
+        .cell-input:hover { background: rgba(255,255,255,0.03); }
+        .cell-input:focus { background: rgba(212,175,55,0.06); border-color: rgba(212,175,55,0.3); box-shadow: 0 0 0 3px rgba(212,175,55,0.08); }
         .cell-input::placeholder { color: var(--text-mute); }
-        .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 80px; transition: color 0.2s; }
+        .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 80px; transition: color 0.25s var(--ease), background 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
         .num-inp { width: 85px; } .qty-inp { color: var(--gold3); width: 75px; } .date-inp { width: 130px; color-scheme: dark; }
-        .dir-sel { border: none; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; cursor: pointer; padding: 5px 12px; outline: none; -webkit-appearance: none; text-transform: uppercase; border-radius: 4px; transition: all 0.2s; }
+        .dir-sel { border: none; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; cursor: pointer; padding: 5px 12px;
+          outline: none; -webkit-appearance: none; text-transform: uppercase; border-radius: 7px; transition: all 0.3s var(--spring); }
+        .dir-sel:active { transform: scale(0.95); }
         .dir-long { background: rgba(34,197,94,0.1); color: var(--green); } .dir-short { background: rgba(239,68,68,0.1); color: var(--red); }
-        .dir-long:hover { background: rgba(34,197,94,0.2); } .dir-short:hover { background: rgba(239,68,68,0.2); }
-        .dist-val { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; }
-        .price-val { color: var(--white); font-family: 'DM Mono', monospace; }
-        .value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; }
+        .dir-long:hover { background: rgba(34,197,94,0.2); box-shadow: 0 0 14px rgba(34,197,94,0.15); }
+        .dir-short:hover { background: rgba(239,68,68,0.2); box-shadow: 0 0 14px rgba(239,68,68,0.15); }
+        .dist-val { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+        .price-val { color: var(--white); font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: color 0.4s var(--ease); }
+        .value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
         .fetching { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
         .price-err { color: var(--red); font-size: 10px; } .price-dim { color: var(--text-mute); }
-        .pnl-pos { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
-        .pnl-neg { color: var(--red); font-weight: 600; font-family: 'DM Mono', monospace; transition: text-shadow 0.2s; }
+        .pnl-pos { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
+        .pnl-neg { color: var(--red); font-weight: 600; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
         .pnl-zero { color: var(--text-dim); font-family: 'DM Mono', monospace; }
-        .del-btn { background: none; border: none; color: var(--text-mute); cursor: pointer; font-size: 12px; padding: 6px 8px; transition: all 0.2s; border-radius: 4px; }
-        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); }
-        .close-pos-btn { background: rgba(212,175,55,0.07); border: 1px solid rgba(212,175,55,0.2); color: var(--gold1); cursor: pointer; font-size: 8px; font-weight: 700; letter-spacing: 0.14em; padding: 5px 9px; transition: all 0.2s; border-radius: 4px; white-space: nowrap; }
-        .close-pos-btn:hover { background: rgba(212,175,55,0.15); border-color: var(--gold2); color: var(--gold2); }
+        .del-btn { background: none; border: none; color: var(--text-mute); cursor: pointer; font-size: 12px; padding: 6px 8px;
+          transition: all 0.25s var(--spring); border-radius: 7px; }
+        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); transform: scale(1.12); }
+        .del-btn:active { transform: scale(0.92); }
+        .close-pos-btn { background: rgba(212,175,55,0.07); border: 1px solid rgba(212,175,55,0.2); color: var(--gold1); cursor: pointer;
+          font-size: 8px; font-weight: 700; letter-spacing: 0.14em; padding: 5px 9px; border-radius: 7px; white-space: nowrap;
+          transition: all 0.3s var(--spring); }
+        .close-pos-btn:hover { background: rgba(212,175,55,0.15); border-color: var(--gold2); color: var(--gold2); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(212,175,55,0.15); }
+        .close-pos-btn:active { transform: scale(0.95); }
         .empty-cell { text-align: center; padding: 72px; color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em; font-weight: 500; }
         .spin { display: inline-block; animation: spin 0.7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .flag-badge { font-size: 8px; font-weight: 700; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 4px; border: 1px solid; white-space: nowrap; animation: newpulse 2.5s ease-in-out infinite; }
-        @keyframes newpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
-        .flag-sel { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border2); background: transparent; color: var(--text-mute); transition: all 0.2s; outline: none; -webkit-appearance: none; appearance: none; text-transform: uppercase; }
-        .flag-sel:hover { border-color: rgba(212,175,55,0.3); }
+        .flag-badge { font-size: 8px; font-weight: 700; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid;
+          white-space: nowrap; animation: newpulse 2.5s ease-in-out infinite; }
+        @keyframes newpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+        .flag-sel { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; padding: 4px 8px; border-radius: 7px; cursor: pointer;
+          border: 1px solid var(--border2); background: transparent; color: var(--text-mute); outline: none;
+          -webkit-appearance: none; appearance: none; text-transform: uppercase; transition: all 0.3s var(--ease); }
+        .flag-sel:hover { border-color: rgba(212,175,55,0.3); background: rgba(212,175,55,0.04); }
         .flag-sel option { background: var(--black3); color: var(--text); }
+
+        /* ── MODALS · scale-in with depth ─────────────────────────── */
+        .modal-overlay { animation: overlayIn 0.35s var(--ease) both; }
+        @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-card { animation: modalIn 0.45s var(--spring) both; box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(212,175,55,0.06), inset 0 1px 0 rgba(255,255,255,0.04) !important; }
+        @keyframes modalIn { from { opacity: 0; transform: scale(0.94) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+
+        /* ── REPORT PANEL · slide from right ─────────────────────── */
+        .report-overlay { animation: overlayIn 0.35s var(--ease) both; }
+        .report-panel { animation: panelIn 0.55s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); }
+        @keyframes panelIn { from { transform: translateX(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        }
       `}</style>
 
       {showReport && (
@@ -2202,7 +2306,7 @@ export default function App() {
         })}
       </div>
 
-      <div className="content">
+      <div className="content" key={activeTab}>
         <PositionTable
           tab={currentTab}
           positions={allPositions[activeTab] || []}
