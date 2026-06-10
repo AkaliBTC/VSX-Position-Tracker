@@ -2120,14 +2120,18 @@ export default function App() {
         .header-right { display: flex; align-items: center; gap: 0; }
         .stat-block { padding: 0 24px; text-align: right; cursor: default;
           border-left: 1px solid rgba(255,255,255,0.07);
-          animation: statIn 0.7s var(--ease) both; }
+          transition: background 0.4s var(--ease); animation: statIn 0.7s var(--ease) both; }
+        .stat-block:hover { background: rgba(212,175,55,0.035); }
+        .stat-block:hover .stat-label { color: var(--gold1); }
+        .stat-block:hover .stat-val { transform: translateY(-1px); text-shadow: 0 0 18px currentColor; }
         .stat-block:nth-child(1) { animation-delay: 0.08s; } .stat-block:nth-child(2) { animation-delay: 0.14s; }
         .stat-block:nth-child(3) { animation-delay: 0.20s; } .stat-block:nth-child(4) { animation-delay: 0.26s; }
         .stat-block:nth-child(5) { animation-delay: 0.32s; } .stat-block:nth-child(6) { animation-delay: 0.38s; }
         @keyframes statIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px; }
+        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px;
+          transition: color 0.4s var(--ease); }
         .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; font-variant-numeric: tabular-nums;
-          transition: color 0.45s var(--ease); }
+          transition: color 0.45s var(--ease), transform 0.35s var(--spring), text-shadow 0.45s var(--ease); }
         .status-block { padding: 0 0 0 24px; border-left: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
         .live-badge { display: flex; align-items: center; gap: 9px; padding: 7px 18px; border: 1px solid rgba(34,197,94,0.35);
           background: rgba(34,197,94,0.09); border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.24em; color: var(--green);
@@ -2277,13 +2281,22 @@ export default function App() {
           0% { opacity: 0; transform: scale(0.96) translateY(14px); filter: blur(6px); }
           60% { filter: blur(0); }
           100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
-        .modal-card > * { animation: modalChild 0.55s var(--ease) 0.12s both; }
-        @keyframes modalChild { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        .modal-card { overflow-anchor: none; }
+        .modal-card > * { animation: modalChild 0.5s var(--ease) 0.1s both; }
+        @keyframes modalChild { from { opacity: 0; } to { opacity: 1; } }
 
         /* ── REPORT PANEL · slide from right ─────────────────────── */
         .report-overlay { animation: overlayIn 0.45s var(--ease) both; }
-        .report-panel { animation: panelIn 0.65s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); }
-        @keyframes panelIn { from { transform: translateX(48px); opacity: 0; filter: blur(4px); } to { transform: none; opacity: 1; filter: blur(0); } }
+        .report-panel { animation: panelIn 0.7s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); overflow-anchor: none; }
+        @keyframes panelIn { from { transform: translateX(56px); opacity: 0; filter: blur(5px); } to { transform: none; opacity: 1; filter: blur(0); } }
+        .report-panel > * { animation: panelChild 0.6s var(--ease) both; }
+        .report-panel > *:nth-child(1) { animation-delay: 0.15s; }
+        .report-panel > *:nth-child(2) { animation-delay: 0.22s; }
+        .report-panel > *:nth-child(3) { animation-delay: 0.29s; }
+        .report-panel > *:nth-child(4) { animation-delay: 0.36s; }
+        .report-panel > *:nth-child(5) { animation-delay: 0.43s; }
+        .report-panel > *:nth-child(n+6) { animation-delay: 0.5s; }
+        @keyframes panelChild { from { opacity: 0; } to { opacity: 1; } }
 
         /* ── MOBILE · responsive layout ───────────────────────────── */
         @media (max-width: 900px) {
