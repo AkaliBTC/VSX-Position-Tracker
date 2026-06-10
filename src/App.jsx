@@ -1868,6 +1868,17 @@ export default function App() {
   const [showReport, setShowReport] = useState(false);
   const anyFocused = useRef(false);
   const allPositionsRef = useRef(allPositions);
+  const contentRef = useRef(null);
+
+  // Re-trigger the content fade on tab switch WITHOUT remounting PositionTable
+  // (keeps per-tab search/sort state alive)
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.style.animation = "none";
+    void el.offsetHeight; // force reflow to restart the CSS animation
+    el.style.animation = "";
+  }, [activeTab]);
 
   // ── Load from Firebase on startup ─────────────────────────────────────────
   useEffect(() => {
@@ -2221,6 +2232,42 @@ export default function App() {
         .report-panel { animation: panelIn 0.55s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); }
         @keyframes panelIn { from { transform: translateX(60px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+        /* ── MOBILE · responsive layout ───────────────────────────── */
+        @media (max-width: 900px) {
+          .header { height: auto; min-height: 0; padding: 14px 16px; flex-wrap: wrap; gap: 12px; position: static; }
+          .logo-area { gap: 10px; }
+          .logo-area img { width: 44px !important; height: 44px !important; }
+          .logo-name { font-size: 22px; letter-spacing: 0.18em; }
+          .logo-sub { font-size: 7px; letter-spacing: 0.28em; }
+          .logo-divider { display: none; }
+          .header-right { width: 100%; justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; padding-bottom: 2px; }
+          .stat-block { padding: 0 14px; flex: 0 0 auto; text-align: left; }
+          .stat-block:first-child { border-left: none; padding-left: 0; }
+          .stat-val { font-size: 18px; }
+          .status-block { padding: 0 0 0 14px; flex: 0 0 auto; align-items: flex-start; }
+          .tabs-wrap { padding: 0 8px; top: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+          .tabs-wrap::-webkit-scrollbar { display: none; }
+          .tab { padding: 14px 12px; font-size: 9px; letter-spacing: 0.12em; flex: 0 0 auto; }
+          .content { padding: 20px 14px; }
+          .hint-bar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; font-size: 9px; }
+          .hint-label { border-right: none; padding-right: 0; }
+          .toolbar { flex-wrap: wrap; }
+          .search-inp { width: 100%; flex: 1 1 100%; order: 10; }
+          .search-inp:focus { width: 100%; }
+          .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); }
+          .empty-cell { padding: 48px 20px; }
+          .report-panel { width: 100vw !important; max-width: 100vw !important; }
+          .modal-card { border-radius: 14px !important; }
+        }
+        @media (max-width: 480px) {
+          .header { padding: 12px 12px; }
+          .logo-name { font-size: 19px; }
+          .stat-label { font-size: 7px; }
+          .stat-val { font-size: 16px; }
+          .content { padding: 16px 10px; }
+          .btn { padding: 9px 16px; font-size: 9px; }
+        }
+
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
         }
@@ -2306,7 +2353,7 @@ export default function App() {
         })}
       </div>
 
-      <div className="content" key={activeTab}>
+      <div className="content" ref={contentRef}>
         <PositionTable
           tab={currentTab}
           positions={allPositions[activeTab] || []}
