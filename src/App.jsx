@@ -2199,16 +2199,10 @@ export default function App() {
         .source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; }
 
         /* ── TABLE · soft card, staggered rows ───────────────────── */
-        @property --vsx-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
         .table-wrap { overflow-x: auto; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-          border: 1px solid transparent;
-          background:
-            linear-gradient(rgba(17,17,17,0.92), rgba(17,17,17,0.92)) padding-box,
-            conic-gradient(from var(--vsx-angle), rgba(212,175,55,0.45), rgba(42,42,42,0.9) 18%, rgba(34,34,34,0.8) 50%, rgba(185,156,100,0.3) 78%, rgba(212,175,55,0.45)) border-box;
-          animation: borderSpin 9s linear infinite;
-          border-radius: var(--r-lg); overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: box-shadow 0.4s var(--ease); }
-        @keyframes borderSpin { to { --vsx-angle: 360deg; } }
-        .table-wrap:hover { box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 32px rgba(212,175,55,0.07); }
+          border: 1px solid rgba(212,175,55,0.14); background: rgba(17,17,17,0.92);
+          border-radius: var(--r-lg); overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: box-shadow 0.4s var(--ease), border-color 0.4s var(--ease); }
+        .table-wrap:hover { border-color: rgba(212,175,55,0.24); box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 32px rgba(212,175,55,0.06); }
         table { width: 100%; border-collapse: collapse; min-width: 1100px; }
         thead tr { background: rgba(26,26,26,0.9); border-bottom: 1px solid var(--border); }
         th { padding: 16px 14px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
@@ -2320,7 +2314,7 @@ export default function App() {
           .toolbar { flex-wrap: wrap; }
           .search-inp { width: 100%; flex: 1 1 100%; order: 10; }
           .search-inp:focus { width: 100%; }
-          .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); animation: none; }
+          .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); }
           .app::after { display: none; }
           .logo-name { animation: none; background-position: 50% 0; }
           .empty-cell { padding: 48px 20px; }
