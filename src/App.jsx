@@ -261,6 +261,22 @@ const newRow = () => ({
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
 
+// ── PRICE TICK FLASH · discreet live-update indicator ────────────────────────
+function FlashPrice({ price }) {
+  const prev = useRef(price);
+  const [dir, setDir] = useState(null);
+  useEffect(() => {
+    if (prev.current != null && price != null && price !== prev.current) {
+      setDir(price > prev.current ? "up" : "down");
+      prev.current = price;
+      const t = setTimeout(() => setDir(null), 1250);
+      return () => clearTimeout(t);
+    }
+    prev.current = price;
+  }, [price]);
+  return <span className={"price-val" + (dir ? " px-" + dir : "")}>{fmtPrice(price)}</span>;
+}
+
 const VSXLogo = ({ size = 72 }) => (
   <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png"
     width={size} height={size} alt="VisionX Logo"
@@ -1817,7 +1833,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number" value={p.sl} onChange={(e) => update(p.id, "sl", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><span className="dist-val">{dist !== null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—"}</span></td>
                   <td><input className="cell-input date-inp" type="date" value={p.date} onChange={(e) => update(p.id, "date", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
-                  <td>{p.loading ? <span className="fetching">LOADING</span> : p.error ? <span className="price-err">N/A</span> : p.currentPrice !== null ? <span className="price-val">{fmtPrice(p.currentPrice)}</span> : <span className="price-dim">—</span>}</td>
+                  <td>{p.loading ? <span className="fetching">LOADING</span> : p.error ? <span className="price-err">N/A</span> : p.currentPrice !== null ? <FlashPrice price={p.currentPrice} /> : <span className="price-dim">—</span>}</td>
                   <td>
                     {posValue !== null
                       ? <span className="value-val">{posValue}</span>
@@ -2058,7 +2074,7 @@ export default function App() {
         :root {
           --black:#0a0a0a; --black2:#111111; --black3:#1a1a1a; --border:#222222; --border2:#2a2a2a;
           --gold1:#b99c64; --gold2:#d4af37; --gold3:#c59958; --gold4:#f8e49b;
-          --white:#fdfdfd; --text:#e8e8e8; --text-dim:#666; --text-mute:#333;
+          --white:#fdfdfd; --text:#ececec; --text-dim:#8a8a8a; --text-mute:#4a4a4a;
           --green:#22c55e; --red:#ef4444;
           --ease: cubic-bezier(0.22, 1, 0.36, 1);
           --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
@@ -2094,8 +2110,6 @@ export default function App() {
           animation: headerIn 0.7s var(--ease) both; }
         @keyframes headerIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
         .logo-area { display: flex; align-items: center; gap: 16px; }
-        .logo-area img { transition: transform 0.6s var(--spring), filter 0.4s var(--ease); }
-        .logo-area:hover img { transform: scale(1.06) rotate(-2deg); filter: drop-shadow(0 0 26px rgba(212,175,55,0.75)) !important; }
         .logo-divider { width: 1px; height: 40px; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent); margin: 0 6px; }
         .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--gold2); line-height: 1;
           background: linear-gradient(110deg, #b99c64 0%, #d4af37 30%, #f8e49b 50%, #d4af37 70%, #b99c64 100%);
@@ -2103,30 +2117,24 @@ export default function App() {
           animation: goldShimmer 8s var(--ease) infinite; }
         @keyframes goldShimmer { 0%, 50% { background-position: 100% 0; } 92%, 100% { background-position: 0% 0; } }
         .logo-sub { font-size: 8px; letter-spacing: 0.4em; color: var(--gold1); line-height: 1.6; font-weight: 500; text-transform: uppercase; }
-        .header-right { display: flex; align-items: center; gap: 10px; }
-        .stat-block { padding: 10px 18px; text-align: left; cursor: default; border-radius: 16px;
-          background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.05);
-          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-          transition: background 0.45s var(--ease), border-color 0.45s var(--ease), transform 0.45s var(--spring), box-shadow 0.45s var(--ease);
+        .header-right { display: flex; align-items: center; gap: 0; }
+        .stat-block { padding: 0 24px; text-align: right; cursor: default;
+          border-left: 1px solid rgba(255,255,255,0.07);
           animation: statIn 0.7s var(--ease) both; }
         .stat-block:nth-child(1) { animation-delay: 0.08s; } .stat-block:nth-child(2) { animation-delay: 0.14s; }
         .stat-block:nth-child(3) { animation-delay: 0.20s; } .stat-block:nth-child(4) { animation-delay: 0.26s; }
         .stat-block:nth-child(5) { animation-delay: 0.32s; } .stat-block:nth-child(6) { animation-delay: 0.38s; }
-        @keyframes statIn { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
-        .stat-block:hover { background: rgba(212,175,55,0.05); border-color: rgba(212,175,55,0.18); transform: translateY(-2px);
-          box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(212,175,55,0.04); }
-        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px;
-          transition: color 0.4s var(--ease); }
-        .stat-block:hover .stat-label { color: var(--gold1); }
+        @keyframes statIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px; }
         .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; font-variant-numeric: tabular-nums;
-          transition: color 0.45s var(--ease), text-shadow 0.45s var(--ease); }
-        .stat-block:hover .stat-val { text-shadow: 0 0 18px currentColor; }
-        .status-block { padding: 10px 0 10px 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-        .live-badge { display: flex; align-items: center; gap: 7px; padding: 5px 14px; border: 1px solid rgba(34,197,94,0.2);
-          background: rgba(34,197,94,0.06); border-radius: 20px; font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--green);
-          transition: all 0.3s var(--ease); }
-        .live-badge:hover { background: rgba(34,197,94,0.12); box-shadow: 0 0 18px rgba(34,197,94,0.15); }
-        .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: glow 2s ease-in-out infinite; }
+          transition: color 0.45s var(--ease); }
+        .status-block { padding: 0 0 0 24px; border-left: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .live-badge { display: flex; align-items: center; gap: 9px; padding: 7px 18px; border: 1px solid rgba(34,197,94,0.35);
+          background: rgba(34,197,94,0.09); border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.24em; color: var(--green);
+          box-shadow: 0 0 22px rgba(34,197,94,0.12); transition: all 0.3s var(--ease); }
+        .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); position: relative; animation: glow 2s ease-in-out infinite; }
+        .live-dot::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid rgba(34,197,94,0.5); animation: livePulse 2s var(--ease) infinite; }
+        @keyframes livePulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.9); opacity: 0; } }
         @keyframes glow { 0%,100% { opacity: 1; box-shadow: 0 0 10px var(--green); } 50% { opacity: 0.3; box-shadow: 0 0 3px var(--green); } }
         .save-flash { font-size: 8px; letter-spacing: 0.18em; color: var(--gold2); transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); font-weight: 500; }
         .save-flash.on { opacity: 1; transform: translateY(0); } .save-flash.off { opacity: 0; transform: translateY(3px); }
@@ -2137,20 +2145,21 @@ export default function App() {
 
         /* ── TABS · animated gold indicator ─────────────────────── */
         .tabs-wrap { display: flex; background: rgba(10,10,10,0.7); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
-          border-bottom: 1px solid rgba(255,255,255,0.05); padding: 12px 56px; gap: 8px; position: sticky; top: 100px; z-index: 90; }
-        .tab { padding: 11px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
-          color: var(--text-dim); cursor: pointer; border: 1px solid transparent; background: transparent; position: relative;
-          transition: color 0.4s var(--ease), background 0.4s var(--ease), border-color 0.4s var(--ease), transform 0.35s var(--spring), box-shadow 0.5s var(--ease);
-          display: flex; align-items: center; gap: 9px; border-radius: 999px; }
-        .tab:hover { color: var(--text); background: rgba(255,255,255,0.035); transform: translateY(-1px); }
-        .tab.active { color: var(--gold4); background: linear-gradient(135deg, rgba(212,175,55,0.14), rgba(185,156,100,0.07));
-          border-color: rgba(212,175,55,0.28);
-          box-shadow: 0 4px 18px rgba(212,175,55,0.12), inset 0 1px 0 rgba(255,255,255,0.06); }
-        .tab.active:hover { transform: none; }
-        .tab:active { transform: scale(0.96); }
+          border-bottom: 1px solid var(--border); padding: 0 56px; gap: 4px; position: sticky; top: 100px; z-index: 90; }
+        .tab { padding: 18px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
+          color: var(--text-dim); cursor: pointer; border: none; background: transparent; position: relative;
+          transition: color 0.4s var(--ease), background 0.4s var(--ease); display: flex; align-items: center; gap: 9px; border-radius: 8px 8px 0 0; }
+        .tab::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px; border-radius: 2px;
+          background: linear-gradient(90deg, var(--gold3), var(--gold2), var(--gold4));
+          transform: scaleX(0); transform-origin: center; transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
+        .tab:hover { color: var(--text); background: rgba(255,255,255,0.025); }
+        .tab:hover::after { transform: scaleX(0.45); }
+        .tab.active { color: var(--gold4); }
+        .tab.active::after { transform: scaleX(1); box-shadow: 0 0 14px rgba(212,175,55,0.45); }
+        .tab:active { transform: scale(0.98); }
         .tab-count { font-size: 9px; padding: 2px 8px; border: 1px solid var(--border2); border-radius: 20px; color: var(--text-dim);
-          font-family: 'DM Mono', monospace; background: rgba(26,26,26,0.8); transition: all 0.4s var(--ease); }
-        .tab.active .tab-count { border-color: rgba(212,175,55,0.35); color: var(--black); background: linear-gradient(135deg, var(--gold2), var(--gold3)); font-weight: 700; }
+          font-family: 'DM Mono', monospace; background: var(--black3); transition: all 0.4s var(--ease); }
+        .tab.active .tab-count { border-color: rgba(212,175,55,0.3); color: var(--gold2); background: rgba(212,175,55,0.08); }
         .live-pip { width: 4px; height: 4px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: glow 2s ease-in-out infinite; }
 
         /* ── CONTENT · fluid tab transitions ─────────────────────── */
@@ -2158,14 +2167,14 @@ export default function App() {
         @keyframes contentIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
         .hint-bar { display: flex; align-items: center; gap: 20px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em;
           margin-bottom: 24px; padding: 12px 20px; border: 1px solid var(--border); background: rgba(17,17,17,0.7); backdrop-filter: blur(10px);
-          border-radius: 999px; font-family: 'DM Mono', monospace; transition: border-color 0.5s var(--ease), transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
+          border-radius: var(--r-md); font-family: 'DM Mono', monospace; transition: border-color 0.5s var(--ease), transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
         .hint-bar:hover { border-color: rgba(212,175,55,0.3); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
         .hint-label { font-size: 8px; font-weight: 700; letter-spacing: 0.25em; color: var(--gold2); white-space: nowrap; padding-right: 20px; border-right: 1px solid var(--border); }
         .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
 
         /* ── BUTTONS · Apple-style press & lift ─────────────────── */
         .btn { padding: 10px 22px; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; border: none; cursor: pointer;
-          text-transform: uppercase; border-radius: 999px; transition: all 0.4s var(--spring); will-change: transform;
+          text-transform: uppercase; border-radius: 12px; transition: all 0.4s var(--spring); will-change: transform;
           position: relative; overflow: hidden; }
         .btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: -80%; width: 50%;
           background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
@@ -2178,7 +2187,7 @@ export default function App() {
         .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: rgba(255,255,255,0.05); transform: translateY(-1px); }
         .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
         .search-inp { background: rgba(17,17,17,0.8); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace;
-          font-size: 11px; padding: 10px 18px; border-radius: 999px; outline: none; width: 220px; letter-spacing: 0.04em;
+          font-size: 11px; padding: 9px 16px; border-radius: 12px; outline: none; width: 220px; letter-spacing: 0.04em;
           transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), width 0.4s var(--ease), background 0.3s var(--ease); }
         .search-inp:focus { border-color: rgba(212,175,55,0.5); background: rgba(212,175,55,0.04); width: 280px;
           box-shadow: 0 0 0 3px rgba(212,175,55,0.1); }
@@ -2201,7 +2210,7 @@ export default function App() {
         th { padding: 16px 14px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
         th:hover { color: var(--gold1); }
         th:first-child { color: var(--gold1); }
-        tbody tr { border-bottom: 1px solid rgba(34,34,34,0.45); transition: background 0.35s var(--ease), box-shadow 0.35s var(--ease); animation: rowIn 0.55s var(--ease) both; }
+        tbody tr { border-bottom: 1px solid rgba(42,42,42,0.7); transition: background 0.35s var(--ease), box-shadow 0.35s var(--ease); animation: rowIn 0.55s var(--ease) both; }
         tbody tr:nth-child(1) { animation-delay: 0.03s; } tbody tr:nth-child(2) { animation-delay: 0.07s; }
         tbody tr:nth-child(3) { animation-delay: 0.11s; } tbody tr:nth-child(4) { animation-delay: 0.15s; }
         tbody tr:nth-child(5) { animation-delay: 0.19s; } tbody tr:nth-child(6) { animation-delay: 0.23s; }
@@ -2229,11 +2238,15 @@ export default function App() {
         .dir-short:hover { background: rgba(239,68,68,0.2); box-shadow: 0 0 14px rgba(239,68,68,0.15); }
         .dist-val { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
         .price-val { color: var(--white); font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: color 0.4s var(--ease); }
+        .px-up { animation: pxUp 1.2s var(--ease) both; }
+        .px-down { animation: pxDown 1.2s var(--ease) both; }
+        @keyframes pxUp { 0% { color: var(--green); text-shadow: 0 0 12px rgba(34,197,94,0.55); } 100% { color: var(--white); text-shadow: none; } }
+        @keyframes pxDown { 0% { color: var(--red); text-shadow: 0 0 12px rgba(239,68,68,0.55); } 100% { color: var(--white); text-shadow: none; } }
         .value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
         .fetching { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
         .price-err { color: var(--red); font-size: 10px; } .price-dim { color: var(--text-mute); }
-        .pnl-pos { color: var(--green); font-weight: 600; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
-        .pnl-neg { color: var(--red); font-weight: 600; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
+        .pnl-pos { color: var(--green); font-weight: 700; font-size: 14px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
+        .pnl-neg { color: var(--red); font-weight: 700; font-size: 14px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
         .pnl-zero { color: var(--text-dim); font-family: 'DM Mono', monospace; }
         .del-btn { background: none; border: none; color: var(--text-mute); cursor: pointer; font-size: 12px; padding: 6px 8px;
           transition: all 0.25s var(--spring); border-radius: 7px; }
@@ -2257,15 +2270,20 @@ export default function App() {
         .flag-sel option { background: var(--black3); color: var(--text); }
 
         /* ── MODALS · scale-in with depth ─────────────────────────── */
-        .modal-overlay { animation: overlayIn 0.35s var(--ease) both; }
+        .modal-overlay { animation: overlayIn 0.45s var(--ease) both; }
         @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
-        .modal-card { animation: modalIn 0.45s var(--spring) both; box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(212,175,55,0.06), inset 0 1px 0 rgba(255,255,255,0.04) !important; }
-        @keyframes modalIn { from { opacity: 0; transform: scale(0.94) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+        .modal-card { animation: modalIn 0.6s var(--ease) both; box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(212,175,55,0.06), inset 0 1px 0 rgba(255,255,255,0.04) !important; }
+        @keyframes modalIn {
+          0% { opacity: 0; transform: scale(0.96) translateY(14px); filter: blur(6px); }
+          60% { filter: blur(0); }
+          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
+        .modal-card > * { animation: modalChild 0.55s var(--ease) 0.12s both; }
+        @keyframes modalChild { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
         /* ── REPORT PANEL · slide from right ─────────────────────── */
-        .report-overlay { animation: overlayIn 0.35s var(--ease) both; }
-        .report-panel { animation: panelIn 0.55s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); }
-        @keyframes panelIn { from { transform: translateX(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+        .report-overlay { animation: overlayIn 0.45s var(--ease) both; }
+        .report-panel { animation: panelIn 0.65s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); }
+        @keyframes panelIn { from { transform: translateX(48px); opacity: 0; filter: blur(4px); } to { transform: none; opacity: 1; filter: blur(0); } }
 
         /* ── MOBILE · responsive layout ───────────────────────────── */
         @media (max-width: 900px) {
@@ -2276,12 +2294,13 @@ export default function App() {
           .logo-sub { font-size: 7px; letter-spacing: 0.28em; }
           .logo-divider { display: none; }
           .header-right { width: 100%; justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; padding-bottom: 2px; }
-          .stat-block { padding: 8px 14px; flex: 0 0 auto; border-radius: 14px; animation: none; }
+          .stat-block { padding: 0 14px; flex: 0 0 auto; text-align: left; animation: none; }
+          .stat-block:first-child { border-left: none; padding-left: 0; }
           .stat-val { font-size: 18px; }
-          .status-block { padding: 8px 0 8px 6px; flex: 0 0 auto; align-items: flex-start; }
-          .tabs-wrap { padding: 10px 10px; top: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+          .status-block { padding: 0 0 0 14px; flex: 0 0 auto; align-items: flex-start; }
+          .tabs-wrap { padding: 0 8px; top: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
           .tabs-wrap::-webkit-scrollbar { display: none; }
-          .tab { padding: 9px 14px; font-size: 9px; letter-spacing: 0.12em; flex: 0 0 auto; }
+          .tab { padding: 14px 12px; font-size: 9px; letter-spacing: 0.12em; flex: 0 0 auto; }
           .content { padding: 20px 14px; }
           .hint-bar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; font-size: 9px; }
           .hint-label { border-right: none; padding-right: 0; }
