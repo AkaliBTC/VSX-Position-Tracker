@@ -302,6 +302,378 @@ const VSXLogo = ({ size = 72 }) => (
     style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))" }} />
 );
 
+// ── FREE CONTENT · public-facing performance assets ─────────────────────────
+const FREE_CONTENT_WEBHOOKS = {
+  aggregatedStats: "https://discord.com/api/webhooks/1514405089270431814/4wjw15gS_mYPbnl4-xbcycTEng_4shodjF8nG12cNUJif3MsZ12OXCWNFg1aWObH1vzg",
+  equityCurve: "https://discord.com/api/webhooks/1514405642486677544/tGw-sulX0hbui_R0tgc5j4_Q4czumsEtXUtCTbWB34ucgZSB_Xq4bpjgcCbRyN8w_Pi0",
+  trackRecord: "https://discord.com/api/webhooks/1514406453094387853/LlO7-Jka31lkiibbkrtnBCnTsOIcsXDBRPAZ2KKliYH88yXSIWOypufLyp1BS6QjlWcy",
+};
+const PERF_CONFIG_KEY = "performance_config_v1";
+const METHODOLOGY_NOTE = "Cumulative net trading P&L, realized trades only, shown as % of quarter-start capital, chained quarterly. No open positions are displayed. Past performance is not indicative of future results.";
+
+const loadPerfConfig = async () => {
+  try {
+    const snap = await getDoc(doc(db, "tracker", PERF_CONFIG_KEY));
+    if (snap.exists()) return snap.data().value?.segments || [];
+  } catch (e) { console.error("perf config load", e); }
+  return [];
+};
+const savePerfConfig = async (segments) => {
+  try { await setDoc(doc(db, "tracker", PERF_CONFIG_KEY), { value: { segments } }); } catch (e) { console.error("perf config save", e); }
+};
+
+const segStartMs = (s) => new Date(s.startDate + "T00:00:00").getTime();
+
+// Quarterly-chained realized P&L index. Additive within a segment, multiplicative across
+// segments: Index = 100 × Π(1 + Q_i_final) × (1 + QTD_active). Realized trades only.
+function computePerformanceCurve(closedPositions, segments, nowMs = Date.now()) {
+  const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
+  if (segs.length === 0) return { points: [], index: 100, qtdPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null };
+  const t0 = segStartMs(segs[0]);
+  const trades = closedPositions.filter(c => c.closedAt >= t0 && c.pnlUSD != null).sort((a, b) => a.closedAt - b.closedAt);
+  let chain = 1, qtd = 0, segIdx = 0;
+  const points = [];
+  const advanceTo = (ms) => {
+    while (segIdx + 1 < segs.length && ms >= segStartMs(segs[segIdx + 1])) {
+      chain *= (1 + qtd); qtd = 0; segIdx++;
+    }
+  };
+  for (const c of trades) {
+    advanceTo(c.closedAt);
+    const cap = segs[segIdx].startCapitalUsd;
+    const delta = cap > 0 ? (c.pnlUSD || 0) / cap : 0;
+    qtd += delta;
+    points.push({
+      t: c.closedAt, date: c.closeDate, ticker: c.ticker, tabLabel: c.tabLabel,
+      deltaPct: delta * 100, index: 100 * chain * (1 + qtd), segId: segs[segIdx].id,
+    });
+  }
+  advanceTo(nowMs);
+  const index = 100 * chain * (1 + qtd);
+  let peak = 100, mdd = 0;
+  for (const p of points) { peak = Math.max(peak, p.index); mdd = Math.max(mdd, (peak - p.index) / peak * 100); }
+  return { points, index, qtdPct: qtd * 100, maxDrawdownPct: mdd, totalCloses: points.length, activeSeg: segs[segIdx] };
+}
+
+// Book impact of a single realized trade against the segment active at its close.
+const tradeBookImpactPct = (record, segments) => {
+  if (!segments || segments.length === 0) return null;
+  const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
+  if (record.closedAt < segStartMs(segs[0])) return null;
+  let seg = segs[0];
+  for (const s of segs) { if (record.closedAt >= segStartMs(s)) seg = s; }
+  return seg.startCapitalUsd > 0 ? ((record.pnlUSD || 0) / seg.startCapitalUsd) * 100 : null;
+};
+
+const fmtSignedPct = (v, digits = 2) => (v >= 0 ? "+" : "") + v.toFixed(digits) + "%";
+
+// ── TRACK RECORD AUTO-POST · fires on every FULL close (no remainder) ───────
+// Whitelisted fields only: no USD, no size, no price levels.
+const postTrackRecordToDiscord = async (record, segments) => {
+  try {
+    const impact = tradeBookImpactPct(record, segments);
+    const lines = [
+      `📊 **TRADE CLOSED — ${record.ticker}** · ${(record.tabLabel || "").toUpperCase()}`,
+      `${record.direction} · ${record.daysHeld != null ? record.daysHeld + "d held" : "—"}`,
+      `Return: **${fmtSignedPct(record.pnlPct || 0)}** (on position)`,
+    ];
+    if (impact != null) lines.push(`Book impact: **${fmtSignedPct(impact)}**`);
+    lines.push(`Closed: ${record.closeDate}`);
+    await fetch(FREE_CONTENT_WEBHOOKS.trackRecord, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: lines.join("\n") }),
+    });
+  } catch (e) { console.error("track record post", e); }
+};
+
+// ── FREE CONTENT SCREENSHOT · custom header, no pack naming ──────────────────
+const postFreeContentScreenshot = async (elementId, webhookUrl, title, fileTag) => {
+  const el = document.getElementById(elementId);
+  if (!el) return { ok: false, error: "Element not found" };
+  try {
+    const html2canvas = await loadHtml2Canvas();
+    const style = document.createElement("style");
+    style.id = "screenshot-hide";
+    style.textContent = ".free-no-capture { display: none !important; } * { animation: none !important; transition: none !important; }";
+    document.head.appendChild(style);
+    const canvas = await html2canvas(el, { backgroundColor: "#0a0a0a", scale: 2, useCORS: true, logging: false });
+    document.getElementById("screenshot-hide")?.remove();
+    const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+    const form = new FormData();
+    const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    form.append("content", `📊 **${title}** | ${now}`);
+    form.append("file", blob, `vsx-${fileTag}-${Date.now()}.png`);
+    const res = await fetch(webhookUrl, { method: "POST", body: form });
+    return { ok: res.ok };
+  } catch (e) {
+    document.getElementById("screenshot-hide")?.remove();
+    return { ok: false, error: e.message };
+  }
+};
+
+// ── DONUT SVG helpers ────────────────────────────────────────────────────────
+const polarXY = (cx, cy, r, ang) => [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
+const donutArc = (cx, cy, rOuter, rInner, a0, a1) => {
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  const [x0, y0] = polarXY(cx, cy, rOuter, a0), [x1, y1] = polarXY(cx, cy, rOuter, a1);
+  const [x2, y2] = polarXY(cx, cy, rInner, a1), [x3, y3] = polarXY(cx, cy, rInner, a0);
+  return `M ${x0} ${y0} A ${rOuter} ${rOuter} 0 ${large} 1 ${x1} ${y1} L ${x2} ${y2} A ${rInner} ${rInner} 0 ${large} 0 ${x3} ${y3} Z`;
+};
+const PACK_COLORS = { crypto: "#f8e49b", stocks: "#d4af37", indices: "#b99c64", commodities: "#8a7340", etfs: "#5d4f2e" };
+
+// ── FREE CONTENT PANEL ───────────────────────────────────────────────────────
+function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveSegments, onClose }) {
+  useBodyScrollLock();
+  const [posting, setPosting] = useState({});
+  const [postResult, setPostResult] = useState({});
+  const [capitalInput, setCapitalInput] = useState("");
+  const [rebaseNote, setRebaseNote] = useState("");
+
+  const flash = (key, ok) => { setPostResult(p => ({ ...p, [key]: ok })); setTimeout(() => setPostResult(p => ({ ...p, [key]: undefined })), 3000); };
+  const doPost = async (key, elementId, webhook, title, tag) => {
+    setPosting(p => ({ ...p, [key]: true }));
+    const res = await postFreeContentScreenshot(elementId, webhook, title, tag);
+    setPosting(p => ({ ...p, [key]: false }));
+    flash(key, res.ok);
+  };
+
+  // Asset allocation (open positions, counts only — no sizes)
+  const alloc = TABS.map(t => ({ tab: t, count: (allPositions[t.id] || []).length })).filter(a => a.count > 0);
+  const totalOpen = alloc.reduce((s, a) => s + a.count, 0);
+
+  // Performance curve
+  const curve = computePerformanceCurve(closedPositions, perfSegments);
+  const hasCurve = perfSegments.length > 0;
+
+  // Chart geometry
+  const CW = 760, CH = 300, PAD = { l: 56, r: 18, t: 18, b: 34 };
+  let chart = null;
+  if (hasCurve) {
+    const t0 = Math.min(...perfSegments.map(segStartMs));
+    const t1 = Math.max(Date.now(), ...(curve.points.length ? [curve.points[curve.points.length - 1].t] : []));
+    const span = Math.max(t1 - t0, 1);
+    const idxVals = [100, ...curve.points.map(p => p.index)];
+    const yMin = Math.min(...idxVals), yMax = Math.max(...idxVals);
+    const yPad = Math.max((yMax - yMin) * 0.15, 1.5);
+    const y0 = yMin - yPad, y1 = yMax + yPad;
+    const X = (t) => PAD.l + ((t - t0) / span) * (CW - PAD.l - PAD.r);
+    const Y = (v) => CH - PAD.b - ((v - y0) / (y1 - y0)) * (CH - PAD.t - PAD.b);
+    let d = `M ${X(t0)} ${Y(100)}`;
+    let prevIdx = 100;
+    for (const p of curve.points) { d += ` L ${X(p.t)} ${Y(prevIdx)} L ${X(p.t)} ${Y(p.index)}`; prevIdx = p.index; }
+    d += ` L ${X(t1)} ${Y(prevIdx)}`;
+    const gridVals = [y0, (y0 + y1) / 2, y1].map(v => Math.round(v * 10) / 10);
+    chart = { d, X, Y, t0, t1, gridVals, lastIdx: prevIdx };
+  }
+
+  const greenRed = (v) => v > 0.005 ? "#22c55e" : v < -0.005 ? "#ef4444" : "#d4af37";
+  const inputStyle = { background: "#0d0d0d", border: "1px solid #2a2a2a", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "9px 12px", borderRadius: 8, outline: "none", width: "100%" };
+  const postBtn = (key, onClick) => (
+    <button className="free-no-capture" onClick={onClick} disabled={posting[key]}
+      style={{ background: postResult[key] === true ? "rgba(34,197,94,0.15)" : postResult[key] === false ? "rgba(239,68,68,0.15)" : "rgba(88,101,242,0.12)", border: "1px solid " + (postResult[key] === true ? "rgba(34,197,94,0.5)" : postResult[key] === false ? "rgba(239,68,68,0.5)" : "rgba(88,101,242,0.4)"), color: postResult[key] === true ? "#22c55e" : postResult[key] === false ? "#ef4444" : "#8b96f8", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", padding: "9px 18px", borderRadius: 8, cursor: posting[key] ? "wait" : "pointer", textTransform: "uppercase", transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+      {posting[key] ? "POSTING…" : postResult[key] === true ? "✓ POSTED" : postResult[key] === false ? "✕ FAILED" : "🎮 POST TO DISCORD"}
+    </button>
+  );
+  const sectionCard = { background: "#111", border: "1px solid #222", borderRadius: 16, padding: "26px 28px", marginBottom: 24 };
+
+  // ── Admin: quarter / rebase actions ──
+  const activeSeg = [...perfSegments].sort((a, b) => segStartMs(a) - segStartMs(b)).slice(-1)[0] || null;
+  const today = () => new Date().toISOString().split("T")[0];
+  const quarterIdFor = (dateStr) => { const d = new Date(dateStr); return `${d.getFullYear()}-Q${Math.ceil((d.getMonth() + 1) / 3)}`; };
+  const startSegment = (rebase) => {
+    const cap = parseFloat(capitalInput);
+    if (!cap || cap <= 0) { window.alert("Enter a valid quarter-start capital (USD)."); return; }
+    if (rebase && !rebaseNote.trim()) { window.alert("A rebase requires a note (reason)."); return; }
+    const baseId = quarterIdFor(today());
+    const siblings = perfSegments.filter(s => s.id === baseId || s.id.startsWith(baseId));
+    const id = siblings.length === 0 ? baseId : baseId + String.fromCharCode(97 + siblings.length); // 2026-Q3, 2026-Q3b, …
+    const next = perfSegments.map(s => s.status === "active" ? { ...s, status: "closed", finalReturnPct: curve.qtdPct } : s);
+    next.push({ id, startDate: today(), startCapitalUsd: cap, status: "active", finalReturnPct: null, rebaseNote: rebase ? rebaseNote.trim() : null });
+    onSaveSegments(next);
+    setCapitalInput(""); setRebaseNote("");
+  };
+
+  return createPortal(
+    <div className="report-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 9998, backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }} onClick={onClose}>
+      <div className="report-panel" onClick={e => e.stopPropagation()}
+        style={{ position: "absolute", top: 0, right: 0, bottom: 0, width: 920, maxWidth: "96vw", background: "#0d0d0d", borderLeft: "1px solid #2a2a2a", overflowY: "auto", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
+
+        {/* Sticky header */}
+        <div style={{ position: "sticky", top: 0, zIndex: 10, background: "rgba(13,13,13,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderBottom: "1px solid #222", padding: "22px 32px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.3em", color: "#8a8a8a", textTransform: "uppercase", marginBottom: 5 }}>VISIONX ANALYTICS · PUBLIC ASSETS</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, letterSpacing: "0.12em", color: "#d4af37" }}>FREE CONTENT</div>
+          </div>
+          <button onClick={onClose}
+            onMouseEnter={e => { e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.transform = "rotate(90deg)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#555"; e.currentTarget.style.transform = "none"; }}
+            style={{ background: "none", border: "none", color: "#555", cursor: "pointer", fontSize: 20, padding: "4px 8px", borderRadius: 8, transition: "all 0.35s cubic-bezier(0.22, 1, 0.36, 1)" }}>✕</button>
+        </div>
+
+        <div style={{ padding: "28px 32px 40px" }}>
+
+          {/* ── ASSET ALLOCATION ── */}
+          <div style={sectionCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.28em", color: "#8a8a8a", textTransform: "uppercase" }}>ASSET CLASS ALLOCATION · ╠🧮-aggregated-stats</div>
+              {postBtn("alloc", () => doPost("alloc", "free-allocation-capture", FREE_CONTENT_WEBHOOKS.aggregatedStats, "ASSET CLASS ALLOCATION", "allocation"))}
+            </div>
+            <div id="free-allocation-capture" style={{ background: "#0d0d0d", borderRadius: 12, padding: "26px 28px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+                <VSXLogo size={30} />
+                <div>
+                  <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.18em", color: "#d4af37" }}>VISIONX · ASSET ALLOCATION</div>
+                  <div style={{ fontSize: 8, letterSpacing: "0.24em", color: "#8a8a8a" }}>OPEN POSITIONS BY ASSET CLASS · {new Date().toLocaleDateString("en-GB")}</div>
+                </div>
+              </div>
+              {totalOpen === 0 ? (
+                <div style={{ textAlign: "center", padding: 48, color: "#555", fontSize: 10, letterSpacing: "0.24em" }}>NO OPEN POSITIONS</div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 36, flexWrap: "wrap" }}>
+                  <svg width="220" height="220" viewBox="0 0 220 220">
+                    {(() => {
+                      let ang = -Math.PI / 2;
+                      return alloc.map(({ tab, count }) => {
+                        const frac = count / totalOpen;
+                        const a0 = ang, a1 = ang + frac * Math.PI * 2 - 0.012;
+                        ang += frac * Math.PI * 2;
+                        return <path key={tab.id} d={donutArc(110, 110, 96, 58, a0, Math.max(a1, a0 + 0.002))} fill={PACK_COLORS[tab.id]} opacity="0.92" />;
+                      });
+                    })()}
+                    <text x="110" y="104" textAnchor="middle" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, fill: "#fdfdfd" }}>{totalOpen}</text>
+                    <text x="110" y="124" textAnchor="middle" style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.25em", fill: "#8a8a8a" }}>OPEN POSITIONS</text>
+                  </svg>
+                  <div style={{ flex: 1, minWidth: 220 }}>
+                    {alloc.map(({ tab, count }) => (
+                      <div key={tab.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderBottom: "1px solid #1a1a1a" }}>
+                        <div style={{ width: 11, height: 11, borderRadius: 3, background: PACK_COLORS[tab.id] }} />
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.16em", color: "#e8e8e8", flex: 1 }}>{tab.label.toUpperCase()}</div>
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#8a8a8a" }}>{count} pos</div>
+                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 17, color: "#d4af37", width: 56, textAlign: "right" }}>{((count / totalOpen) * 100).toFixed(1)}%</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 16, fontSize: 7.5, lineHeight: 1.5, color: "#555", letterSpacing: "0.04em" }}>Distribution by position count. No position sizes, price levels or USD values are displayed.</div>
+            </div>
+          </div>
+
+          {/* ── EQUITY CURVE ── */}
+          <div style={sectionCard}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.28em", color: "#8a8a8a", textTransform: "uppercase" }}>EQUITY CURVE · ╠📈-equity-curve</div>
+              {postBtn("curve", () => doPost("curve", "free-equity-capture", FREE_CONTENT_WEBHOOKS.equityCurve, "EQUITY CURVE — REALIZED INDEX", "equity-curve"))}
+            </div>
+            <div id="free-equity-capture" style={{ background: "#0d0d0d", borderRadius: 12, padding: "26px 28px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <VSXLogo size={30} />
+                  <div>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: "0.18em", color: "#d4af37" }}>VISIONX · REALIZED PERFORMANCE INDEX</div>
+                    <div style={{ fontSize: 8, letterSpacing: "0.24em", color: "#8a8a8a" }}>BASE 100 · REALIZED TRADES ONLY · {new Date().toLocaleDateString("en-GB")}</div>
+                  </div>
+                </div>
+                {hasCurve && (
+                  <div style={{ display: "flex", gap: 22 }}>
+                    {[
+                      ["INDEX", curve.index.toFixed(2), curve.index >= 100 ? "#22c55e" : "#ef4444"],
+                      ["QTD", fmtSignedPct(curve.qtdPct), greenRed(curve.qtdPct)],
+                      ["MAX DD", "-" + curve.maxDrawdownPct.toFixed(2) + "%", "#ef4444"],
+                      ["CLOSES", String(curve.totalCloses), "#d4af37"],
+                    ].map(([l, v, c]) => (
+                      <div key={l} style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666" }}>{l}</div>
+                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, color: c }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {!hasCurve ? (
+                <div style={{ textAlign: "center", padding: "52px 20px", color: "#555", fontSize: 10, letterSpacing: "0.2em", lineHeight: 2 }}>
+                  NO QUARTER CONFIGURED YET<br />
+                  <span style={{ fontSize: 9, color: "#444" }}>SET THE QUARTER-START CAPITAL IN THE ADMIN SECTION BELOW</span>
+                </div>
+              ) : (
+                <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: "block" }}>
+                  {chart.gridVals.map((v, i) => (
+                    <g key={i}>
+                      <line x1={PAD.l} x2={CW - PAD.r} y1={chart.Y(v)} y2={chart.Y(v)} stroke="#1d1d1d" strokeWidth="1" />
+                      <text x={PAD.l - 8} y={chart.Y(v) + 3} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fill: "#666" }}>{v.toFixed(1)}</text>
+                    </g>
+                  ))}
+                  <line x1={PAD.l} x2={CW - PAD.r} y1={chart.Y(100)} y2={chart.Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
+                  <path d={chart.d + ` L ${chart.X(chart.t1)} ${CH - PAD.b} L ${PAD.l} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
+                  <path d={chart.d} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
+                  {curve.points.map((p, i) => (
+                    <circle key={i} cx={chart.X(p.t)} cy={chart.Y(p.index)} r="3.2" fill="#0d0d0d" stroke={greenRed(p.deltaPct)} strokeWidth="2">
+                      <title>{`${p.date} · ${p.ticker} · ${fmtSignedPct(p.deltaPct)} book impact · Index ${p.index.toFixed(2)}`}</title>
+                    </circle>
+                  ))}
+                  {curve.points.length === 0 && (
+                    <text x={CW / 2} y={CH / 2 - 6} textAnchor="middle" style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, letterSpacing: "0.24em", fill: "#555" }}>LIVE SINCE {new Date(segStartMs([...perfSegments].sort((a, b) => segStartMs(a) - segStartMs(b))[0])).toLocaleDateString("en-GB")} — INDEX 100.00</text>
+                  )}
+                  <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, fill: chart.lastIdx >= 100 ? "#22c55e" : "#ef4444" }}>{chart.lastIdx.toFixed(2)}</text>
+                  <line x1={PAD.l} x2={CW - PAD.r} y1={CH - PAD.b} y2={CH - PAD.b} stroke="#2a2a2a" strokeWidth="1" />
+                  <text x={PAD.l} y={CH - 12} style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{new Date(chart.t0).toLocaleDateString("en-GB")}</text>
+                  <text x={CW - PAD.r} y={CH - 12} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{new Date(chart.t1).toLocaleDateString("en-GB")}</text>
+                </svg>
+              )}
+
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: "1px solid #1a1a1a", fontSize: 7.5, lineHeight: 1.6, color: "#555", letterSpacing: "0.04em" }}>{METHODOLOGY_NOTE}</div>
+            </div>
+          </div>
+
+          {/* ── ADMIN: QUARTER MANAGEMENT (never part of any capture) ── */}
+          <div className="free-no-capture" style={{ ...sectionCard, border: "1px solid rgba(212,175,55,0.18)", marginBottom: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.28em", color: "#b99c64", textTransform: "uppercase", marginBottom: 6 }}>QUARTER MANAGEMENT · INTERNAL</div>
+            <div style={{ fontSize: 9, color: "#666", lineHeight: 1.6, marginBottom: 18 }}>Quarter-start capital stays internal — it is stored privately and never appears on any public asset. Rebase only if mid-quarter capital injection exceeds ~20–25% of quarter-start capital.</div>
+            {perfSegments.length > 0 && (
+              <div style={{ marginBottom: 18 }}>
+                {[...perfSegments].sort((a, b) => segStartMs(b) - segStartMs(a)).map(s => (
+                  <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 14, padding: "8px 0", borderBottom: "1px solid #1a1a1a", fontSize: 10 }}>
+                    <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, color: "#d4af37", width: 86 }}>{s.id.toUpperCase()}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", color: "#666", width: 90 }}>{s.startDate}</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", color: "#8a8a8a", flex: 1 }}>${Number(s.startCapitalUsd).toLocaleString("en-US")}</div>
+                    {s.rebaseNote && <div style={{ fontSize: 8, color: "#b99c64", fontStyle: "italic", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.rebaseNote}</div>}
+                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", padding: "3px 9px", borderRadius: 4, background: s.status === "active" ? "rgba(34,197,94,0.1)" : "rgba(255,255,255,0.04)", color: s.status === "active" ? "#22c55e" : "#666" }}>{s.status.toUpperCase()}</div>
+                    {s.status === "closed" && s.finalReturnPct != null && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: greenRed(s.finalReturnPct), width: 64, textAlign: "right" }}>{fmtSignedPct(s.finalReturnPct)}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 180px" }}>
+                <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#666", marginBottom: 6 }}>QUARTER-START CAPITAL (USD)</div>
+                <input type="number" value={capitalInput} onChange={e => setCapitalInput(e.target.value)} placeholder="e.g. 250000" style={inputStyle} />
+              </div>
+              <div style={{ flex: "1 1 220px" }}>
+                <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#666", marginBottom: 6 }}>REBASE NOTE (ONLY FOR REBASE)</div>
+                <input value={rebaseNote} onChange={e => setRebaseNote(e.target.value)} placeholder="Reason for intra-quarter rebase" style={inputStyle} />
+              </div>
+              <button onClick={() => startSegment(false)}
+                style={{ background: "linear-gradient(135deg, #d4af37, #c59958)", border: "none", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "11px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                {activeSeg ? "▸ NEW QUARTER" : "▸ START FIRST QUARTER"}
+              </button>
+              {activeSeg && (
+                <button onClick={() => startSegment(true)}
+                  style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.3)", color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "11px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                  ⟳ INTRA-QUARTER REBASE
+                </button>
+              )}
+            </div>
+            <div style={{ marginTop: 16, fontSize: 9, color: "#555", lineHeight: 1.6 }}>Auto-post on full close is active: every position closed without remainder is posted to ╔📊-track-record (ticker, asset class, direction, holding days, return %, book impact % — no USD, no sizes, no price levels). Partial closes are not posted.</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  , document.body);
+}
+
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
 function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
   useBodyScrollLock();
@@ -1908,9 +2280,15 @@ export default function App() {
   const [lastRefresh, setLastRefresh] = useState(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showFreeContent, setShowFreeContent] = useState(false);
+  const [perfSegments, setPerfSegments] = useState([]);
   const anyFocused = useRef(false);
   const allPositionsRef = useRef(allPositions);
   const contentRef = useRef(null);
+
+  // Load performance-curve config (quarter segments) on startup
+  useEffect(() => { loadPerfConfig().then(setPerfSegments); }, []);
+  const handleSaveSegments = (segments) => { setPerfSegments(segments); savePerfConfig(segments); };
 
   // Re-trigger the content fade on tab switch WITHOUT remounting PositionTable
   // (keeps per-tab search/sort state alive)
@@ -2000,6 +2378,9 @@ export default function App() {
   });
 
   const handleClosePosition = (record, positionId, remainingQty) => {
+    if (!record.isPartial) {
+      postTrackRecordToDiscord(record, perfSegments); // ╔📊-track-record · full closes only
+    }
     const newClosed = [...closedPositions, record];
     setClosedPositions(newClosed);
     saveClosedToStorage({ list: newClosed });
@@ -2364,6 +2745,9 @@ export default function App() {
       {showReport && (
         <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} onClose={() => setShowReport(false)} />
       )}
+      {showFreeContent && (
+        <FreeContentPanel allPositions={allPositions} closedPositions={closedPositions} perfSegments={perfSegments} onSaveSegments={handleSaveSegments} onClose={() => setShowFreeContent(false)} />
+      )}
 
       <div className="header">
         <div className="logo-area">
@@ -2418,6 +2802,12 @@ export default function App() {
                 ▤ QUARTERLY REPORT
               </button>
             )}
+            <button onClick={() => setShowFreeContent(true)}
+              style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.28)", color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
+              ◈ FREE CONTENT
+            </button>
             <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
             {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
           </div>
