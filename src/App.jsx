@@ -277,6 +277,18 @@ function FlashPrice({ price }) {
   return <span className={"price-val" + (dir ? " px-" + dir : "")}>{fmtPrice(price)}</span>;
 }
 
+// ── BODY SCROLL LOCK · page is frozen while a modal/panel is open ───────────
+function useBodyScrollLock() {
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevPad = document.body.style.paddingRight;
+    const scrollbarW = window.innerWidth - document.documentElement.clientWidth;
+    document.body.style.overflow = "hidden";
+    if (scrollbarW > 0) document.body.style.paddingRight = scrollbarW + "px"; // no layout jump
+    return () => { document.body.style.overflow = prevOverflow; document.body.style.paddingRight = prevPad; };
+  }, []);
+}
+
 const VSXLogo = ({ size = 72 }) => (
   <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png"
     width={size} height={size} alt="VisionX Logo"
@@ -285,6 +297,7 @@ const VSXLogo = ({ size = 72 }) => (
 
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
 function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
+  useBodyScrollLock();
   const [selectedQ, setSelectedQ] = useState(getQuarter(new Date()));
 
   const quarters = sortedQuarters(closedPositions.map(c => c.quarter));
@@ -981,6 +994,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, onClose }) {
 
 // ── CLOSE POSITION MODAL ──────────────────────────────────────────────────────
 function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
+  useBodyScrollLock();
   const [closePrice, setClosePrice] = useState(position.currentPrice ? String(position.currentPrice) : "");
   const [quarter, setQuarter] = useState(getQuarter(new Date()));
   const [reason, setReason] = useState("tp");
@@ -1310,6 +1324,7 @@ const DISCORD_PRESETS = [
 ];
 
 function DiscordPostModal({ tab, onClose, onConfirm }) {
+  useBodyScrollLock();
   const [ticker, setTicker] = useState("");
   const [lines, setLines] = useState([]);
 
@@ -1420,6 +1435,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
 
 // ── ADD POSITION MODAL ───────────────────────────────────────────────────────
 function AddPositionModal({ tab, onClose, onConfirm }) {
+  useBodyScrollLock();
   const [ticker, setTicker] = useState("");
   const [direction, setDirection] = useState("LONG");
   const [qty, setQty] = useState("");
@@ -2275,13 +2291,13 @@ export default function App() {
           0% { opacity: 0; transform: scale(0.96) translateY(14px); filter: blur(6px); }
           60% { filter: blur(0); }
           100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
-        .modal-card { overflow-anchor: none; }
+        .modal-card { overflow-anchor: none; overscroll-behavior: contain; }
         .modal-card > * { animation: modalChild 0.5s var(--ease) 0.1s both; }
         @keyframes modalChild { from { opacity: 0; } to { opacity: 1; } }
 
         /* ── REPORT PANEL · slide from right ─────────────────────── */
         .report-overlay { animation: overlayIn 0.45s var(--ease) both; }
-        .report-panel { animation: panelIn 0.7s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); overflow-anchor: none; }
+        .report-panel { animation: panelIn 0.7s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); overflow-anchor: none; overscroll-behavior: contain; }
         @keyframes panelIn { from { transform: translateX(56px); opacity: 0; filter: blur(5px); } to { transform: none; opacity: 1; filter: blur(0); } }
         .report-panel > * { animation: panelChild 0.6s var(--ease) both; }
         .report-panel > *:nth-child(1) { animation-delay: 0.15s; }
