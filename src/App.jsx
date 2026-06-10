@@ -43,7 +43,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     // Hide elements that look bad in screenshot
     const style = document.createElement("style");
     style.id = "screenshot-hide";
-    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; animation: none !important; } .table-wrap, tbody tr { animation: none !important; backdrop-filter: none !important; }";
+    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; animation: none !important; } .table-wrap, tbody tr { animation: none !important; backdrop-filter: none !important; } .table-wrap { background: #111 !important; border: 1px solid #222 !important; } .logo-name { animation: none !important; }";
     document.head.appendChild(style);
 
     // Replace dir selects with readable divs
@@ -2076,7 +2076,16 @@ export default function App() {
 
         .app { min-height: 100vh; background: var(--black); font-family: 'Montserrat', sans-serif; color: var(--text); }
         .app::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-          background: radial-gradient(ellipse 900px 480px at 50% -10%, rgba(212,175,55,0.05), transparent 60%); }
+          background:
+            radial-gradient(ellipse 900px 480px at 50% -10%, rgba(212,175,55,0.06), transparent 60%),
+            radial-gradient(ellipse 700px 500px at 85% 110%, rgba(185,156,100,0.04), transparent 65%); }
+        .app::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.5;
+          background-image:
+            linear-gradient(rgba(212,175,55,0.025) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(212,175,55,0.025) 1px, transparent 1px);
+          background-size: 56px 56px;
+          -webkit-mask-image: radial-gradient(ellipse 1100px 600px at 50% 0%, black, transparent 75%);
+          mask-image: radial-gradient(ellipse 1100px 600px at 50% 0%, black, transparent 75%); }
 
         /* ── HEADER · frosted glass ───────────────────────────────── */
         .header { height: 100px; padding: 0 56px; display: flex; align-items: center; justify-content: space-between;
@@ -2089,7 +2098,10 @@ export default function App() {
         .logo-area:hover img { transform: scale(1.06) rotate(-2deg); filter: drop-shadow(0 0 26px rgba(212,175,55,0.75)) !important; }
         .logo-divider { width: 1px; height: 40px; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent); margin: 0 6px; }
         .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--white); line-height: 1;
-          background: linear-gradient(135deg, #fff 0%, #e8e8e8 55%, #b99c64 130%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+          background: linear-gradient(110deg, #fff 0%, #e8e8e8 35%, #f8e49b 50%, #b99c64 62%, #e8e8e8 75%, #fff 100%);
+          background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+          animation: goldShimmer 7s var(--ease) infinite; }
+        @keyframes goldShimmer { 0%, 55% { background-position: 110% 0; } 90%, 100% { background-position: -60% 0; } }
         .logo-sub { font-size: 8px; letter-spacing: 0.4em; color: var(--gold1); line-height: 1.6; font-weight: 500; text-transform: uppercase; }
         .header-right { display: flex; align-items: center; gap: 0; }
         .stat-block { padding: 0 22px; border-left: 1px solid rgba(255,255,255,0.06); text-align: right; transition: background 0.35s var(--ease); cursor: default; }
@@ -2142,7 +2154,12 @@ export default function App() {
 
         /* ── BUTTONS · Apple-style press & lift ─────────────────── */
         .btn { padding: 10px 22px; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; border: none; cursor: pointer;
-          text-transform: uppercase; border-radius: 10px; transition: all 0.35s var(--spring); will-change: transform; }
+          text-transform: uppercase; border-radius: 10px; transition: all 0.35s var(--spring); will-change: transform;
+          position: relative; overflow: hidden; }
+        .btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: -80%; width: 50%;
+          background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
+          transform: skewX(-20deg); transition: left 0.6s var(--ease); pointer-events: none; }
+        .btn-add:hover::after { left: 130%; }
         .btn:active { transform: scale(0.96) !important; transition-duration: 0.1s; }
         .btn-add { background: linear-gradient(135deg, var(--gold2), var(--gold3)); color: var(--black); box-shadow: 0 4px 20px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,255,255,0.25); }
         .btn-add:hover { background: linear-gradient(135deg, var(--gold4), var(--gold2)); box-shadow: 0 8px 32px rgba(212,175,55,0.4), inset 0 1px 0 rgba(255,255,255,0.35); transform: translateY(-2px); }
@@ -2158,9 +2175,16 @@ export default function App() {
         .source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; }
 
         /* ── TABLE · soft card, staggered rows ───────────────────── */
-        .table-wrap { border: 1px solid var(--border); overflow-x: auto; background: rgba(17,17,17,0.65); backdrop-filter: blur(12px);
-          border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: border-color 0.4s var(--ease), box-shadow 0.4s var(--ease); }
-        .table-wrap:hover { border-color: rgba(212,175,55,0.18); box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 0 1px rgba(212,175,55,0.06); }
+        @property --vsx-angle { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+        .table-wrap { overflow-x: auto; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+          border: 1px solid transparent;
+          background:
+            linear-gradient(rgba(17,17,17,0.92), rgba(17,17,17,0.92)) padding-box,
+            conic-gradient(from var(--vsx-angle), rgba(212,175,55,0.45), rgba(42,42,42,0.9) 18%, rgba(34,34,34,0.8) 50%, rgba(185,156,100,0.3) 78%, rgba(212,175,55,0.45)) border-box;
+          animation: borderSpin 9s linear infinite;
+          border-radius: var(--r-lg); overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: box-shadow 0.4s var(--ease); }
+        @keyframes borderSpin { to { --vsx-angle: 360deg; } }
+        .table-wrap:hover { box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 32px rgba(212,175,55,0.07); }
         table { width: 100%; border-collapse: collapse; min-width: 1100px; }
         thead tr { background: rgba(26,26,26,0.9); border-bottom: 1px solid var(--border); }
         th { padding: 14px 12px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
@@ -2254,7 +2278,9 @@ export default function App() {
           .toolbar { flex-wrap: wrap; }
           .search-inp { width: 100%; flex: 1 1 100%; order: 10; }
           .search-inp:focus { width: 100%; }
-          .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); }
+          .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); animation: none; }
+          .app::after { display: none; }
+          .logo-name { animation: none; background-position: 50% 0; }
           .empty-cell { padding: 48px 20px; }
           .report-panel { width: 100vw !important; max-width: 100vw !important; }
           .modal-card { border-radius: 14px !important; }
