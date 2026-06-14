@@ -216,9 +216,27 @@ const calcPnL = (dir, entry, cur) => {
   if (!entry || !cur || isNaN(entry) || isNaN(cur)) return null;
   return dir === "LONG" ? ((cur - entry) / entry) * 100 : ((entry - cur) / entry) * 100;
 };
+// Comma-safe numeric parser: accepts "4256,4", "1.234,56", "1,4033", "204" etc.
+// Treats a trailing comma group as the decimal separator (European input).
+const num = (v) => {
+  if (v == null) return NaN;
+  if (typeof v === "number") return v;
+  let str = String(v).trim().replace(/\s/g, "");
+  if (str === "") return NaN;
+  const hasComma = str.includes(","), hasDot = str.includes(".");
+  if (hasComma && hasDot) {
+    // last separator is the decimal one; the other is a thousands grouping
+    if (str.lastIndexOf(",") > str.lastIndexOf(".")) str = str.replace(/\./g, "").replace(",", ".");
+    else str = str.replace(/,/g, "");
+  } else if (hasComma) {
+    str = str.replace(",", ".");
+  }
+  const n = parseFloat(str);
+  return isNaN(n) ? NaN : n;
+};
 const calcPnLUSD = (dir, entry, closePrice, qty) => {
-  if (!entry || !closePrice || !qty || isNaN(entry) || isNaN(closePrice) || isNaN(parseFloat(qty))) return null;
-  const q = parseFloat(qty);
+  if (!entry || !closePrice || !qty || isNaN(entry) || isNaN(closePrice) || isNaN(num(qty))) return null;
+  const q = num(qty);
   return dir === "LONG" ? (closePrice - entry) * q : (entry - closePrice) * q;
 };
 const calcSLDist = (dir, cur, sl) => {
@@ -234,14 +252,14 @@ const fmtPrice = (p) => {
 };
 
 const calcPositionValue = (direction, qty, entryPrice, currentPrice) => {
-  if (!qty || isNaN(parseFloat(qty))) return null;
+  if (!qty || isNaN(num(qty))) return null;
   if (!currentPrice || isNaN(currentPrice)) return null;
-  const q = parseFloat(qty);
+  const q = num(qty);
   if (direction === "LONG") {
     return q * currentPrice;
   } else {
-    if (!entryPrice || isNaN(parseFloat(entryPrice))) return null;
-    return q * (2 * parseFloat(entryPrice) - currentPrice);
+    if (!entryPrice || isNaN(num(entryPrice))) return null;
+    return q * (2 * num(entryPrice) - currentPrice);
   }
 };
 const fmtValue = (val) => {
@@ -437,7 +455,7 @@ const saveEquitySnapshots = async (days) => {
   try { await setDoc(doc(db, "tracker", EQUITY_SNAPSHOT_KEY), { value: { days } }); } catch (e) { console.error("equity snapshots save", e); }
 };
 const calcOpenFloatUSD = (p) => {
-  const ep = parseFloat(p.entry);
+  const ep = num(p.entry);
   if (!p.currentPrice || !ep || isNaN(ep)) return null;
   return calcPnLUSD(p.direction, ep, p.currentPrice, p.qty);
 };
@@ -772,7 +790,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
   // Floating PnL calculations
   const calcFloatUSD = (p) => {
-    const ep = parseFloat(p.entry); const q = parseFloat(p.qty);
+    const ep = num(p.entry); const q = num(p.qty);
     if (!p.currentPrice || !ep || !q || isNaN(ep) || isNaN(q)) return null;
     return p.direction === "LONG" ? (p.currentPrice - ep) * q : (ep - p.currentPrice) * q;
   };
@@ -820,14 +838,14 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
     // ── Calculations ──────────────────────────────────────────────────────────
     const calcFloatUSD = (p) => {
-      const ep = parseFloat(p.entry); const q = parseFloat(p.qty);
+      const ep = num(p.entry); const q = num(p.qty);
       if (!p.currentPrice || !ep || !q || isNaN(ep) || isNaN(q)) return null;
       return p.direction === "LONG" ? (p.currentPrice - ep) * q : (ep - p.currentPrice) * q;
     };
     const allOpenFull = TABS.flatMap(t => (allPositions[t.id] || []).filter(p => p.ticker.trim()).map(p => ({ ...p, tabId: t.id, tabLabel: t.label })));
     const totalFloatUSD = allOpenFull.reduce((s, p) => s + (calcFloatUSD(p) || 0), 0);
     const totalPortfolioValue = allOpenFull.reduce((s, p) => {
-      const ep = parseFloat(p.entry); const q = parseFloat(p.qty);
+      const ep = num(p.entry); const q = num(p.qty);
       if (!ep || !q || isNaN(ep) || isNaN(q)) return s;
       return s + (p.currentPrice ? p.currentPrice * q : ep * q);
     }, 0);
@@ -1003,7 +1021,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     }).join("");
 
     const openRows = allOpenFull.map((p, i) => {
-      const ep = parseFloat(p.entry);
+      const ep = num(p.entry);
       const floatUSD = calcFloatUSD(p);
       const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
       const rowBg = i % 2 === 0 ? BG2 : BG3;
@@ -1499,9 +1517,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                 </thead>
                 <tbody>
                   {allOpen.map(p => {
-                    const ep   = parseFloat(p.entry);
+                    const ep   = num(p.entry);
                     const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
-                    const uusd = p.currentPrice && p.qty ? (p.direction === "LONG" ? (p.currentPrice - ep) * parseFloat(p.qty) : (ep - p.currentPrice) * parseFloat(p.qty)) : null;
+                    const uusd = p.currentPrice && p.qty ? (p.direction === "LONG" ? (p.currentPrice - ep) * num(p.qty) : (ep - p.currentPrice) * num(p.qty)) : null;
                     return (
                       <tr key={p.id} style={{ borderBottom: "1px solid #0f0f0f" }}>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{p.ticker}</td>
@@ -2021,7 +2039,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
 
   const PLACEHOLDERS_MAP = { crypto: "BTC", stocks: "MSFT", indices: "^GSPC", commodities: "GC=F", etfs: "SPY" };
 
-  const ep = parseFloat(entry);
+  const ep = num(entry);
   const slp = parseFloat(sl);
   const slDist = ep && slp ? calcSLDist(direction, ep, slp) : null;
 
@@ -2390,7 +2408,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
             {sorted.length === 0 ? (
               <tr><td colSpan={12} className="empty-cell">{search ? "NO RESULTS" : "NO POSITIONS — PRESS ADD TO BEGIN"}</td></tr>
             ) : sorted.map((p) => {
-              const entry = parseFloat(p.entry);
+              const entry = num(p.entry);
               const sl = parseFloat(p.sl);
               const pnl = calcPnL(p.direction, entry, p.currentPrice);
               const dist = calcSLDist(p.direction, p.currentPrice, sl);
@@ -2673,12 +2691,12 @@ export default function App() {
 
   const allRows = Object.values(allPositions).flat();
   const totalPositions = allRows.filter((p) => p.ticker).length;
-  const portfolioPnlVals = allRows.map((p) => calcPnL(p.direction, parseFloat(p.entry), p.currentPrice)).filter((v) => v !== null && !isNaN(v));
+  const portfolioPnlVals = allRows.map((p) => calcPnL(p.direction, num(p.entry), p.currentPrice)).filter((v) => v !== null && !isNaN(v));
   const portfolioPnl = portfolioPnlVals.length ? portfolioPnlVals.reduce((a, b) => a + b, 0) / portfolioPnlVals.length : null;
-  const tabPnlVals = (allPositions[activeTab] || []).map((p) => calcPnL(p.direction, parseFloat(p.entry), p.currentPrice)).filter((v) => v !== null && !isNaN(v));
+  const tabPnlVals = (allPositions[activeTab] || []).map((p) => calcPnL(p.direction, num(p.entry), p.currentPrice)).filter((v) => v !== null && !isNaN(v));
   const tabPnl = tabPnlVals.length ? tabPnlVals.reduce((a, b) => a + b, 0) / tabPnlVals.length : null;
   const currentTab = TABS.find((t) => t.id === activeTab);
-  const tabRowsWithPnl = (allPositions[activeTab] || []).map((p) => ({ ...p, pnl: calcPnL(p.direction, parseFloat(p.entry), p.currentPrice) })).filter((p) => p.ticker && p.pnl !== null && !isNaN(p.pnl));
+  const tabRowsWithPnl = (allPositions[activeTab] || []).map((p) => ({ ...p, pnl: calcPnL(p.direction, num(p.entry), p.currentPrice) })).filter((p) => p.ticker && p.pnl !== null && !isNaN(p.pnl));
   const topPerformer = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl > b.pnl ? a : b) : null;
   const worstPerformer = tabRowsWithPnl.length ? tabRowsWithPnl.reduce((a, b) => a.pnl < b.pnl ? a : b) : null;
   const newCount = allRows.filter(p => isNew(p)).length;
@@ -2733,7 +2751,7 @@ export default function App() {
           mask-image: radial-gradient(ellipse 1100px 600px at 50% 0%, black, transparent 75%); }
 
         /* ── HEADER · frosted glass ───────────────────────────────── */
-        .header { height: 100px; padding: 0 56px; display: flex; align-items: center; justify-content: space-between;
+        .header { min-height: 100px; padding: 16px 56px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
           background: rgba(10,10,10,0.6); backdrop-filter: blur(32px) saturate(170%); -webkit-backdrop-filter: blur(32px) saturate(170%);
           border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; z-index: 100;
           animation: headerIn 0.7s var(--ease) both; }
@@ -2761,7 +2779,7 @@ export default function App() {
           transition: color 0.4s var(--ease); }
         .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; font-variant-numeric: tabular-nums;
           transition: color 0.45s var(--ease), transform 0.35s var(--spring), text-shadow 0.45s var(--ease); }
-        .status-block { padding: 0 0 0 24px; border-left: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+        .status-block { padding: 2px 0 2px 24px; border-left: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
         .live-badge { display: flex; align-items: center; gap: 9px; padding: 7px 18px; border: 1px solid rgba(34,197,94,0.35);
           background: rgba(34,197,94,0.09); border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.24em; color: var(--green);
           box-shadow: 0 0 22px rgba(34,197,94,0.12); transition: all 0.3s var(--ease); }
@@ -3014,8 +3032,13 @@ export default function App() {
             {worstPerformer && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: "11px", color: worstPerformer.pnl < 0 ? "var(--red)" : "var(--green)", letterSpacing: "0.04em", marginTop: "2px" }}>{worstPerformer.pnl >= 0 ? "+" : ""}{worstPerformer.pnl.toFixed(2)}%</div>}
           </div>
           <div className="status-block">
-            <div className="live-badge"><div className="live-dot" /> ALL LIVE</div>
-            {newCount > 0 && <div className="new-count-badge">{newCount} NEW</div>}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+
+              <div className="live-badge"><div className="live-dot" /> ALL LIVE</div>
+
+              {newCount > 0 && <div className="new-count-badge">{newCount} NEW</div>}
+
+            </div>
             {closedPositions.length > 0 && (
               <button onClick={() => setShowReport(true)}
                 style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.28)", color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
