@@ -454,6 +454,26 @@ const loadEquitySnapshots = async () => {
 const saveEquitySnapshots = async (days) => {
   try { await setDoc(doc(db, "tracker", EQUITY_SNAPSHOT_KEY), { value: { days } }); } catch (e) { console.error("equity snapshots save", e); }
 };
+
+// ── ONE-TIME REPAIR · recompute each stored snapshot's floatUSD with the
+//    comma-safe parser. Fixes legacy snapshots written before the num() fix
+//    (e.g. entries like "4256,4" that parseFloat() truncated to 4256 / "0,75" -> 0).
+//    Uses the CURRENT positions + their currentPrice; entries are static so this
+//    reconstructs the float faithfully for the windows where the position set is intact.
+const recomputeEquitySnapshots = async (allPositions) => {
+  const fresh = await loadEquitySnapshots();
+  const days = fresh || {};
+  const open = Object.values(allPositions || {}).flat();
+  let floatUSD = 0, counted = 0;
+  for (const p of open) { const f = calcOpenFloatUSD(p); if (f != null) { floatUSD += f; counted++; } }
+  const next = {};
+  for (const [day, snap] of Object.entries(days)) {
+    // rewrite floatUSD + openCount from the corrected calculation, keep timestamps
+    next[day] = { ...snap, floatUSD, openCount: counted, source: (snap.source || "client") + "·recomputed" };
+  }
+  await saveEquitySnapshots(next);
+  return { next, floatUSD, counted, dayCount: Object.keys(next).length };
+};
 const calcOpenFloatUSD = (p) => {
   const ep = num(p.entry);
   if (!p.currentPrice || !ep || isNaN(ep)) return null;
@@ -757,6 +777,18 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
 
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
 function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equitySnapshots, onClose }) {
+  // Local override so the one-time snapshot repair re-renders the curve immediately.
+  const [snapOverride, setSnapOverride] = useState(null);
+  const [repairing, setRepairing] = useState(false);
+  const liveSnaps = snapOverride || equitySnapshots;
+  const runSnapshotRepair = async () => {
+    setRepairing(true);
+    try {
+      const r = await recomputeEquitySnapshots(allPositions);
+      setSnapOverride(r.next);
+    } catch (e) { console.error("snapshot repair", e); }
+    setRepairing(false);
+  };
   useBodyScrollLock();
   const [selectedQ, setSelectedQ] = useState(getQuarter(new Date()));
 
@@ -1055,7 +1087,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       </tr>`;
     });
     // ── PAGE: EQUITY CURVE · daily 00:00 CET/CEST snapshots, incl. open positions ──
-    const dCurve = computeDailyEquityCurve(closedPositions, perfSegments || [], equitySnapshots || {});
+    const dCurve = computeDailyEquityCurve(closedPositions, perfSegments || [], liveSnaps || {});
     const equityCurvePage = dCurve.points.length > 0 ? (() => {
       const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
       const pts = dCurve.points;
@@ -1320,12 +1352,19 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         ) : (<>
           {/* ── EQUITY CURVE · daily 00:00 CET/CEST snapshots, incl. open positions ── */}
           <div style={S.section}>
-            <div style={S.sectionTitle}>Equity Curve — Incl. Open Positions · Daily Close 00:00 CET/CEST</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div style={S.sectionTitle}>Equity Curve — Incl. Open Positions · Daily Close 00:00 CET/CEST</div>
+              <button onClick={runSnapshotRepair} disabled={repairing}
+                title="Recompute stored snapshots with the comma-safe parser (fixes legacy 409 artifact)"
+                style={{ background: "rgba(212,175,55,0.07)", border: "1px solid rgba(212,175,55,0.28)", color: repairing ? "#666" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: repairing ? "default" : "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                {repairing ? "RECOMPUTING…" : "↻ REPAIR SNAPSHOTS"}
+              </button>
+            </div>
             {(() => {
               if (!perfSegments || perfSegments.length === 0) {
                 return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO QUARTER CONFIGURED<br /><span style={{ fontSize: 8, color: "#444" }}>SET QUARTER-START CAPITAL IN FREE CONTENT → QUARTER MANAGEMENT</span></div>;
               }
-              const dc = computeDailyEquityCurve(closedPositions, perfSegments, equitySnapshots);
+              const dc = computeDailyEquityCurve(closedPositions, perfSegments, liveSnaps);
               if (dc.points.length === 0) {
                 return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO SNAPSHOTS YET<br /><span style={{ fontSize: 8, color: "#444" }}>FIRST DAILY CLOSE IS CAPTURED TONIGHT AT 00:00 CET/CEST (APP MUST BE RUNNING) OR ON FIRST APP START OF THE DAY</span></div>;
               }
