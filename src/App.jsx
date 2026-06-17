@@ -494,67 +494,59 @@ function computeDailyEquityCurve(closedPositions, segments, snapshotDays) {
   return { points, maxDrawdownPct: mdd };
 }
 
-// ── QUARTER EQUITY CURVE · realized base across the full quarter + current live float ──
-// Tagesgenaue realisierte Basis (verkettet über Segmente, identische Methodik wie der
-// Index) als durchgehende Tageslinie vom Quartalsstart bis heute. Der aktuelle offene
-// Float wird als letzter Punkt obendrauf addiert — er verschiebt die Basis nicht, er
-// liegt nur am rechten Rand auf ihr. Keine historischen Preisabrufe, voll deterministisch.
-function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, nowMs = Date.now()) {
+// ── QUARTER EQUITY CURVE · realized base across the FULL selected quarter + current float ──
+// Index startet bei 100 am Quartalsanfang. Jeder realisierte Close verschiebt die Basis
+// dauerhaft (Stufe). Der aktuelle offene Float wird am rechten Rand als Fortsetzung der
+// GLEICHEN Kurve obendrauf addiert (kein separater Marker). Ein Kapital-Basiswert je
+// Quartal (quarter-start capital). Deterministisch, keine historischen Preisabrufe.
+function quarterBounds(selectedQ) {
+  const m = /Q(\d)-(\d{4})/.exec(selectedQ || "");
+  if (!m) return null;
+  const q = parseInt(m[1], 10), year = parseInt(m[2], 10);
+  const start = new Date(year, (q - 1) * 3, 1).getTime();
+  const end   = new Date(year, q * 3, 1).getTime() - 1;
+  return { start, end };
+}
+function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, selectedQ, nowMs = Date.now()) {
   const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
-  if (segs.length === 0) return { points: [], index: 100, basePct: 0, floatPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null };
-  const t0 = segStartMs(segs[0]);
-  const trades = closedPositions.filter(c => c.closedAt >= t0 && c.pnlUSD != null).sort((a, b) => a.closedAt - b.closedAt);
+  const qb = quarterBounds(selectedQ);
+  const empty = { points: [], index: 100, baseIndex: 100, basePct: 0, floatPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null };
+  if (segs.length === 0 || !qb) return empty;
 
-  // Walk day by day from the first segment start to today, applying each close on its day.
+  // One capital basis for the whole quarter: the segment active at quarter start,
+  // else the earliest configured segment (best available basis).
+  let basisSeg = segs[0];
+  for (const s of segs) { if (segStartMs(s) <= qb.start) basisSeg = s; }
+  const cap = basisSeg.startCapitalUsd;
+  if (!cap || cap <= 0) return { ...empty, activeSeg: basisSeg };
+
+  const isCurrentQuarter = nowMs >= qb.start && nowMs <= qb.end;
   const DAY = 24 * 60 * 60 * 1000;
-  const startDay = new Date(new Date(t0).toISOString().slice(0, 10) + "T00:00:00").getTime();
-  const endDay   = new Date(new Date(nowMs).toISOString().slice(0, 10) + "T00:00:00").getTime();
+  const dayFloor = (ms) => new Date(new Date(ms).toISOString().slice(0, 10) + "T00:00:00").getTime();
+  const startDay = dayFloor(qb.start);
+  const endDay   = dayFloor(Math.min(nowMs, qb.end));
+  const trades = closedPositions
+    .filter(c => c.pnlUSD != null && c.closedAt >= qb.start && c.closedAt <= Math.min(nowMs, qb.end))
+    .sort((a, b) => a.closedAt - b.closedAt);
 
-  let chain = 1, qtd = 0, segIdx = 0, ti = 0;
-  const advanceTo = (ms) => {
-    while (segIdx + 1 < segs.length && ms >= segStartMs(segs[segIdx + 1])) { chain *= (1 + qtd); qtd = 0; segIdx++; }
-  };
-
+  let cum = 0, ti = 0;
   const points = [];
   for (let dms = startDay; dms <= endDay; dms += DAY) {
-    const dayEnd = dms + DAY - 1; // include everything closed during this calendar day
-    while (ti < trades.length && trades[ti].closedAt <= dayEnd) {
-      advanceTo(trades[ti].closedAt);
-      const cap = segs[segIdx].startCapitalUsd;
-      qtd += cap > 0 ? (trades[ti].pnlUSD || 0) / cap : 0;
-      ti++;
-    }
-    advanceTo(dms);
-    const baseIndex = 100 * chain * (1 + qtd);
+    const dayEnd = dms + DAY - 1;
+    while (ti < trades.length && trades[ti].closedAt <= dayEnd) { cum += (trades[ti].pnlUSD || 0); ti++; }
+    const baseIndex = 100 * (1 + cum / cap);
     const isLast = dms + DAY > endDay;
-    // float layer only on the final (today) point — we never had historical floats
-    const cap = segs[segIdx].startCapitalUsd;
-    const fl = isLast && cap > 0 ? (currentFloatUSD || 0) / cap : 0;
-    points.push({
-      t: dms,
-      day: new Date(dms).toISOString().slice(0, 10),
-      baseIndex,
-      index: baseIndex + 100 * chain * fl,
-      floatPct: fl * 100,
-      hasFloat: isLast,
-    });
+    const fl = isLast && isCurrentQuarter ? (currentFloatUSD || 0) / cap : 0;
+    points.push({ t: dms, day: new Date(dms).toISOString().slice(0, 10), baseIndex, index: baseIndex + 100 * fl, floatPct: fl * 100, hasFloat: isLast && isCurrentQuarter });
   }
 
   const baseFinal = points.length ? points[points.length - 1].baseIndex : 100;
   const idxFinal  = points.length ? points[points.length - 1].index : 100;
-  const capNow = segs[segIdx].startCapitalUsd;
-  const floatPct = capNow > 0 ? (currentFloatUSD || 0) / capNow * 100 : 0;
-
-  // drawdown is measured on the realized base line (the float endpoint is not a sustained level)
+  const floatPct  = isCurrentQuarter && cap > 0 ? (currentFloatUSD || 0) / cap * 100 : 0;
   let peak = 100, mdd = 0;
   for (const pt of points) { peak = Math.max(peak, pt.baseIndex); mdd = Math.max(mdd, (peak - pt.baseIndex) / peak * 100); }
 
-  return {
-    points, index: idxFinal, baseIndex: baseFinal,
-    basePct: baseFinal - 100, floatPct,
-    maxDrawdownPct: mdd, totalCloses: trades.length,
-    activeSeg: segs[segIdx],
-  };
+  return { points, index: idxFinal, baseIndex: baseFinal, basePct: baseFinal - 100, floatPct, maxDrawdownPct: mdd, totalCloses: trades.length, activeSeg: basisSeg };
 }
 
 
@@ -1012,7 +1004,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
           ${statCard("Win Rate", winRate != null ? winRate.toFixed(0) + "%" : "—", `${winners.length}W / ${totalTrades - winners.length}L`, winRate != null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : MUTE)}
-          ${statCard("Profit Factor", profitFactor || "—", avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : "—", profitFactor >= 1 ? "#22c55e" : "#ef4444")}
+          ${statCard("Win/Loss Ratio", profitFactor || "—", avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : "—", profitFactor >= 1 ? "#22c55e" : "#ef4444")}
           ${statCard("Avg Hold Time", avgHold != null ? avgHold + "D" : "—", "per closed trade", GOLD)}
           ${statCard("Avg SL Distance", avgSLDist > 0 ? avgSLDist.toFixed(1) + "%" : "—", "open positions", GOLD3)}
         </div>
@@ -1120,7 +1112,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       </tr>`;
     });
     // ── PAGE: QUARTER EQUITY CURVE · realized base across the quarter + current float ──
-    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD);
+    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD, selectedQ);
     const equityCurvePage = qCurve.points.length > 0 ? (() => {
       const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
       const pts = qCurve.points;
@@ -1163,11 +1155,11 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
             ${grid}
             <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
-            <path d="${pathBase} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
+            <path d="${pathBase} L ${X(t1).toFixed(1)} ${Y(qCurve.index).toFixed(1)} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
             <path d="${pathBase}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
-            <line x1="${X(last.t).toFixed(1)}" x2="${X(last.t).toFixed(1)}" y1="${Y(last.baseIndex).toFixed(1)}" y2="${Y(qCurve.index).toFixed(1)}" stroke="${floatColor}" stroke-width="2.5" stroke-dasharray="3 3"/>
-            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(last.baseIndex).toFixed(1)}" r="3" fill="#0d0d0d" stroke="${GOLD2}" stroke-width="1.8"/>
-            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="3.6" fill="#0d0d0d" stroke="${floatColor}" stroke-width="2.2"/>
+            <line x1="${X(last.t).toFixed(1)}" x2="${X(last.t).toFixed(1)}" y1="${Y(last.baseIndex).toFixed(1)}" y2="${Y(qCurve.index).toFixed(1)}" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
+            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(last.baseIndex).toFixed(1)}" r="2.6" fill="#0d0d0d" stroke="${GOLD3}" stroke-width="1.5"/>
+            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="4" fill="${GOLD2}" stroke="#0d0d0d" stroke-width="1.5"/>
             <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${qCurve.index >= 100 ? "#22c55e" : "#ef4444"}">${qCurve.index.toFixed(2)}</text>
             <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
             <text x="${P.l}" y="${H - 14}" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${pts[0].day}</text>
@@ -1269,7 +1261,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         </table>
         ${ci === tradeChunks.length - 1 ? `
         <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Profit Factor ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
+          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Win/Loss Ratio ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
         </div>` : ""}
         <div style="flex:1"></div>
@@ -1393,7 +1385,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               if (!perfSegments || perfSegments.length === 0) {
                 return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO QUARTER CONFIGURED<br /><span style={{ fontSize: 8, color: "#444" }}>SET QUARTER-START CAPITAL IN FREE CONTENT → QUARTER MANAGEMENT</span></div>;
               }
-              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD);
+              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD, selectedQ);
               if (qc.points.length === 0) {
                 return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO DATA FOR THIS QUARTER YET</div>;
               }
@@ -1436,14 +1428,14 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                       </g>
                     ))}
                     <line x1={PAD.l} x2={CW - PAD.r} y1={Y(100)} y2={Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
-                    <path d={`${dBase} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
+                    <path d={`${dBase} L ${X(last.t)} ${Y(qc.index)} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
                     <path d={dBase} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
-                    {/* float connector: from realized base endpoint up/down to index-incl-float */}
-                    <line x1={X(last.t)} x2={X(last.t)} y1={Y(last.baseIndex)} y2={Y(qc.index)} stroke={floatUp ? "#22c55e" : "#ef4444"} strokeWidth="2" strokeDasharray="3 3" />
-                    <circle cx={X(last.t)} cy={Y(last.baseIndex)} r="3" fill="#0d0d0d" stroke="#d4af37" strokeWidth="1.6">
+                    {/* float continuation: realized base endpoint → live index, same gold curve */}
+                    <line x1={X(last.t)} x2={X(last.t)} y1={Y(last.baseIndex)} y2={Y(qc.index)} stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
+                    <circle cx={X(last.t)} cy={Y(last.baseIndex)} r="2.6" fill="#0d0d0d" stroke="#b99c64" strokeWidth="1.4">
                       <title>{`${last.day} · Realized base ${last.baseIndex.toFixed(2)}`}</title>
                     </circle>
-                    <circle cx={X(last.t)} cy={Y(qc.index)} r="3.4" fill="#0d0d0d" stroke={floatUp ? "#22c55e" : "#ef4444"} strokeWidth="2">
+                    <circle cx={X(last.t)} cy={Y(qc.index)} r="3.6" fill="#d4af37" stroke="#0d0d0d" strokeWidth="1.4">
                       <title>{`Incl. current float · Index ${qc.index.toFixed(2)} · Float ${(floatUp ? "+" : "") + qc.floatPct.toFixed(2)}%`}</title>
                     </circle>
                     <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, fill: qc.index >= 100 ? "#22c55e" : "#ef4444" }}>{qc.index.toFixed(2)}</text>
