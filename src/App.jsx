@@ -1123,7 +1123,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       const yLo = vMin - vPad, yHi = vMax + vPad;
       const X = (t) => pts.length === 1 ? W / 2 : P.l + ((t - t0) / span) * (W - P.l - P.r);
       const Y = (v) => H - P.b - ((v - yLo) / (yHi - yLo)) * (H - P.t - P.b);
-      const pathBase = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.baseIndex).toFixed(1)}`).join(" ");
+      const pathBase = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(i === pts.length - 1 ? qCurve.index : p.baseIndex).toFixed(1)}`).join(" ");
       const last = pts[pts.length - 1];
       const floatUp = qCurve.floatPct >= 0;
       const floatColor = floatUp ? "#22c55e" : "#ef4444";
@@ -1155,10 +1155,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
             ${grid}
             <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
-            <path d="${pathBase} L ${X(t1).toFixed(1)} ${Y(qCurve.index).toFixed(1)} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
+            <path d="${pathBase} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
             <path d="${pathBase}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
-            <line x1="${X(last.t).toFixed(1)}" x2="${X(last.t).toFixed(1)}" y1="${Y(last.baseIndex).toFixed(1)}" y2="${Y(qCurve.index).toFixed(1)}" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
-            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(last.baseIndex).toFixed(1)}" r="2.6" fill="#0d0d0d" stroke="${GOLD3}" stroke-width="1.5"/>
             <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="4" fill="${GOLD2}" stroke="#0d0d0d" stroke-width="1.5"/>
             <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${qCurve.index >= 100 ? "#22c55e" : "#ef4444"}">${qCurve.index.toFixed(2)}</text>
             <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
@@ -1400,7 +1398,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               const X = (t) => qc.points.length === 1 ? CW / 2 : PAD.l + ((t - t0) / span) * (CW - PAD.l - PAD.r);
               const Y = (v) => CH - PAD.b - ((v - y0) / (y1 - y0)) * (CH - PAD.t - PAD.b);
               // realized base line (solid gold) over every day
-              const dBase = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(p.baseIndex)}`).join(" ");
+              const dBase = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(i === qc.points.length - 1 ? qc.index : p.baseIndex)}`).join(" ");
               const last = qc.points[qc.points.length - 1];
               const grid = [y0, (y0 + y1) / 2, y1];
               const floatUp = qc.floatPct >= 0;
@@ -1428,15 +1426,10 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                       </g>
                     ))}
                     <line x1={PAD.l} x2={CW - PAD.r} y1={Y(100)} y2={Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
-                    <path d={`${dBase} L ${X(last.t)} ${Y(qc.index)} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
+                    <path d={`${dBase} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
                     <path d={dBase} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
-                    {/* float continuation: realized base endpoint → live index, same gold curve */}
-                    <line x1={X(last.t)} x2={X(last.t)} y1={Y(last.baseIndex)} y2={Y(qc.index)} stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
-                    <circle cx={X(last.t)} cy={Y(last.baseIndex)} r="2.6" fill="#0d0d0d" stroke="#b99c64" strokeWidth="1.4">
-                      <title>{`${last.day} · Realized base ${last.baseIndex.toFixed(2)}`}</title>
-                    </circle>
                     <circle cx={X(last.t)} cy={Y(qc.index)} r="3.6" fill="#d4af37" stroke="#0d0d0d" strokeWidth="1.4">
-                      <title>{`Incl. current float · Index ${qc.index.toFixed(2)} · Float ${(floatUp ? "+" : "") + qc.floatPct.toFixed(2)}%`}</title>
+                      <title>{`Index incl. float ${qc.index.toFixed(2)} · realized ${qc.baseIndex.toFixed(2)} + float ${(floatUp ? "+" : "") + qc.floatPct.toFixed(2)}%`}</title>
                     </circle>
                     <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, fill: qc.index >= 100 ? "#22c55e" : "#ef4444" }}>{qc.index.toFixed(2)}</text>
                     <line x1={PAD.l} x2={CW - PAD.r} y1={CH - PAD.b} y2={CH - PAD.b} stroke="#2a2a2a" strokeWidth="1" />
