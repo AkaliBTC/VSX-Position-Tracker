@@ -836,6 +836,15 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
   const winRate     = decided > 0 ? (winners.length / decided) * 100 : null;
   const totalPnL    = qData.reduce((s, c) => s + (c.pnlUSD || 0), 0);
   const avgPnLPct   = totalTrades > 0 ? qData.reduce((s, c) => s + (c.pnlPct || 0), 0) / totalTrades : null;
+
+  // ── Adjusted trade average · excludes break-even / scratch trades ──────────
+  // Any closed trade whose realised return sits within ±5% is treated as flat
+  // (noise / break-even) and removed, so the average reflects only trades that
+  // resolved with a meaningful directional outcome. Threshold is one constant.
+  const BE_PCT_THRESHOLD  = 5;
+  const significantTrades = qData.filter(c => Math.abs(c.pnlPct || 0) > BE_PCT_THRESHOLD);
+  const beTradesCount     = totalTrades - significantTrades.length;
+  const avgPnLPctExBE     = significantTrades.length > 0 ? significantTrades.reduce((s, c) => s + (c.pnlPct || 0), 0) / significantTrades.length : null;
   const avgHold     = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
   const bestTrade   = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) > (b.pnlPct || 0) ? a : b) : null;
   const worstTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) < (b.pnlPct || 0) ? a : b) : null;
@@ -1007,6 +1016,21 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           ${statCard("Win/Loss Ratio", profitFactor || "—", avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : "—", profitFactor >= 1 ? "#22c55e" : "#ef4444")}
           ${statCard("Avg Hold Time", avgHold != null ? avgHold + "D" : "—", "per closed trade", GOLD)}
           ${statCard("Avg SL Distance", avgSLDist > 0 ? avgSLDist.toFixed(1) + "%" : "—", "open positions", GOLD3)}
+        </div>
+
+        <div style="margin-bottom:28px">
+          ${sectionHdr("Adjusted Trade Average — Excluding Break-Even Trades")}
+          <div style="display:grid;grid-template-columns:200px 1fr;gap:16px">
+            <div style="background:${BG2};border:1px solid ${avgPnLPctExBE === null ? BORDER : avgPnLPctExBE >= 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'};border-left:4px solid ${avgPnLPctExBE === null ? MUTE : gc(avgPnLPctExBE)};border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;justify-content:center">
+              <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">Avg per Trade · Ex BE</div>
+              <div style="font-family:'Bebas Neue',sans-serif;font-size:42px;line-height:1;color:${avgPnLPctExBE === null ? MUTE : gc(avgPnLPctExBE)}">${avgPnLPctExBE !== null ? (avgPnLPctExBE >= 0 ? "+" : "") + avgPnLPctExBE.toFixed(2) + "%" : "—"}</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:6px">${significantTrades.length} of ${totalTrades} trades counted</div>
+            </div>
+            <div style="background:${BG2};border:1px solid ${BORDER};border-radius:12px;padding:18px 22px;display:flex;flex-direction:column;justify-content:center">
+              <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${GOLD3};text-transform:uppercase;margin-bottom:8px">Methodology</div>
+              <div style="font-family:'DM Mono',monospace;font-size:9.5px;color:#888;line-height:1.75">The headline figure <span style="color:#bbb">Avg ${avgPnLPct !== null ? (avgPnLPct >= 0 ? "+" : "") + avgPnLPct.toFixed(2) + "%" : "—"} per trade</span> counts every closed position. This adjusted average removes <span style="color:${GOLD}">break-even trades</span> — any trade closed within <span style="color:${GOLD}">±${BE_PCT_THRESHOLD}%</span> of entry — so near-flat scratches do not dilute it, isolating the average outcome of trades that resolved with genuine directional conviction.${beTradesCount > 0 ? ` ${beTradesCount} trade${beTradesCount !== 1 ? "s" : ""} excluded for ${qLabel}.` : (totalTrades > 0 ? " No break-even trades were excluded this quarter." : "")}</div>
+            </div>
+          </div>
         </div>
 
         <div style="margin-bottom:28px">
@@ -1473,6 +1497,26 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                   <div style={S.statSub}>{sub}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* ── ADJUSTED TRADE AVERAGE · EX BREAK-EVEN ── */}
+          <div style={S.section}>
+            <div style={S.sectionTitle}>Adjusted Trade Average · Ex Break-Even</div>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(170px,210px) 1fr", gap: 12, alignItems: "stretch" }}>
+              <div style={{ background: "#111", border: `1px solid ${avgPnLPctExBE === null ? "rgba(255,255,255,0.08)" : avgPnLPctExBE >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${avgPnLPctExBE === null ? "#555" : avgPnLPctExBE >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 12, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>Avg per Trade · Ex BE</div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, letterSpacing: "0.04em", lineHeight: 1, color: avgPnLPctExBE === null ? "#555" : avgPnLPctExBE >= 0 ? "#22c55e" : "#ef4444" }}>{avgPnLPctExBE !== null ? `${avgPnLPctExBE >= 0 ? "+" : ""}${avgPnLPctExBE.toFixed(2)}%` : "—"}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 6 }}>{significantTrades.length} of {totalTrades} trades counted</div>
+              </div>
+              <div style={{ background: "#0f0f0f", border: "1px solid #1a1a1a", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#b99c64", textTransform: "uppercase", marginBottom: 8 }}>How this is calculated</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#777", lineHeight: 1.7 }}>
+                  The headline <span style={{ color: "#999" }}>Avg per trade</span> counts every closed position. This adjusted figure removes <span style={{ color: "#d4af37" }}>break-even trades</span> — any close landing within <span style={{ color: "#d4af37" }}>±{BE_PCT_THRESHOLD}%</span> — so small scratches and near-flat exits don’t dilute the average. It isolates trades that resolved with a clear directional outcome.
+                  {beTradesCount > 0 && <span style={{ color: "#555" }}> {beTradesCount} trade{beTradesCount !== 1 ? "s" : ""} excluded this quarter.</span>}
+                  {beTradesCount === 0 && totalTrades > 0 && <span style={{ color: "#555" }}> No break-even trades excluded this quarter.</span>}
+                </div>
+              </div>
             </div>
           </div>
 
