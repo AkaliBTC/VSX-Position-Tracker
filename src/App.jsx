@@ -2514,7 +2514,11 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const entry = num(p.entry);
               const sl = parseFloat(p.sl);
               const pnl = calcPnL(p.direction, entry, p.currentPrice);
-              const dist = calcSLDist(p.direction, p.currentPrice, sl);
+              const dist = calcSLDist(p.direction, p.currentPrice, sl); // Live → Stop, unverändert
+              // Stop relativ zum Entry: > 0 = im Gewinn (Puffer) · < 0 = noch im Verlust (Risiko)
+              const slLock = (!isNaN(entry) && !isNaN(sl))
+                ? (p.direction === "LONG" ? sl - entry : entry - sl)
+                : null;
               const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
               const posValue = fmtValue(posValueNum);
               const flagged = isFlagged(p);
@@ -2543,7 +2547,20 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   <td><input className="cell-input num-inp qty-inp" placeholder="0" type="number" value={p.qty} onChange={(e) => update(p.id, "qty", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number" value={p.entry} onChange={(e) => update(p.id, "entry", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number" value={p.sl} onChange={(e) => update(p.id, "sl", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
-                  <td><span className="dist-val">{dist !== null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—"}</span></td>
+                  <td>
+                    {dist !== null && !isNaN(dist) ? (
+                      <span className="dist-val"
+                        title={slLock == null ? "" : slLock > 0 ? "Stop im Gewinn — abgesichert" : slLock < 0 ? "Stop noch im Verlust — offenes Risiko" : "Stop auf Break-Even"}
+                        style={{ color:
+                          slLock == null ? "var(--gold3)" :
+                          slLock > 1e-9  ? "var(--gold3)" :   // Puffer  → gold
+                          slLock < -1e-9 ? "var(--red)"   :   // Risiko  → rot
+                                           "var(--text-dim)"  // Break-Even → neutral
+                        }}>
+                        {dist.toFixed(2)}%
+                      </span>
+                    ) : <span className="price-dim">—</span>}
+                  </td>
                   <td><input className="cell-input date-inp" type="date" value={p.date} onChange={(e) => update(p.id, "date", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td>{p.loading ? <span className="fetching">LOADING</span> : p.error ? <span className="price-err">N/A</span> : p.currentPrice !== null ? <FlashPrice price={p.currentPrice} /> : <span className="price-dim">—</span>}</td>
                   <td>
