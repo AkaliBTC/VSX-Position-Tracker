@@ -507,10 +507,10 @@ function quarterBounds(selectedQ) {
   const end   = new Date(year, q * 3, 1).getTime() - 1;
   return { start, end };
 }
-function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, selectedQ, nowMs = Date.now()) {
+function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, selectedQ, snapshotDays = {}, nowMs = Date.now()) {
   const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
   const qb = quarterBounds(selectedQ);
-  const empty = { points: [], index: 100, baseIndex: 100, basePct: 0, floatPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null };
+  const empty = { points: [], index: 100, baseIndex: 100, basePct: 0, floatPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null, floatDays: 0 };
   if (segs.length === 0 || !qb) return empty;
 
   // One capital basis for the whole quarter: the segment active at quarter start,
@@ -529,15 +529,36 @@ function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, s
     .filter(c => c.pnlUSD != null && c.closedAt >= qb.start && c.closedAt <= Math.min(nowMs, qb.end))
     .sort((a, b) => a.closedAt - b.closedAt);
 
-  let cum = 0, ti = 0;
+  // Daily floating-P&L history from saved snapshots (one per CEST day). Each day's
+  // point layers that day's RECORDED float on top of the realized base, so the curve
+  // actually evolves day by day instead of being flat with a single terminal spike.
+  const snaps = snapshotDays || {};
+
+  let cum = 0, ti = 0, lastFloatUSD = null, floatDays = 0;
   const points = [];
   for (let dms = startDay; dms <= endDay; dms += DAY) {
     const dayEnd = dms + DAY - 1;
     while (ti < trades.length && trades[ti].closedAt <= dayEnd) { cum += (trades[ti].pnlUSD || 0); ti++; }
     const baseIndex = 100 * (1 + cum / cap);
+    const dayStr = new Date(dms).toISOString().slice(0, 10);
     const isLast = dms + DAY > endDay;
-    const fl = isLast && isCurrentQuarter ? (currentFloatUSD || 0) / cap : 0;
-    points.push({ t: dms, day: new Date(dms).toISOString().slice(0, 10), baseIndex, index: baseIndex + 100 * fl, floatPct: fl * 100, hasFloat: isLast && isCurrentQuarter });
+
+    // Float for this day: live value for today (current quarter); otherwise the
+    // snapshot taken that day; if a day has no snapshot, carry the last known float
+    // forward so the line stays continuous. Days before the first snapshot = no float.
+    const snap = snaps[dayStr];
+    let floatUSD, hasFloat;
+    if (isLast && isCurrentQuarter) {
+      floatUSD = currentFloatUSD || 0; hasFloat = true;
+    } else if (snap && snap.floatUSD != null) {
+      floatUSD = snap.floatUSD; lastFloatUSD = floatUSD; hasFloat = true; floatDays++;
+    } else if (lastFloatUSD != null) {
+      floatUSD = lastFloatUSD; hasFloat = true;
+    } else {
+      floatUSD = 0; hasFloat = false;
+    }
+    const fl = cap > 0 ? floatUSD / cap : 0;
+    points.push({ t: dms, day: dayStr, baseIndex, index: baseIndex + 100 * fl, floatPct: fl * 100, hasFloat });
   }
 
   const baseFinal = points.length ? points[points.length - 1].baseIndex : 100;
@@ -546,7 +567,7 @@ function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, s
   let peak = 100, mdd = 0;
   for (const pt of points) { peak = Math.max(peak, pt.baseIndex); mdd = Math.max(mdd, (peak - pt.baseIndex) / peak * 100); }
 
-  return { points, index: idxFinal, baseIndex: baseFinal, basePct: baseFinal - 100, floatPct, maxDrawdownPct: mdd, totalCloses: trades.length, activeSeg: basisSeg };
+  return { points, index: idxFinal, baseIndex: baseFinal, basePct: baseFinal - 100, floatPct, maxDrawdownPct: mdd, totalCloses: trades.length, activeSeg: basisSeg, floatDays };
 }
 
 
@@ -1136,18 +1157,19 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       </tr>`;
     });
     // ── PAGE: QUARTER EQUITY CURVE · realized base across the quarter + current float ──
-    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD, selectedQ);
+    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD, selectedQ, equitySnapshots);
     const equityCurvePage = qCurve.points.length > 0 ? (() => {
       const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
       const pts = qCurve.points;
       const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = Math.max(t1 - t0, 1);
-      const vals = [100, ...pts.map(p => p.baseIndex), qCurve.index];
+      const vals = [100, ...pts.flatMap(p => [p.baseIndex, p.index]), qCurve.index];
       const vMin = Math.min(...vals), vMax = Math.max(...vals);
       const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
       const yLo = vMin - vPad, yHi = vMax + vPad;
       const X = (t) => pts.length === 1 ? W / 2 : P.l + ((t - t0) / span) * (W - P.l - P.r);
       const Y = (v) => H - P.b - ((v - yLo) / (yHi - yLo)) * (H - P.t - P.b);
-      const pathBase = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(i === pts.length - 1 ? qCurve.index : p.baseIndex).toFixed(1)}`).join(" ");
+      const pathIdx  = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.index).toFixed(1)}`).join(" ");
+      const pathBase = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.baseIndex).toFixed(1)}`).join(" ");
       const last = pts[pts.length - 1];
       const floatUp = qCurve.floatPct >= 0;
       const floatColor = floatUp ? "#22c55e" : "#ef4444";
@@ -1179,8 +1201,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
             ${grid}
             <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
-            <path d="${pathBase} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
-            <path d="${pathBase}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
+            <path d="${pathIdx} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
+            <path d="${pathBase}" fill="none" stroke="rgba(212,175,55,0.4)" stroke-width="1.25" stroke-dasharray="4 3" stroke-linejoin="round"/>
+            <path d="${pathIdx}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
             <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="4" fill="${GOLD2}" stroke="#0d0d0d" stroke-width="1.5"/>
             <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${qCurve.index >= 100 ? "#22c55e" : "#ef4444"}">${qCurve.index.toFixed(2)}</text>
             <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
@@ -1189,7 +1212,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           </svg>
         </div>
         <div style="margin-top:18px;font-size:8px;line-height:1.7;color:${DIM};letter-spacing:0.04em">
-          Solid line: realized P&L base across ${qLabel}, chained from documented closed trades on a segment-start capital basis — identical methodology to the public realized index. Final dashed marker: current unrealized floating P&L of open positions added on top of today's realized base. The realized base is exact; the float layer reflects live prices at the time of report generation, not a historical daily series. ${METHODOLOGY_NOTE}
+          Solid line: daily equity index across ${qLabel} — realized P&L base (dashed) plus each day's recorded floating P&L of open positions, captured once per day. Realized base is exact from documented closed trades on a segment-start capital basis (identical methodology to the public realized index). The float layer is a daily snapshot series; days prior to the first recorded snapshot show the realized base only. Today's point uses the live float at report generation. ${METHODOLOGY_NOTE}
         </div>
         <div style="flex:1"></div>
       </div>
@@ -1407,7 +1430,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               if (!perfSegments || perfSegments.length === 0) {
                 return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO QUARTER CONFIGURED<br /><span style={{ fontSize: 8, color: "#444" }}>SET QUARTER-START CAPITAL IN FREE CONTENT → QUARTER MANAGEMENT</span></div>;
               }
-              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD, selectedQ);
+              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD, selectedQ, equitySnapshots);
               if (qc.points.length === 0) {
                 return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO DATA FOR THIS QUARTER YET</div>;
               }
@@ -1415,14 +1438,16 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               const ts = qc.points.map(p => p.t);
               const t0 = Math.min(...ts), t1 = Math.max(...ts);
               const span = Math.max(t1 - t0, 1);
-              const vals = [100, ...qc.points.map(p => p.baseIndex), qc.index];
+              const vals = [100, ...qc.points.flatMap(p => [p.baseIndex, p.index]), qc.index];
               const vMin = Math.min(...vals), vMax = Math.max(...vals);
               const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
               const y0 = vMin - vPad, y1 = vMax + vPad;
               const X = (t) => qc.points.length === 1 ? CW / 2 : PAD.l + ((t - t0) / span) * (CW - PAD.l - PAD.r);
               const Y = (v) => CH - PAD.b - ((v - y0) / (y1 - y0)) * (CH - PAD.t - PAD.b);
-              // realized base line (solid gold) over every day
-              const dBase = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(i === qc.points.length - 1 ? qc.index : p.baseIndex)}`).join(" ");
+              // daily index line (base + that day's float) — solid gold
+              const dIdx  = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(p.index)}`).join(" ");
+              // realized base — faint dashed line beneath
+              const dBase = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(p.baseIndex)}`).join(" ");
               const last = qc.points[qc.points.length - 1];
               const grid = [y0, (y0 + y1) / 2, y1];
               const floatUp = qc.floatPct >= 0;
@@ -1450,8 +1475,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                       </g>
                     ))}
                     <line x1={PAD.l} x2={CW - PAD.r} y1={Y(100)} y2={Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
-                    <path d={`${dBase} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
-                    <path d={dBase} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
+                    <path d={`${dIdx} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
+                    <path d={dBase} fill="none" stroke="rgba(212,175,55,0.4)" strokeWidth="1.1" strokeDasharray="4 3" strokeLinejoin="round" />
+                    <path d={dIdx} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
                     <circle cx={X(last.t)} cy={Y(qc.index)} r="3.6" fill="#d4af37" stroke="#0d0d0d" strokeWidth="1.4">
                       <title>{`Index incl. float ${qc.index.toFixed(2)} · realized ${qc.baseIndex.toFixed(2)} + float ${(floatUp ? "+" : "") + qc.floatPct.toFixed(2)}%`}</title>
                     </circle>
@@ -1461,7 +1487,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                     <text x={CW - PAD.r} y={CH - 10} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{last.day}</text>
                   </svg>
                   <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a1a1a", fontSize: 7.5, lineHeight: 1.6, color: "#555", letterSpacing: "0.04em", fontFamily: "'Montserrat', sans-serif" }}>
-                    Solid line: realized P&L base across {qLabel}, chained from documented closed trades (segment-start capital basis, identical methodology to the public realized index). Final marker: current unrealized floating P&L of open positions added on top of today\'s base. Realized base is exact; the float layer reflects live prices at report generation, not a historical daily series. Past performance is not indicative of future results.
+                    Solid line: daily equity index across {qLabel} — realized base plus each day's recorded floating P&L (one snapshot per day). Dashed line: realized base only (documented closed trades, segment-start capital basis, identical methodology to the public realized index). Days before the first recorded snapshot show base only; today's point uses the live float. Past performance is not indicative of future results.
                   </div>
                 </div>
               );
@@ -2514,11 +2540,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const entry = num(p.entry);
               const sl = parseFloat(p.sl);
               const pnl = calcPnL(p.direction, entry, p.currentPrice);
-              const dist = calcSLDist(p.direction, p.currentPrice, sl); // Live → Stop, unverändert
-              // Stop relativ zum Entry: > 0 = im Gewinn (Puffer) · < 0 = noch im Verlust (Risiko)
-              const slLock = (!isNaN(entry) && !isNaN(sl))
-                ? (p.direction === "LONG" ? sl - entry : entry - sl)
-                : null;
+              const dist = calcSLDist(p.direction, p.currentPrice, sl);
               const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
               const posValue = fmtValue(posValueNum);
               const flagged = isFlagged(p);
@@ -2547,20 +2569,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   <td><input className="cell-input num-inp qty-inp" placeholder="0" type="number" value={p.qty} onChange={(e) => update(p.id, "qty", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number" value={p.entry} onChange={(e) => update(p.id, "entry", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td><input className="cell-input num-inp" placeholder="0.00" type="number" value={p.sl} onChange={(e) => update(p.id, "sl", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
-                  <td>
-                    {dist !== null && !isNaN(dist) ? (
-                      <span className="dist-val"
-                        title={slLock == null ? "" : slLock > 0 ? "Stop im Gewinn — abgesichert" : slLock < 0 ? "Stop noch im Verlust — offenes Risiko" : "Stop auf Break-Even"}
-                        style={{ color:
-                          slLock == null ? "var(--gold3)" :
-                          slLock > 1e-9  ? "var(--gold3)" :   // Puffer  → gold
-                          slLock < -1e-9 ? "var(--red)"   :   // Risiko  → rot
-                                           "var(--text-dim)"  // Break-Even → neutral
-                        }}>
-                        {dist.toFixed(2)}%
-                      </span>
-                    ) : <span className="price-dim">—</span>}
-                  </td>
+                  <td><span className="dist-val">{dist !== null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—"}</span></td>
                   <td><input className="cell-input date-inp" type="date" value={p.date} onChange={(e) => update(p.id, "date", e.target.value)} onFocus={() => setFocus(p.id)} onBlur={() => clearFocus()} /></td>
                   <td>{p.loading ? <span className="fetching">LOADING</span> : p.error ? <span className="price-err">N/A</span> : p.currentPrice !== null ? <FlashPrice price={p.currentPrice} /> : <span className="price-dim">—</span>}</td>
                   <td>
