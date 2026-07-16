@@ -441,148 +441,6 @@ const postFreeContentScreenshot = async (elementId, webhookUrl, title, fileTag) 
   }
 };
 
-// ── DAILY EQUITY SNAPSHOTS · captured at 00:00 Europe/Berlin (CET/CEST) ─────
-const EQUITY_SNAPSHOT_KEY = "equity_snapshots_v1";
-const cestDateStr = (d = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
-const loadEquitySnapshots = async () => {
-  try {
-    const snap = await getDoc(doc(db, "tracker", EQUITY_SNAPSHOT_KEY));
-    if (snap.exists()) return snap.data().value?.days || {};
-  } catch (e) { console.error("equity snapshots load", e); }
-  return {};
-};
-const saveEquitySnapshots = async (days) => {
-  try { await setDoc(doc(db, "tracker", EQUITY_SNAPSHOT_KEY), { value: { days } }); } catch (e) { console.error("equity snapshots save", e); }
-};
-
-const calcOpenFloatUSD = (p) => {
-  const ep = num(p.entry);
-  if (!p.currentPrice || !ep || isNaN(ep)) return null;
-  return calcPnLUSD(p.direction, ep, p.currentPrice, p.qty);
-};
-
-// Daily index incl. open positions: realized chain (identical methodology) plus the
-// snapshot's floating P&L as % of the segment-start capital. Snapshot data only — no live prices.
-function computeDailyEquityCurve(closedPositions, segments, snapshotDays) {
-  const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
-  if (segs.length === 0) return { points: [], maxDrawdownPct: 0 };
-  const t0 = segStartMs(segs[0]);
-  const snaps = Object.entries(snapshotDays || {})
-    .map(([day, s]) => ({ day, ...s }))
-    .filter(s => s.takenAt >= t0)
-    .sort((a, b) => a.takenAt - b.takenAt);
-  const trades = closedPositions.filter(c => c.closedAt >= t0 && c.pnlUSD != null).sort((a, b) => a.closedAt - b.closedAt);
-  let chain = 1, qtd = 0, segIdx = 0, ti = 0;
-  const advanceTo = (ms) => {
-    while (segIdx + 1 < segs.length && ms >= segStartMs(segs[segIdx + 1])) { chain *= (1 + qtd); qtd = 0; segIdx++; }
-  };
-  const points = [];
-  for (const snap of snaps) {
-    while (ti < trades.length && trades[ti].closedAt <= snap.takenAt) {
-      advanceTo(trades[ti].closedAt);
-      const cap = segs[segIdx].startCapitalUsd;
-      qtd += cap > 0 ? (trades[ti].pnlUSD || 0) / cap : 0;
-      ti++;
-    }
-    advanceTo(snap.takenAt);
-    const cap = segs[segIdx].startCapitalUsd;
-    const fl = cap > 0 ? (snap.floatUSD || 0) / cap : 0;
-    points.push({ t: snap.takenAt, day: snap.day, index: 100 * chain * (1 + qtd + fl), floatPct: fl * 100, openCount: snap.openCount });
-  }
-  let peak = 100, mdd = 0;
-  for (const p of points) { peak = Math.max(peak, p.index); mdd = Math.max(mdd, (peak - p.index) / peak * 100); }
-  return { points, maxDrawdownPct: mdd };
-}
-
-// ── QUARTER EQUITY CURVE · realized base across the FULL selected quarter + current float ──
-// Index startet bei 100 am Quartalsanfang. Jeder realisierte Close verschiebt die Basis
-// dauerhaft (Stufe). Der aktuelle offene Float wird am rechten Rand als Fortsetzung der
-// GLEICHEN Kurve obendrauf addiert (kein separater Marker). Ein Kapital-Basiswert je
-// Quartal (quarter-start capital). Deterministisch, keine historischen Preisabrufe.
-function quarterBounds(selectedQ) {
-  const m = /Q(\d)-(\d{4})/.exec(selectedQ || "");
-  if (!m) return null;
-  const q = parseInt(m[1], 10), year = parseInt(m[2], 10);
-  const start = new Date(year, (q - 1) * 3, 1).getTime();
-  const end   = new Date(year, q * 3, 1).getTime() - 1;
-  return { start, end };
-}
-function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, selectedQ, snapshotDays = {}, nowMs = Date.now()) {
-  const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
-  const qb = quarterBounds(selectedQ);
-  const empty = { points: [], index: 100, baseIndex: 100, basePct: 0, floatPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null, floatDays: 0 };
-  if (segs.length === 0 || !qb) return empty;
-
-  // One capital basis for the whole quarter: the segment active at quarter start,
-  // else the earliest configured segment (best available basis).
-  let basisSeg = segs[0];
-  for (const s of segs) { if (segStartMs(s) <= qb.start) basisSeg = s; }
-  const cap = basisSeg.startCapitalUsd;
-  if (!cap || cap <= 0) return { ...empty, activeSeg: basisSeg };
-
-  const isCurrentQuarter = nowMs >= qb.start && nowMs <= qb.end;
-  const DAY = 24 * 60 * 60 * 1000;
-  const dayFloor = (ms) => new Date(new Date(ms).toISOString().slice(0, 10) + "T00:00:00").getTime();
-  const startDay = dayFloor(qb.start);
-  const endDay   = dayFloor(Math.min(nowMs, qb.end));
-  const trades = closedPositions
-    .filter(c => c.pnlUSD != null && c.closedAt >= qb.start && c.closedAt <= Math.min(nowMs, qb.end))
-    .sort((a, b) => a.closedAt - b.closedAt);
-
-  // ONE point per day = realized base + that day's floating P&L, combined into a single
-  // index value. Float per day comes from saved daily snapshots (one per CEST day); the
-  // curve therefore moves every day instead of being flat with a single terminal spike.
-  const snaps = snapshotDays || {};
-
-  let cum = 0, ti = 0, lastFloatUSD = null, floatDays = 0;
-  const points = [];
-  for (let dms = startDay; dms <= endDay; dms += DAY) {
-    const dayEnd = dms + DAY - 1;
-    while (ti < trades.length && trades[ti].closedAt <= dayEnd) { cum += (trades[ti].pnlUSD || 0); ti++; }
-    const baseIndex = 100 * (1 + cum / cap);
-    const dayStr = cestDateStr(new Date(dms)); // Berlin date — MUSS zu den Snapshot-Keys passen (die via cestDateStr gespeichert werden)
-    const isLast = dms + DAY > endDay;
-
-    // Float for this day: live value for today (current quarter); otherwise the snapshot
-    // taken that day; on days WITHOUT a snapshot (weekends, bank holidays, app closed)
-    // carry the previous day's value forward so the line stays flat-continuous, never 0.
-    const snap = snaps[dayStr];
-    let floatUSD, hasFloat;
-    if (isLast && isCurrentQuarter) {
-      floatUSD = currentFloatUSD || 0; hasFloat = true;
-    } else if (snap && snap.floatUSD != null) {
-      floatUSD = snap.floatUSD; lastFloatUSD = floatUSD; hasFloat = true; floatDays++;
-    } else if (lastFloatUSD != null) {
-      floatUSD = lastFloatUSD; hasFloat = true; // ← Fallback: Tag davor (WE / Feiertag)
-    } else {
-      floatUSD = 0; hasFloat = false;           // vor dem allerersten Snapshot: noch kein Float
-    }
-    const fl = cap > 0 ? floatUSD / cap : 0;
-    // index = realized + float for the day → this single value is the plotted point
-    points.push({ t: dms, day: dayStr, baseIndex, index: baseIndex + 100 * fl, floatPct: fl * 100, hasFloat });
-  }
-
-  // ── Kill the vertical cliff ─────────────────────────────────────────────────
-  // Days BEFORE the first snapshot have no float (base only). Plotting them at 0 float
-  // and then jumping to the first snapshot's full total = exactly that vertical spike.
-  // Fix: drop the leading no-float days. The curve then STARTS at the first real total
-  // and every plotted day carries float (snapshot or carried-forward) → continuous line,
-  // no terminal cliff. Only trims when a real float series exists (≥2 float days).
-  const floatCount = points.filter(p => p.hasFloat).length;
-  const firstFloat = points.findIndex(p => p.hasFloat);
-  const plotted = (floatCount >= 2 && firstFloat > 0) ? points.slice(firstFloat) : points;
-
-  const baseFinal = plotted.length ? plotted[plotted.length - 1].baseIndex : 100;
-  const idxFinal  = plotted.length ? plotted[plotted.length - 1].index : 100;
-  const floatPct  = isCurrentQuarter && cap > 0 ? (currentFloatUSD || 0) / cap * 100 : 0;
-  // Drawdown measured on the combined daily index, relative to the curve's own start.
-  let peak = plotted.length ? plotted[0].index : 100, mdd = 0;
-  for (const pt of plotted) { peak = Math.max(peak, pt.index); mdd = Math.max(mdd, (peak - pt.index) / peak * 100); }
-
-  return { points: plotted, index: idxFinal, baseIndex: baseFinal, basePct: baseFinal - 100, floatPct, maxDrawdownPct: mdd, totalCloses: trades.length, activeSeg: basisSeg, floatDays };
-}
-
-
 // ── DONUT SVG helpers ────────────────────────────────────────────────────────
 const polarXY = (cx, cy, r, ang) => [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
 const donutArc = (cx, cy, rOuter, rInner, a0, a1) => {
@@ -846,7 +704,7 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
 }
 
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
-function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equitySnapshots, onClose }) {
+function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, onClose }) {
   useBodyScrollLock();
   const [selectedQ, setSelectedQ] = useState(getQuarter(new Date()));
 
@@ -1168,65 +1026,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         <td style="padding:7px 8px;color:${isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
-    // ── PAGE: QUARTER EQUITY CURVE · realized base across the quarter + current float ──
-    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD, selectedQ, equitySnapshots);
-    const equityCurvePage = qCurve.points.length > 0 ? (() => {
-      const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
-      const pts = qCurve.points;
-      const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = Math.max(t1 - t0, 1);
-      const vals = [100, ...pts.map(p => p.index), qCurve.index];
-      const vMin = Math.min(...vals), vMax = Math.max(...vals);
-      const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
-      const yLo = vMin - vPad, yHi = vMax + vPad;
-      const X = (t) => pts.length === 1 ? W / 2 : P.l + ((t - t0) / span) * (W - P.l - P.r);
-      const Y = (v) => H - P.b - ((v - yLo) / (yHi - yLo)) * (H - P.t - P.b);
-      // one line: each day's point = realized + that day's float
-      const pathIdx = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.index).toFixed(1)}`).join(" ");
-      const last = pts[pts.length - 1];
-      const grid = [yLo, (yLo + yHi) / 2, yHi].map(v =>
-        `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="#1d1d1d" stroke-width="1"/><text x="${P.l - 10}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:#666">${v.toFixed(1)}</text>`).join("");
-      const curveStat = (l, v, c) => `<div style="text-align:right"><div style="font-size:7px;font-weight:700;letter-spacing:0.18em;color:${MUTE};text-transform:uppercase">${l}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${c}">${v}</div></div>`;
-      return `
-    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
-      ${goldBar}
-      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
-          <div>
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">EQUITY CURVE</div>
-          </div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${GOLD3};text-transform:uppercase">TOTAL PERFORMANCE · ${qLabel} · REALIZED + FLOAT · BASE 100</div>
-          <div style="display:flex;gap:24px">
-            ${curveStat("Total Performance", (qCurve.index - 100 >= 0 ? "+" : "") + (qCurve.index - 100).toFixed(2) + "%", qCurve.index >= 100 ? "#22c55e" : "#ef4444")}
-            ${curveStat("Max DD", "-" + qCurve.maxDrawdownPct.toFixed(2) + "%", "#ef4444")}
-            ${curveStat("Closes", String(qCurve.totalCloses), GOLD2)}
-          </div>
-        </div>
-        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:12px;padding:24px 26px;page-break-inside:avoid">
-          <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
-            ${grid}
-            <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
-            <path d="${pathIdx} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
-            <path d="${pathIdx}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
-            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="4" fill="${GOLD2}" stroke="#0d0d0d" stroke-width="1.5"/>
-            <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${qCurve.index >= 100 ? "#22c55e" : "#ef4444"}">${qCurve.index.toFixed(2)}</text>
-            <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
-            <text x="${P.l}" y="${H - 14}" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${pts[0].day}</text>
-            <text x="${W - P.r}" y="${H - 14}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${last.day}</text>
-          </svg>
-        </div>
-        <div style="margin-top:18px;font-size:8px;line-height:1.7;color:${DIM};letter-spacing:0.04em">
-          One line, one point per day: each day's value is the realized P&L base plus that day's floating P&L of open positions, combined. Realized base is exact from documented closed trades on a segment-start capital basis (identical methodology to the public realized index); the daily float comes from a once-per-day snapshot. Days prior to the first recorded snapshot carry no float. Today's point uses the live float at report generation. ${METHODOLOGY_NOTE}
-        </div>
-        <div style="flex:1"></div>
-      </div>
-      ${footer()}
-      ${goldBar}
-    </div>`;
-    })() : "";
 
     const packBreakdownPage = `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
@@ -1379,7 +1178,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     </head><body>
       ${coverPage}
       ${overviewPage}
-      ${equityCurvePage}
       ${packBreakdownPage}
       ${tradeLogPage}
       ${disclaimerPage}
@@ -1430,71 +1228,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         {totalTrades === 0 && allOpen.length === 0 ? (
           <div style={{ padding: "72px 32px", textAlign: "center", fontFamily: "'Montserrat', sans-serif", fontSize: 10, letterSpacing: "0.3em", color: "#2a2a2a" }}>NO DATA FOR {getQuarterLabel(selectedQ)}</div>
         ) : (<>
-          {/* ── QUARTER EQUITY CURVE · realized base across the quarter + current float ── */}
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Equity Curve — Total Performance · {qLabel} (Realized + Float)</div>
-            {(() => {
-              if (!perfSegments || perfSegments.length === 0) {
-                return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO QUARTER CONFIGURED<br /><span style={{ fontSize: 8, color: "#444" }}>SET QUARTER-START CAPITAL IN FREE CONTENT → QUARTER MANAGEMENT</span></div>;
-              }
-              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD, selectedQ, equitySnapshots);
-              if (qc.points.length === 0) {
-                return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO DATA FOR THIS QUARTER YET</div>;
-              }
-              const CW = 700, CH = 260, PAD = { l: 52, r: 16, t: 16, b: 30 };
-              const ts = qc.points.map(p => p.t);
-              const t0 = Math.min(...ts), t1 = Math.max(...ts);
-              const span = Math.max(t1 - t0, 1);
-              const vals = [100, ...qc.points.map(p => p.index), qc.index];
-              const vMin = Math.min(...vals), vMax = Math.max(...vals);
-              const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
-              const y0 = vMin - vPad, y1 = vMax + vPad;
-              const X = (t) => qc.points.length === 1 ? CW / 2 : PAD.l + ((t - t0) / span) * (CW - PAD.l - PAD.r);
-              const Y = (v) => CH - PAD.b - ((v - y0) / (y1 - y0)) * (CH - PAD.t - PAD.b);
-              // one line: each day's point = realized + that day's float
-              const dIdx = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(p.index)}`).join(" ");
-              const last = qc.points[qc.points.length - 1];
-              const grid = [y0, (y0 + y1) / 2, y1];
-              return (
-                <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "20px 22px" }}>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 22, marginBottom: 10 }}>
-                    {[
-                      ["TOTAL PERFORMANCE", (qc.index - 100 >= 0 ? "+" : "") + (qc.index - 100).toFixed(2) + "%", qc.index >= 100 ? "#22c55e" : "#ef4444"],
-                      ["MAX DD", "-" + qc.maxDrawdownPct.toFixed(2) + "%", "#ef4444"],
-                      ["CLOSES", String(qc.totalCloses), "#d4af37"],
-                    ].map(([l, v, c]) => (
-                      <div key={l} style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.18em", color: "#555", fontFamily: "'Montserrat', sans-serif" }}>{l}</div>
-                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: c }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: "block" }}>
-                    {grid.map((v, i) => (
-                      <g key={i}>
-                        <line x1={PAD.l} x2={CW - PAD.r} y1={Y(v)} y2={Y(v)} stroke="#1d1d1d" strokeWidth="1" />
-                        <text x={PAD.l - 8} y={Y(v) + 3} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fill: "#666" }}>{v.toFixed(1)}</text>
-                      </g>
-                    ))}
-                    <line x1={PAD.l} x2={CW - PAD.r} y1={Y(100)} y2={Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
-                    <path d={`${dIdx} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
-                    <path d={dIdx} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
-                    <circle cx={X(last.t)} cy={Y(qc.index)} r="3.6" fill="#d4af37" stroke="#0d0d0d" strokeWidth="1.4">
-                      <title>{`Total performance ${(qc.index - 100 >= 0 ? "+" : "") + (qc.index - 100).toFixed(2)}% · Index ${qc.index.toFixed(2)} (realized + float)`}</title>
-                    </circle>
-                    <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, fill: qc.index >= 100 ? "#22c55e" : "#ef4444" }}>{qc.index.toFixed(2)}</text>
-                    <line x1={PAD.l} x2={CW - PAD.r} y1={CH - PAD.b} y2={CH - PAD.b} stroke="#2a2a2a" strokeWidth="1" />
-                    <text x={PAD.l} y={CH - 10} style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{qc.points[0].day}</text>
-                    <text x={CW - PAD.r} y={CH - 10} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{last.day}</text>
-                  </svg>
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a1a1a", fontSize: 7.5, lineHeight: 1.6, color: "#555", letterSpacing: "0.04em", fontFamily: "'Montserrat', sans-serif" }}>
-                    One line, one point per day: each day's value is the realized base plus that day's floating P&L of open positions, combined. Realized base is exact (documented closed trades, segment-start capital basis, identical methodology to the public realized index); daily float comes from a once-per-day snapshot. Days before the first recorded snapshot carry no float; today's point uses the live float. Past performance is not indicative of future results.
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
             <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -2648,60 +2381,6 @@ export default function App() {
   useEffect(() => { loadPerfConfig().then(setPerfSegments); }, []);
   const handleSaveSegments = (segments) => { setPerfSegments(segments); savePerfConfig(segments); };
 
-  // ── Daily equity snapshots · 00:00 Europe/Berlin ──
-  const [equitySnapshots, setEquitySnapshots] = useState({});
-  const equitySnapshotsRef = useRef(equitySnapshots);
-  useEffect(() => { equitySnapshotsRef.current = equitySnapshots; }, [equitySnapshots]);
-  useEffect(() => { loadEquitySnapshots().then(setEquitySnapshots); }, []);
-
-  const takeEquitySnapshot = useCallback(async () => {
-    const day = cestDateStr();
-    if (equitySnapshotsRef.current[day]) return; // one snapshot per CEST day
-    const all = Object.values(allPositionsRef.current).flat();
-    if (all.length > 0 && !all.some(p => p.currentPrice != null)) return; // prices not in yet — retry next tick
-    // Re-check the live document first: the 00:00 cron may already have written today
-    // (client is only the fallback) — never clobber a cron snapshot.
-    const fresh = await loadEquitySnapshots();
-    if (fresh[day]) { setEquitySnapshots(fresh); return; }
-    let floatUSD = 0;
-    for (const p of all) { const f = calcOpenFloatUSD(p); if (f != null) floatUSD += f; }
-    const days = { ...fresh, [day]: { floatUSD, openCount: all.length, takenAt: Date.now(), source: "client" } };
-    setEquitySnapshots(days);
-    saveEquitySnapshots(days);
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const warmup = setTimeout(takeEquitySnapshot, 8000);       // first-open-of-day catch-up
-    const ticker = setInterval(takeEquitySnapshot, 60000);     // fires within 60s of 00:00 CET/CEST
-    return () => { clearTimeout(warmup); clearInterval(ticker); };
-  }, [isLoading, takeEquitySnapshot]);
-
-  // ── Manual daily snapshot · header button. Writes/overwrites TODAY's snapshot with
-  // the current float of open positions, so the equity curve gets a fresh point on
-  // demand (no waiting for 00:00). Merges with existing days; only today is touched.
-  const [snapState, setSnapState] = useState("idle"); // idle | saving | ok | noprices | error
-  const takeManualSnapshot = useCallback(async () => {
-    try {
-      setSnapState("saving");
-      const all = Object.values(allPositionsRef.current).flat();
-      if (all.length > 0 && !all.some(p => p.currentPrice != null)) {
-        setSnapState("noprices"); setTimeout(() => setSnapState("idle"), 3000); return;
-      }
-      let floatUSD = 0;
-      for (const p of all) { const f = calcOpenFloatUSD(p); if (f != null) floatUSD += f; }
-      const fresh = await loadEquitySnapshots();
-      const day = cestDateStr();
-      const days = { ...fresh, [day]: { floatUSD, openCount: all.length, takenAt: Date.now(), source: "manual" } };
-      setEquitySnapshots(days);
-      await saveEquitySnapshots(days);
-      setSnapState("ok"); setTimeout(() => setSnapState("idle"), 3000);
-    } catch (e) {
-      console.error("manual snapshot", e);
-      setSnapState("error"); setTimeout(() => setSnapState("idle"), 3000);
-    }
-  }, []);
-
   // Re-trigger the content fade on tab switch WITHOUT remounting PositionTable
   // (keeps per-tab search/sort state alive)
   useEffect(() => {
@@ -3155,7 +2834,7 @@ export default function App() {
       `}</style>
 
       {showReport && (
-        <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} perfSegments={perfSegments} equitySnapshots={equitySnapshots} onClose={() => setShowReport(false)} />
+        <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} perfSegments={perfSegments} onClose={() => setShowReport(false)} />
       )}
       {showFreeContent && (
         <FreeContentPanel allPositions={allPositions} closedPositions={closedPositions} perfSegments={perfSegments} onSaveSegments={handleSaveSegments} onClose={() => setShowFreeContent(false)} />
@@ -3224,13 +2903,6 @@ export default function App() {
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
               ◈ FREE CONTENT
-            </button>
-            <button onClick={takeManualSnapshot} disabled={snapState === "saving"}
-              title="Speichert jetzt einen Equity-Snapshot für heute (Float der offenen Positionen). Überschreibt den heutigen Punkt mit dem aktuellen Stand."
-              style={{ background: snapState === "ok" ? "rgba(34,197,94,0.1)" : (snapState === "error" || snapState === "noprices") ? "rgba(239,68,68,0.1)" : "rgba(212,175,55,0.07)", border: `1px solid ${snapState === "ok" ? "rgba(34,197,94,0.4)" : (snapState === "error" || snapState === "noprices") ? "rgba(239,68,68,0.4)" : "rgba(212,175,55,0.28)"}`, color: snapState === "ok" ? "#22c55e" : (snapState === "error" || snapState === "noprices") ? "#ef4444" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: snapState === "saving" ? "wait" : "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
-              onMouseEnter={e => { if (snapState !== "idle") return; e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
-              onMouseLeave={e => { if (snapState !== "idle") return; e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
-              {snapState === "saving" ? "◉ SNAPPING…" : snapState === "ok" ? "✓ SNAPPED" : snapState === "noprices" ? "… NO PRICES" : snapState === "error" ? "✕ FAILED" : "◉ DAILY SNAP"}
             </button>
             <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
             {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
