@@ -154,7 +154,17 @@ const saveClosedToStorage = async (d) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-const isFlagged = (p) => p.flag && p.flaggedAt && (Date.now() - p.flaggedAt) < NEW_TTL;
+const flagActive = (type, at) => !!(type && at && (Date.now() - at) < NEW_TTL);
+// Up to TWO flags per position: slot 1 = flag/flaggedAt (legacy fields, backwards
+// compatible with existing Firestore data), slot 2 = flag2/flag2At. Each slot has
+// its own timestamp and expires independently after NEW_TTL.
+const activeFlags = (p) => {
+  const out = [];
+  if (flagActive(p.flag, p.flaggedAt)) out.push({ slot: 1, type: p.flag, at: p.flaggedAt });
+  if (flagActive(p.flag2, p.flag2At)) out.push({ slot: 2, type: p.flag2, at: p.flag2At });
+  return out;
+};
+const isFlagged = (p) => activeFlags(p).length > 0;
 const isNew = (p) => isFlagged(p);
 
 const fetchBinance = async (ticker) => {
@@ -281,7 +291,7 @@ const newRow = () => ({
   id: Math.random().toString(36).slice(2),
   ticker: "", direction: "LONG", qty: "", entry: "", sl: "",
   date: new Date().toISOString().split("T")[0],
-  flag: null, flaggedAt: null,
+  flag: null, flaggedAt: null, flag2: null, flag2At: null,
   currentPrice: null, loading: false, error: false,
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
@@ -1899,6 +1909,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
   const [sl, setSl] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [flag, setFlag] = useState("");
+  const [flag2, setFlag2] = useState("");
 
   const PLACEHOLDERS_MAP = { crypto: "BTC", stocks: "MSFT", indices: "^GSPC", commodities: "GC=F", etfs: "SPY" };
 
@@ -1975,22 +1986,26 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
               style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 13, padding: "10px 12px", borderRadius: 6, outline: "none", colorScheme: "dark" }} />
           </div>
           <div>
-            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Flag</label>
-            <select value={flag} onChange={e => setFlag(e.target.value)}
-              style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag && FLAGS[flag] ? `rgba(${FLAGS[flag].color},0.4)` : "#222"}`, color: flag && FLAGS[flag] ? FLAGS[flag].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase" }}>
-              <option value="">— NONE —</option>
-              <option value="new_position">NEW POSITION</option>
-              <option value="stop_adjust">STOP ADJUST</option>
-              <option value="added">ADDED</option>
-              <option value="partials">PARTIALS</option>
-            </select>
+            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Flags (max 2)</label>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <select value={flag} onChange={e => { const v = e.target.value; setFlag(v); if (v && v === flag2) setFlag2(""); }}
+                style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag && FLAGS[flag] ? `rgba(${FLAGS[flag].color},0.4)` : "#222"}`, color: flag && FLAGS[flag] ? FLAGS[flag].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase" }}>
+                <option value="">— NONE —</option>
+                {Object.entries(FLAGS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+              </select>
+              <select value={flag2} onChange={e => setFlag2(e.target.value)} disabled={!flag}
+                style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag2 && FLAGS[flag2] ? `rgba(${FLAGS[flag2].color},0.4)` : "#222"}`, color: flag2 && FLAGS[flag2] ? FLAGS[flag2].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase", opacity: flag ? 1 : 0.4, cursor: flag ? "pointer" : "not-allowed" }}>
+                <option value="">— NONE —</option>
+                {Object.entries(FLAGS).filter(([k]) => k !== flag).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+              </select>
+            </div>
           </div>
         </div>
 
         {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flag: flag || null, flaggedAt: flag ? Date.now() : null })}
+          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flag: flag || null, flaggedAt: flag ? Date.now() : null, flag2: flag2 && flag2 !== flag ? flag2 : null, flag2At: flag2 && flag2 !== flag ? Date.now() : null })}
             disabled={!canConfirm}
             style={{ background: canConfirm ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: canConfirm ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: canConfirm ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
             + ADD POSITION
@@ -2146,7 +2161,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     setPostResult(result.ok ? "ok" : "error");
     if (result.ok) {
       // Clear all flags on this tab after successful post
-      setPositions(prev => prev.map(p => ({ ...p, flag: null, flaggedAt: null })));
+      setPositions(prev => prev.map(p => ({ ...p, flag: null, flaggedAt: null, flag2: null, flag2At: null })));
     }
     setTimeout(() => setPostResult(null), 3000);
   };
@@ -2168,7 +2183,13 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
   const add = (row) => setPositions((prev) => [...prev, row]);
-  const setFlag = (id, type) => setPositions((prev) => prev.map((p) => p.id !== id ? p : { ...p, flag: type || null, flaggedAt: type ? Date.now() : null }));
+  const setFlag = (id, slot, type) => setPositions((prev) => prev.map((p) => {
+    if (p.id !== id) return p;
+    if (slot === 2) return { ...p, flag2: type || null, flag2At: type ? Date.now() : null };
+    const next = { ...p, flag: type || null, flaggedAt: type ? Date.now() : null };
+    if (next.flag2 && next.flag2 === next.flag) { next.flag2 = null; next.flag2At = null; } // never the same flag twice
+    return next;
+  }));
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -2281,9 +2302,10 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                 : null;
               const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
               const posValue = fmtValue(posValueNum);
-              const flagged = isFlagged(p);
-              const flagCfg = flagged ? FLAGS[p.flag] : null;
-              const timeLeft = flagged ? Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000) : 0;
+              const actFlags = activeFlags(p);
+              const flagged = actFlags.length > 0;
+              const flagCfg = flagged ? FLAGS[actFlags[0].type] : null;
+              const hoursLeft = (at) => Math.ceil((NEW_TTL - (Date.now() - at)) / 3600000);
               const rowBorderColor = flagCfg ? `rgba(${flagCfg.color},0.4)` : "transparent";
               const rowBg = flagCfg ? `rgba(${flagCfg.color},0.04)` : "";
               return (
@@ -2293,9 +2315,10 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                       <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
                         onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
                         onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                      {flagged && flagCfg && (
-                        <span className="flag-badge" style={{ color: "#fff", borderColor: flagCfg.solidBorder, background: flagCfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{flagCfg.short}</span>
-                      )}
+                      {actFlags.map(f => {
+                        const cfg = FLAGS[f.type];
+                        return <span key={f.slot} className="flag-badge" style={{ color: "#fff", borderColor: cfg.solidBorder, background: cfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{cfg.short}</span>;
+                      })}
                     </div>
                   </td>
                   <td>
@@ -2330,16 +2353,33 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   </td>
                   <td>{pnl !== null && !isNaN(pnl) ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
                   <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <select className="flag-sel" value={flagged ? p.flag : ""} onChange={(e) => setFlag(p.id, e.target.value || null)}
-                        style={flagCfg ? { color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.08)` } : {}}>
-                        <option value="">— NONE —</option>
-                        <option value="new_position">NEW POSITION</option>
-                        <option value="stop_adjust">STOP ADJUST</option>
-                        <option value="added">ADDED</option>
-                        <option value="partials">PARTIALS</option>
-                      </select>
-                      {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {(() => {
+                        const s1 = flagActive(p.flag, p.flaggedAt) ? p.flag : "";
+                        const s2 = flagActive(p.flag2, p.flag2At) ? p.flag2 : "";
+                        const cfg1 = s1 ? FLAGS[s1] : null;
+                        const cfg2 = s2 ? FLAGS[s2] : null;
+                        return (<>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                            <select className="flag-sel" value={s1} onChange={(e) => setFlag(p.id, 1, e.target.value || null)}
+                              style={cfg1 ? { color: cfg1.textColor, borderColor: `rgba(${cfg1.color},0.4)`, background: `rgba(${cfg1.color},0.08)` } : {}}>
+                              <option value="">— NONE —</option>
+                              {Object.entries(FLAGS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+                            </select>
+                            {s1 && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{hoursLeft(p.flaggedAt)}h</span>}
+                          </div>
+                          {(s1 || s2) && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <select className="flag-sel" value={s2} onChange={(e) => setFlag(p.id, 2, e.target.value || null)}
+                                style={cfg2 ? { color: cfg2.textColor, borderColor: `rgba(${cfg2.color},0.4)`, background: `rgba(${cfg2.color},0.08)` } : {}}>
+                                <option value="">— NONE —</option>
+                                {Object.entries(FLAGS).filter(([k]) => k !== s1).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
+                              </select>
+                              {s2 && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{hoursLeft(p.flag2At)}h</span>}
+                            </div>
+                          )}
+                        </>);
+                      })()}
                     </div>
                   </td>
                   <td>
@@ -2397,7 +2437,7 @@ export default function App() {
       const stored = await loadFromStorage();
       if (stored) {
         setAllPositions(Object.fromEntries(
-          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, flag2: null, flag2At: null, ...r }))])
         ));
       }
       const closedStored = await loadClosedFromStorage();
@@ -2406,7 +2446,7 @@ export default function App() {
       // Directly trigger refresh for all tabs with positions
       if (stored) {
         const loadedPositions = Object.fromEntries(
-          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, flag2: null, flag2At: null, ...r }))])
         );
         allPositionsRef.current = loadedPositions;
         setTimeout(() => {
@@ -2444,7 +2484,9 @@ export default function App() {
       setAllPositions(prev => {
         let changed = false;
         const next = Object.fromEntries(Object.entries(prev).map(([id, rows]) => [id, rows.map(p => {
-          if (p.flaggedAt && !isFlagged(p)) { changed = true; return { ...p, flag: null, flaggedAt: null }; }
+          const exp1 = p.flaggedAt && !flagActive(p.flag, p.flaggedAt);
+          const exp2 = p.flag2At && !flagActive(p.flag2, p.flag2At);
+          if (exp1 || exp2) { changed = true; return { ...p, ...(exp1 ? { flag: null, flaggedAt: null } : {}), ...(exp2 ? { flag2: null, flag2At: null } : {}) }; }
           return p;
         })]));
         if (changed) {
