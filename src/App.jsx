@@ -1789,7 +1789,10 @@ const DISCORD_PRESETS = [
   },
 ];
 
-function DiscordPostModal({ tab, onClose, onConfirm }) {
+// Which preset each position flag maps to when auto-adding flagged positions
+const FLAG_TO_PRESET = { new_position: "new", stop_adjust: "sl", added: "adding", partials: "partial" };
+
+function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
   useBodyScrollLock();
   const [ticker, setTicker] = useState("");
   const [lines, setLines] = useState([]);
@@ -1799,7 +1802,25 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
     setLines(prev => [...prev, { presetId: preset.id, text }]);
   };
 
+  // One block per active flag on every flagged position of this tab (max 2 flags each).
+  // Dedupes against blocks already in the list, so double-clicking never doubles.
+  const flaggedBlocks = positions.flatMap(p => {
+    if (!p.ticker?.trim()) return [];
+    return activeFlags(p).map(f => {
+      const preset = DISCORD_PRESETS.find(x => x.id === FLAG_TO_PRESET[f.type]);
+      return preset ? { presetId: preset.id, text: preset.generate(p.ticker.trim().toUpperCase(), tab.label.toUpperCase()) } : null;
+    }).filter(Boolean);
+  });
+  const addFlagged = () => {
+    if (flaggedBlocks.length === 0) return;
+    setLines(prev => {
+      const seen = new Set(prev.map(l => l.presetId + "|" + l.text));
+      return [...prev, ...flaggedBlocks.filter(b => !seen.has(b.presetId + "|" + b.text))];
+    });
+  };
+
   const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
+  const updateLine = (idx, text) => setLines(prev => prev.map((l, i) => i === idx ? { ...l, text } : l));
   const fullMessage = lines.map(l => l.text).join("\n\n");
 
   return createPortal(
@@ -1827,6 +1848,13 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Click to add a block</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button onClick={addFlagged} disabled={flaggedBlocks.length === 0}
+              title="Fügt automatisch einen Block pro aktiver Flag aller geflaggten Positionen dieses Tabs hinzu"
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: flaggedBlocks.length ? "rgba(212,175,55,0.1)" : "#0d0d0d", border: `1px solid rgba(212,175,55,${flaggedBlocks.length ? "0.4" : "0.1"})`, borderRadius: 7, cursor: flaggedBlocks.length ? "pointer" : "not-allowed", transition: "all 0.15s", opacity: flaggedBlocks.length ? 1 : 0.35 }}
+              onMouseEnter={e => { if (!flaggedBlocks.length) return; e.currentTarget.style.background = "rgba(212,175,55,0.2)"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.7)"; }}
+              onMouseLeave={e => { if (!flaggedBlocks.length) return; e.currentTarget.style.background = "rgba(212,175,55,0.1)"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.4)"; }}>
+              <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "#d4af37", textTransform: "uppercase" }}>⚑ Add Flagged{flaggedBlocks.length ? ` (${flaggedBlocks.length})` : ""}</span>
+            </button>
             {DISCORD_PRESETS.map(p => (
               <button key={p.id} onClick={() => { if (!ticker.trim()) return; addPreset(p); setTicker(""); }}
                 disabled={!ticker.trim()}
@@ -1849,7 +1877,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
         {lines.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>
-              Message blocks <span style={{ color: "#444", fontSize: 9, letterSpacing: 0, textTransform: "none" }}>(click X to remove)</span>
+              Message blocks <span style={{ color: "#444", fontSize: 9, letterSpacing: 0, textTransform: "none" }}>(click text to edit — e.g. MSFT → Microsoft · X to remove)</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {lines.map((line, idx) => {
@@ -1860,7 +1888,12 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
                       onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
                       onMouseLeave={e => e.currentTarget.style.color = "#333"}>✕</button>
                     <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: preset?.textColor || "#555", textTransform: "uppercase", marginBottom: 6 }}>{preset?.label}</div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", paddingRight: 24 }}>{line.text}</div>
+                    <textarea value={line.text} onChange={e => updateLine(idx, e.target.value)}
+                      rows={Math.max(1, line.text.split("\n").length + (line.text.length > 70 ? 1 : 0))}
+                      spellCheck={false}
+                      style={{ display: "block", width: "100%", background: "transparent", border: "1px solid transparent", borderRadius: 5, fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", paddingRight: 24, resize: "none", outline: "none", transition: "all 0.15s" }}
+                      onFocus={e => { e.currentTarget.style.borderColor = "rgba(212,175,55,0.35)"; e.currentTarget.style.background = "#0d0d0d"; e.currentTarget.style.color = "#dcddde"; }}
+                      onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }} />
                   </div>
                 );
               })}
@@ -2232,6 +2265,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
       {showDiscordModal && (
         <DiscordPostModal
           tab={tab}
+          positions={positions}
           onClose={() => setShowDiscordModal(false)}
           onConfirm={(message, emoji) => handleDiscordPost(message, emoji)}
         />
