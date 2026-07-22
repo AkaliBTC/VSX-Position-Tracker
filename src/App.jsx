@@ -23,6 +23,33 @@ const DISCORD_WEBHOOKS = {
   etfs:        "https://discord.com/api/webhooks/1511535403746853104/DPOGxol_dxf5VUw7Zt0LBTriO2LNXWFIn-CQ1c1q8oDwZjFtP4IC_qT4KZqLfsDwS1_i",
 };
 
+// ── VSX DISCORD EMBED IDENTITY ───────────────────────────────────────────────
+const VSX_GOLD = 0xD4AF37;                    // embed accent strip
+// Optional: hosted PNG of the gold trident mark (e.g. raw.githubusercontent URL).
+// Leave empty to use the webhook's own avatar.
+const VSX_WEBHOOK_AVATAR = "";
+const VSX_EMBED_FOOTER = "VisionX Market Analytics  ·  Proprietary Positioning Desk";
+const VSX_EMBED_DIVIDER = "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔";
+
+// "CRYPTO PACK" → "C R Y P T O   P A C K"  (thin-space letterspacing, luxe wordmark look)
+const letterspace = (s) =>
+  s.toUpperCase().split("").map(c => (c === " " ? "\u2009\u2009" : c)).join("\u2009");
+
+// Builds the multipart payload_json for a VSX pack embed
+const buildPackEmbed = (tabLabel, message, filename) => ({
+  username: "VISIONX",
+  ...(VSX_WEBHOOK_AVATAR ? { avatar_url: VSX_WEBHOOK_AVATAR } : {}),
+  embeds: [{
+    color: VSX_GOLD,
+    author: { name: "VISIONX  ·  POSITIONING", ...(VSX_WEBHOOK_AVATAR ? { icon_url: VSX_WEBHOOK_AVATAR } : {}) },
+    title: `◆\u2002${letterspace(tabLabel + " PACK")}`,
+    description: VSX_EMBED_DIVIDER + (message ? `\n${message}` : ""),
+    image: { url: `attachment://${filename}` },
+    footer: { text: VSX_EMBED_FOOTER },
+    timestamp: new Date().toISOString(),
+  }],
+});
+
 // ── MOTION TOKENS · Apple-style fluid easing ─────────────────────────────────
 const EASE   = "cubic-bezier(0.22, 1, 0.36, 1)";
 const SPRING = "cubic-bezier(0.34, 1.4, 0.64, 1)";
@@ -70,11 +97,9 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
-    const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    const header = `📊 **${tabLabel.toUpperCase()} PACK** | ${now}`;
-    const msgLine = message ? `\n\n${message}` : "";
-    form.append("content", header + msgLine);
-    form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
+    const filename = `vsx-${tabId}-${Date.now()}.png`;
+    form.append("payload_json", JSON.stringify(buildPackEmbed(tabLabel, message, filename)));
+    form.append("files[0]", blob, filename);
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
   } catch (e) {
@@ -1908,11 +1933,22 @@ function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #d4af37, #c59958)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#000", flexShrink: 0 }}>V</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VisionX</span>
+                  <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VISIONX</span>
+                  <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.06em", padding: "1px 5px", borderRadius: 3, background: "#5865f2", color: "#fff" }}>APP</span>
                   <span style={{ fontSize: 9, color: "#555" }}>Today at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
-                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#dcddde", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                  {fullMessage}{"\n"}<span style={{ color: "#555", fontSize: 10 }}>[screenshot attached]</span>
+                {/* Embed card */}
+                <div style={{ background: "#2b2d31", borderLeft: "4px solid #d4af37", borderRadius: 5, padding: "12px 16px 12px 14px", maxWidth: 440 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: "#dcddde", letterSpacing: "0.04em", marginBottom: 7 }}>VISIONX  ·  POSITIONING</div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 700, color: "#f8e49b", marginBottom: 8 }}>◆ {letterspace(tab.label + " PACK")}</div>
+                  <div style={{ color: "#3a3d42", fontSize: 9, letterSpacing: "-1px", marginBottom: 6, overflow: "hidden", whiteSpace: "nowrap" }}>{VSX_EMBED_DIVIDER}</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#dcddde", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 10 }}>
+                    {fullMessage}
+                  </div>
+                  <div style={{ background: "#0a0a0a", border: "1px dashed #333", borderRadius: 5, padding: "18px 0", textAlign: "center", marginBottom: 10 }}>
+                    <span style={{ color: "#555", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase" }}>📸 Pack Screenshot</span>
+                  </div>
+                  <div style={{ fontSize: 9, color: "#72767d" }}>{VSX_EMBED_FOOTER}  ·  {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
                 </div>
               </div>
             </div>
