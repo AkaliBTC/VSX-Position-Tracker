@@ -513,7 +513,7 @@ const buildCloseCardEl = (record) => {
         <div style="display:flex;align-items:center;gap:12px">
           <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="38" height="38" style="object-fit:contain;filter:drop-shadow(0 0 14px rgba(212,175,55,0.5))">
           <div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:0.26em;color:#fdfdfd;line-height:1">VISION<span style="color:#d4af37">X</span></div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:0.26em;color:#d4af37;line-height:1">VISIONX</div>
             <div style="font-size:6.5px;letter-spacing:0.38em;color:#b99c64;text-transform:uppercase;margin-top:3px">Market Analytics</div>
           </div>
         </div>
@@ -2657,7 +2657,7 @@ function PnLShareModal({ position, tab, onClose }) {
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <VSXLogo size={38} />
               <div>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, letterSpacing: "0.26em", color: "#fdfdfd", lineHeight: 1 }}>VISION<span style={{ color: "#d4af37" }}>X</span></div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, letterSpacing: "0.26em", color: "#d4af37", lineHeight: 1 }}>VISIONX</div>
                 <div style={{ fontSize: 6.5, letterSpacing: "0.38em", color: "#b99c64", textTransform: "uppercase", marginTop: 3 }}>Market Analytics</div>
               </div>
             </div>
