@@ -325,14 +325,14 @@ const VSXLogo = ({ size = 72 }) => (
 // (CORS-safe like the logo), paste the direct image URLs here. Empty string →
 // falls back to the built-in SVG arrow automatically.
 const ARROW_IMG = {
-  // VisionX Bull/Bear v1 · 800×800 (Gallery R6hWvfG)
-  win:  "https://i.postimg.cc/D0Rpg0hx/Vision-X-Bull-(1).png",
-  loss: "https://i.postimg.cc/8cxXHcGY/Vision-X-Bear-(1).png",
+  // VisionX Bull/Bear v2 · transparent
+  win:  "https://i.postimg.cc/GmfPTVcZ/Vision-X-Bull-(2).png",
+  loss: "https://i.postimg.cc/kgHNRzn1/Vision-X-Bear-(2).png",
 };
 const vsxArrowHTML = (win, idp) => {
   const url = win ? ARROW_IMG.win : ARROW_IMG.loss;
   // Transparente PNGs: einfaches contain, kein Crop nötig — Kante existiert nicht mehr
-  if (url) return `<img src="${url}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 14px 22px rgba(0,0,0,0.55))"/>`;
+  if (url) return `<img src="${url}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 8px 12px rgba(0,0,0,0.4))"/>`;
   return vsxArrow3D(win, idp);
 };
 
@@ -508,7 +508,7 @@ const buildCloseCardEl = (record) => {
     <div style="position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(155deg,#16150f 0%,#0d0d0d 45%,#0a0a0a 100%);border:1px solid rgba(212,175,55,0.22);padding:0 0 22px;font-family:'Montserrat',sans-serif;">
       <div style="height:4px;background:linear-gradient(90deg,#b99c64,#d4af37,#f8e49b,#d4af37,#b99c64)"></div>
       <div style="position:absolute;top:-80px;right:-80px;width:340px;height:340px;background:radial-gradient(circle,rgba(212,175,55,0.09) 0%,transparent 65%);pointer-events:none"></div>
-      <div style="position:absolute;top:62px;right:10px;width:208px;height:208px;pointer-events:none;opacity:0.96">${vsxArrowHTML(win, "vxclose")}</div>
+      <div style="position:absolute;top:58px;right:24px;width:188px;height:188px;pointer-events:none;opacity:0.97">${vsxArrowHTML(win, "vxclose")}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0">
         <div style="display:flex;align-items:center;gap:12px">
           <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="38" height="38" style="object-fit:contain;filter:drop-shadow(0 0 14px rgba(212,175,55,0.5))">
@@ -2647,8 +2647,8 @@ function PnLShareModal({ position, tab, onClose }) {
           <div style={{ height: 4, background: "linear-gradient(90deg, #b99c64, #d4af37, #f8e49b, #d4af37, #b99c64)" }} />
           {/* ambient glow + grid */}
           <div style={{ position: "absolute", top: -80, right: -80, width: 340, height: 340, background: "radial-gradient(circle, rgba(212,175,55,0.09) 0%, transparent 65%)", pointerEvents: "none" }} />
-          {/* 3D gold arrow · fills the right side like a broker share card */}
-          <div style={{ position: "absolute", top: 62, right: 10, width: 208, height: 208, pointerEvents: "none", opacity: 0.96 }}
+          {/* 3D gold arrow · fully inside the card, ends above the price strips */}
+          <div style={{ position: "absolute", top: 58, right: 24, width: 188, height: 188, pointerEvents: "none", opacity: 0.97 }}
             dangerouslySetInnerHTML={{ __html: vsxArrowHTML(win, "vxshare") }} />
           <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)", backgroundSize: "44px 44px", maskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", pointerEvents: "none" }} />
 
