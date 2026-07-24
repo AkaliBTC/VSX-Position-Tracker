@@ -508,8 +508,8 @@ const buildCloseCardEl = (record) => {
     <div style="position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(155deg,#16150f 0%,#0d0d0d 45%,#0a0a0a 100%);border:1px solid rgba(212,175,55,0.22);padding:0 0 22px;font-family:'Montserrat',sans-serif;">
       <div style="height:4px;background:linear-gradient(90deg,#b99c64,#d4af37,#f8e49b,#d4af37,#b99c64)"></div>
       <div style="position:absolute;top:-80px;right:-80px;width:340px;height:340px;background:radial-gradient(circle,rgba(212,175,55,0.09) 0%,transparent 65%);pointer-events:none"></div>
-      <div style="position:absolute;top:52px;right:30px;width:150px;height:150px;pointer-events:none;opacity:0.97">${vsxArrowHTML(win, "vxclose")}</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0">
+      <div style="position:absolute;top:52px;right:30px;width:150px;height:150px;pointer-events:none;opacity:0.97;z-index:0">${vsxArrowHTML(win, "vxclose")}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0;position:relative;z-index:1">
         <div style="display:flex;align-items:center;gap:12px">
           <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="38" height="38" style="object-fit:contain;filter:drop-shadow(0 0 14px rgba(212,175,55,0.5))">
           <div>
@@ -527,7 +527,7 @@ const buildCloseCardEl = (record) => {
       <div style="padding:14px 26px 4px">
         <div style="font-family:'Bebas Neue',sans-serif;font-size:74px;letter-spacing:0.02em;line-height:0.95;color:${pnlColor};text-shadow:0 0 44px ${pnlColor}55">${(pnl >= 0 ? "+" : "") + pnl.toFixed(2)}%</div>
       </div>
-      <div style="margin:16px 26px 0;display:flex;gap:10px">
+      <div style="margin:16px 26px 0;display:flex;gap:10px;position:relative;z-index:1">
         <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
           <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Holding</div>
           <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${record.daysHeld != null ? record.daysHeld + "d" : "—"}</div>
@@ -2648,12 +2648,12 @@ function PnLShareModal({ position, tab, onClose }) {
           {/* ambient glow + grid */}
           <div style={{ position: "absolute", top: -80, right: -80, width: 340, height: 340, background: "radial-gradient(circle, rgba(212,175,55,0.09) 0%, transparent 65%)", pointerEvents: "none" }} />
           {/* 3D gold arrow · adaptiv: kleiner, wenn die Strips-Reihe ausgeblendet ist */}
-          <div style={{ position: "absolute", top: (showPrices || showQty) ? 58 : 50, right: (showPrices || showQty) ? 24 : 30, width: (showPrices || showQty) ? 188 : 146, height: (showPrices || showQty) ? 188 : 146, pointerEvents: "none", opacity: 0.97 }}
+          <div style={{ position: "absolute", top: (showPrices || showQty) ? 58 : 50, right: (showPrices || showQty) ? 24 : 30, width: (showPrices || showQty) ? 188 : 146, height: (showPrices || showQty) ? 188 : 146, pointerEvents: "none", opacity: 0.97, zIndex: 0 }}
             dangerouslySetInnerHTML={{ __html: vsxArrowHTML(win, "vxshare") }} />
           <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)", backgroundSize: "44px 44px", maskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", pointerEvents: "none" }} />
 
           {/* header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 0" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 0", position: "relative", zIndex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <VSXLogo size={38} />
               <div>
@@ -2685,7 +2685,7 @@ function PnLShareModal({ position, tab, onClose }) {
 
           {/* glass info strip */}
           {(showPrices || showQty) && (
-            <div style={{ margin: "16px 26px 0", display: "flex", gap: 10 }}>
+            <div style={{ margin: "16px 26px 0", display: "flex", gap: 10, position: "relative", zIndex: 1 }}>
               {showPrices && (
                 <>
                   <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
