@@ -325,14 +325,14 @@ const VSXLogo = ({ size = 72 }) => (
 // (CORS-safe like the logo), paste the direct image URLs here. Empty string →
 // falls back to the built-in SVG arrow automatically.
 const ARROW_IMG = {
-  win:  "https://i.postimg.cc/90bDhR8J/Bullish-VSX.png",
-  loss: "https://i.postimg.cc/pd55FdrH/Bearish-VSX.png",
+  // VisionX Bull/Bear v1 · 800×800 (Gallery R6hWvfG)
+  win:  "https://i.postimg.cc/D0Rpg0hx/Vision-X-Bull-(1).png",
+  loss: "https://i.postimg.cc/8cxXHcGY/Vision-X-Bear-(1).png",
 };
 const vsxArrowHTML = (win, idp) => {
   const url = win ? ARROW_IMG.win : ARROW_IMG.loss;
-  // Zoom-crop wrapper: die Originale haben viel schwarzen Rand — 148% Zoom schneidet
-  // die Bildkante weg und lässt den Pfeil die Zone füllen. overflow:hidden = Crop.
-  if (url) return `<div style="position:absolute;inset:0;overflow:hidden"><img src="${url}" crossorigin="anonymous" alt="" style="position:absolute;left:50%;top:50%;width:148%;height:148%;object-fit:contain;transform:translate(-50%,-50%)"/></div>`;
+  // Transparente PNGs: einfaches contain, kein Crop nötig — Kante existiert nicht mehr
+  if (url) return `<img src="${url}" crossorigin="anonymous" alt="" style="width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 14px 22px rgba(0,0,0,0.55))"/>`;
   return vsxArrow3D(win, idp);
 };
 
