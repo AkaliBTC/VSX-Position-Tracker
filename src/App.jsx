@@ -320,44 +320,107 @@ const VSXLogo = ({ size = 72 }) => (
     style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))" }} />
 );
 
-// ── 3D GOLD ARROW · extruded metallic SVG for PnL cards (↗ win / ↘ loss) ────
-// Pure SVG fake-3D (front face + dark extrusion + specular sheen + ground glow):
-// renders crisp through html2canvas, unlike CSS 3D transforms which get flattened.
-const vsxArrow3D = (win, idp = "vxa") => `
-<svg width="100%" height="100%" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+// ── ARROW ASSETS · rendered PNGs (preferred) with SVG fallback ──────────────
+// Generate the two arrows externally (Octane-style prompt), upload to postimg
+// (CORS-safe like the logo), paste the direct image URLs here. Empty string →
+// falls back to the built-in SVG arrow automatically.
+const ARROW_IMG = {
+  win:  "https://i.postimg.cc/90bDhR8J/Bullish-VSX.png",
+  loss: "https://i.postimg.cc/pd55FdrH/Bearish-VSX.png",
+};
+const vsxArrowHTML = (win, idp) => {
+  const url = win ? ARROW_IMG.win : ARROW_IMG.loss;
+  // Zoom-crop wrapper: die Originale haben viel schwarzen Rand — 148% Zoom schneidet
+  // die Bildkante weg und lässt den Pfeil die Zone füllen. overflow:hidden = Crop.
+  if (url) return `<div style="position:absolute;inset:0;overflow:hidden"><img src="${url}" crossorigin="anonymous" alt="" style="position:absolute;left:50%;top:50%;width:148%;height:148%;object-fit:contain;transform:translate(-50%,-50%)"/></div>`;
+  return vsxArrow3D(win, idp);
+};
+
+// ── 3D GOLD ARROW · Bitget-style dark metal (↗ win / ↘ loss) ────────────────
+// Exact glyph geometry: flat arm (the "resting" one — top for win, bottom for
+// loss), second arm at 90°, shaft at 45°; all three L=150, t=34, square propor-
+// tions. Whole body leans ~15° into the background. Result tint (green/red)
+// lives ONLY in rim glow + ground shadow — never as an overlay on the metal.
+const vsxArrow3D = (win, idp = "vxa") => {
+  const tint = win ? "34,197,94" : "239,68,68";
+  // Precomputed outlines (240×240 box) — verified: arms & shaft equal length/thickness
+  const front = win
+    ? "196,44 46,44 46,78 162,78 56,184 80,208 162,126 162,194 196,194"
+    : "196,208 46,208 46,174 162,174 56,68 80,44 162,126 162,58 196,58";
+  const quads = win
+    ? [["46,78 162,78 175,93 59,93", "sb"], ["80,208 162,126 175,141 93,223", "sd"], ["162,194 196,194 209,209 175,209", "sb"], ["196,194 196,44 209,59 209,209", "sr"]]
+    : [["196,208 46,208 59,223 209,223", "sb"], ["196,58 196,208 209,223 209,73", "sr"]];
+  const seams = win ? ["46,78 162,78", "80,208 162,126", "162,194 196,194 196,44"] : ["46,208 196,208", "196,58 196,208"];
+  const rim = win ? "196,44 46,44" : "196,208 46,208";           // bright light on the flat arm's outer edge
+  const tintEdge = win ? "196,194 196,44" : "196,58 196,208";    // colored glow on the vertical arm's outer edge
+  const shadowY = win ? 226 : 229;
+  return `
+<svg width="100%" height="100%" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="${idp}f" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#fff6cf"/>
-      <stop offset="30%" stop-color="#f4d876"/>
-      <stop offset="58%" stop-color="#d4af37"/>
-      <stop offset="100%" stop-color="#7a5e1a"/>
+    <linearGradient id="${idp}f" x1="0" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#e8cf82"/>
+      <stop offset="20%" stop-color="#a8862e"/>
+      <stop offset="46%" stop-color="#6d5516"/>
+      <stop offset="72%" stop-color="#3f3009"/>
+      <stop offset="100%" stop-color="#261c04"/>
     </linearGradient>
-    <linearGradient id="${idp}s" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#8a6d24"/>
-      <stop offset="100%" stop-color="#241b06"/>
+    <linearGradient id="${idp}env" x1="0" y1="0" x2="1" y2="0.12">
+      <stop offset="0%"  stop-color="rgba(255,240,190,0)"/>
+      <stop offset="28%" stop-color="rgba(255,240,190,0.16)"/>
+      <stop offset="44%" stop-color="rgba(0,0,0,0.42)"/>
+      <stop offset="60%" stop-color="rgba(255,240,190,0.09)"/>
+      <stop offset="78%" stop-color="rgba(0,0,0,0.48)"/>
+      <stop offset="100%" stop-color="rgba(255,240,190,0.05)"/>
     </linearGradient>
-    <linearGradient id="${idp}h" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(255,252,235,0.65)"/>
-      <stop offset="45%" stop-color="rgba(255,252,235,0)"/>
+    <linearGradient id="${idp}sr" x1="0" y1="0" x2="1" y2="0.3">
+      <stop offset="0%" stop-color="#54400f"/>
+      <stop offset="100%" stop-color="#150e01"/>
+    </linearGradient>
+    <linearGradient id="${idp}sb" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="#2c2106"/>
+      <stop offset="100%" stop-color="#0e0901"/>
+    </linearGradient>
+    <linearGradient id="${idp}sd" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3d2f0a"/>
+      <stop offset="100%" stop-color="#120c01"/>
     </linearGradient>
     <radialGradient id="${idp}g" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="rgba(212,175,55,0.32)"/>
-      <stop offset="100%" stop-color="rgba(212,175,55,0)"/>
+      <stop offset="0%" stop-color="rgba(212,175,55,0.14)"/>
+      <stop offset="75%" stop-color="rgba(${tint},0.06)"/>
+      <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
     </radialGradient>
+    <clipPath id="${idp}c"><polygon points="${front}"/></clipPath>
+    <filter id="${idp}b" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="8"/></filter>
+    <filter id="${idp}b2" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2"/></filter>
+    <filter id="${idp}b3" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4"/></filter>
   </defs>
-  <circle cx="110" cy="108" r="102" fill="url(#${idp}g)"/>
-  <g transform="rotate(${win ? 45 : 135} 110 110)">
-    <g transform="translate(12,12)">
-      <polygon points="52,96 168,96 110,22" fill="url(#${idp}s)"/>
-      <rect x="87" y="92" width="46" height="112" rx="10" fill="url(#${idp}s)"/>
+  <circle cx="120" cy="122" r="110" fill="url(#${idp}g)"/>
+  <!-- ~15° lean into the background: vertical foreshortening + slight skew -->
+  <g transform="translate(13,3) skewX(-6) scale(1,0.957)">
+    <!-- ground shadow · under the resting arm, faintly result-tinted -->
+    <ellipse cx="122" cy="${shadowY}" rx="86" ry="12" fill="rgba(0,0,0,0.72)" filter="url(#${idp}b)"/>
+    <ellipse cx="122" cy="${shadowY}" rx="60" ry="8" fill="rgba(${tint},0.16)" filter="url(#${idp}b)"/>
+    <!-- extrusion faces -->
+    ${quads.map(([pts, gid]) => `<polygon points="${pts}" fill="url(#${idp}${gid})"/>`).join("\n    ")}
+    <!-- seams -->
+    ${seams.map(pts => `<polyline points="${pts}" fill="none" stroke="rgba(0,0,0,0.9)" stroke-width="1.5"/>`).join("\n    ")}
+    <!-- front face · dark physical gold -->
+    <polygon points="${front}" fill="url(#${idp}f)" stroke="rgba(232,207,130,0.30)" stroke-width="1"/>
+    <!-- environment reflection bands, clipped to the metal -->
+    <g clip-path="url(#${idp}c)">
+      <rect x="-20" y="-20" width="280" height="280" fill="url(#${idp}env)" opacity="0.85" transform="rotate(7 120 120)"/>
     </g>
-    <polygon points="52,96 168,96 110,22" fill="url(#${idp}f)" stroke="rgba(255,248,214,0.35)" stroke-width="1.2"/>
-    <rect x="87" y="92" width="46" height="112" rx="10" fill="url(#${idp}f)" stroke="rgba(255,248,214,0.35)" stroke-width="1.2"/>
-    <polygon points="52,96 168,96 110,22" fill="url(#${idp}h)"/>
-    <rect x="87" y="92" width="46" height="56" rx="10" fill="url(#${idp}h)" opacity="0.5"/>
+    <!-- rim light on the flat arm -->
+    <polyline points="${rim}" fill="none" stroke="rgba(255,244,205,0.9)" stroke-width="2" stroke-linecap="round" filter="url(#${idp}b2)"/>
+    <polyline points="${rim}" fill="none" stroke="#fff6d8" stroke-width="0.9" stroke-linecap="round"/>
+    <!-- result-colored glow along the vertical arm's outer edge (in the metal's shadow side) -->
+    <polyline points="${tintEdge}" fill="none" stroke="rgba(${tint},0.5)" stroke-width="2.4" stroke-linecap="round" filter="url(#${idp}b3)"/>
+    <!-- tip glint -->
+    <circle cx="196" cy="${win ? 44 : 208}" r="2.6" fill="#fffdf0" filter="url(#${idp}b2)"/>
+    <circle cx="196" cy="${win ? 44 : 208}" r="1" fill="#ffffff"/>
   </g>
-  <ellipse cx="112" cy="200" rx="72" ry="11" fill="url(#${idp}g)"/>
 </svg>`;
+};
 
 // ── FREE CONTENT · public-facing performance assets ─────────────────────────
 const FREE_CONTENT_WEBHOOKS = {
@@ -445,7 +508,7 @@ const buildCloseCardEl = (record) => {
     <div style="position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(155deg,#16150f 0%,#0d0d0d 45%,#0a0a0a 100%);border:1px solid rgba(212,175,55,0.22);padding:0 0 22px;font-family:'Montserrat',sans-serif;">
       <div style="height:4px;background:linear-gradient(90deg,#b99c64,#d4af37,#f8e49b,#d4af37,#b99c64)"></div>
       <div style="position:absolute;top:-80px;right:-80px;width:340px;height:340px;background:radial-gradient(circle,rgba(212,175,55,0.09) 0%,transparent 65%);pointer-events:none"></div>
-      <div style="position:absolute;top:62px;right:10px;width:208px;height:208px;pointer-events:none;opacity:0.96">${vsxArrow3D(win, "vxclose")}</div>
+      <div style="position:absolute;top:62px;right:10px;width:208px;height:208px;pointer-events:none;opacity:0.96">${vsxArrowHTML(win, "vxclose")}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0">
         <div style="display:flex;align-items:center;gap:12px">
           <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="38" height="38" style="object-fit:contain;filter:drop-shadow(0 0 14px rgba(212,175,55,0.5))">
@@ -502,7 +565,13 @@ const postTrackRecordToDiscord = async (record) => {
       const html2canvas = await loadHtml2Canvas();
       const el = buildCloseCardEl(record);
       document.body.appendChild(el);
-      await new Promise(r => setTimeout(r, 350)); // Logo/Font laden lassen
+      // Auf Logo + Pfeil-Asset warten (remote, groß) statt fixer Wartezeit
+      const imgs = Array.from(el.querySelectorAll("img"));
+      await Promise.race([
+        Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r; }))),
+        new Promise(r => setTimeout(r, 4000)), // Hard-Timeout, falls ein Host lahmt
+      ]);
+      await new Promise(r => setTimeout(r, 120)); // Decode/Paint settle
       const canvas = await html2canvas(el.firstElementChild, { backgroundColor: null, scale: 3, useCORS: true, logging: false });
       el.remove();
       fileBlob = await new Promise(r => canvas.toBlob(r, "image/png"));
@@ -2580,7 +2649,7 @@ function PnLShareModal({ position, tab, onClose }) {
           <div style={{ position: "absolute", top: -80, right: -80, width: 340, height: 340, background: "radial-gradient(circle, rgba(212,175,55,0.09) 0%, transparent 65%)", pointerEvents: "none" }} />
           {/* 3D gold arrow · fills the right side like a broker share card */}
           <div style={{ position: "absolute", top: 62, right: 10, width: 208, height: 208, pointerEvents: "none", opacity: 0.96 }}
-            dangerouslySetInnerHTML={{ __html: vsxArrow3D(win, "vxshare") }} />
+            dangerouslySetInnerHTML={{ __html: vsxArrowHTML(win, "vxshare") }} />
           <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)", backgroundSize: "44px 44px", maskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", pointerEvents: "none" }} />
 
           {/* header */}
