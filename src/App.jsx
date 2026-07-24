@@ -578,7 +578,7 @@ const buildCloseCardEl = (record) => {
         <div style="font-size:8px;font-weight:700;letter-spacing:0.24em;color:${pnlColor};text-transform:uppercase;padding:4px 12px;border:1px solid ${pnlColor}55;border-radius:20px;background:${pnlColor}11">TRADE CLOSED</div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;padding:24px 26px 0;position:relative;z-index:1">
-        <span title="${record.ticker}" style="font-family:'Bebas Neue',sans-serif;font-size:${dispName ? "22px" : "30px"};letter-spacing:0.08em;color:#f8e49b;line-height:1;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${dispName || record.ticker}</span>
+        <span title="${record.ticker}" style="font-family:'Bebas Neue',sans-serif;font-size:${dispName ? "22px" : "30px"};letter-spacing:0.08em;color:#f8e49b;line-height:1;max-width:290px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${dispName || record.ticker}</span>
         ${dispName ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:#8a8a8a">${record.ticker}</span>` : ""}
         <span style="font-size:10px;font-weight:800;letter-spacing:0.16em;padding:4px 13px;border-radius:5px;background:${isLong ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)"};border:1px solid ${isLong ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"};color:${isLong ? "#22c55e" : "#ef4444"}">${record.direction}</span>
         <span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:#b99c64;text-transform:uppercase">${(record.tabLabel || "").toUpperCase()}</span>
@@ -2622,7 +2622,7 @@ function PnLShareModal({ position, tab, onClose }) {
             {(() => {
               const dispName = getTickerName(p.ticker);
               return (<>
-                <span title={p.ticker} style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: dispName ? 22 : 30, letterSpacing: "0.08em", color: "#f8e49b", lineHeight: 1, maxWidth: 265, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{dispName || p.ticker}</span>
+                <span title={p.ticker} style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: dispName ? 22 : 30, letterSpacing: "0.08em", color: "#f8e49b", lineHeight: 1, maxWidth: 305, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{dispName || p.ticker}</span>
                 {dispName && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#8a8a8a" }}>{p.ticker}</span>}
               </>);
             })()}
@@ -3075,7 +3075,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                           // Klarname ersetzt den Ticker in der Anzeige — der Ticker-Wert bleibt
                           // erhalten (Tooltip zeigt ihn); Klick öffnet das Feld zum Bearbeiten.
                           <div data-noopen className="cell-input ticker-inp" onClick={() => setEditingTickerId(p.id)} title={p.ticker}
-                            style={{ cursor: "text", display: "flex", alignItems: "center", maxWidth: 132, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            style={{ cursor: "text", display: "flex", alignItems: "center", width: "auto", minWidth: 80, maxWidth: 205, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
                           </div>
                         ) : (
