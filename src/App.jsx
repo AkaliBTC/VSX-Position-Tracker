@@ -386,33 +386,110 @@ const tradeBookImpactPct = (record, segments) => {
 const fmtSignedPct = (v, digits = 2) => (v >= 0 ? "+" : "") + v.toFixed(digits) + "%";
 
 // ── TRACK RECORD AUTO-POST · fires on every FULL close (no remainder) ───────
-// Whitelisted fields only: no USD, no size, no price levels.
+// Rich embed + auto-generated VSX PnL card. Whitelisted fields only:
+// ticker, asset class, direction, holding days, return %, exit, close date —
+// no USD, no sizes, no price levels (public track-record rules).
 const EXIT_EMOJI = { tp: "🎯", sl: "🛑", manual: "✋", expire: "⌛" };
 const fmtDateDE = (iso) => { if (!iso) return "—"; const [y, m, d] = iso.split("-"); return `${d}.${m}.${y}`; };
+
+// Builds the VSX close-card DOM off-screen (public-safe: % only)
+const buildCloseCardEl = (record) => {
+  const pnl = record.pnlPct || 0;
+  const win = pnl > 0.005, loss = pnl < -0.005;
+  const pnlColor = win ? "#22c55e" : loss ? "#ef4444" : "#d4af37";
+  const isLong = record.direction === "LONG";
+  const exitLabel = CLOSE_REASONS[record.reason] || "Manual Close";
+  const wrap = document.createElement("div");
+  wrap.id = "vsx-close-card-capture";
+  wrap.style.cssText = "position:fixed;left:-9999px;top:0;width:520px;z-index:-1;";
+  wrap.innerHTML = `
+    <div style="position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(155deg,#16150f 0%,#0d0d0d 45%,#0a0a0a 100%);border:1px solid rgba(212,175,55,0.22);padding:0 0 22px;font-family:'Montserrat',sans-serif;">
+      <div style="height:4px;background:linear-gradient(90deg,#b99c64,#d4af37,#f8e49b,#d4af37,#b99c64)"></div>
+      <div style="position:absolute;top:-80px;right:-80px;width:340px;height:340px;background:radial-gradient(circle,rgba(212,175,55,0.09) 0%,transparent 65%);pointer-events:none"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0">
+        <div style="display:flex;align-items:center;gap:12px">
+          <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="38" height="38" style="object-fit:contain;filter:drop-shadow(0 0 14px rgba(212,175,55,0.5))">
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:19px;letter-spacing:0.26em;color:#fdfdfd;line-height:1">VISION<span style="color:#d4af37">X</span></div>
+            <div style="font-size:6.5px;letter-spacing:0.38em;color:#b99c64;text-transform:uppercase;margin-top:3px">Market Analytics</div>
+          </div>
+        </div>
+        <div style="font-size:8px;font-weight:700;letter-spacing:0.24em;color:${pnlColor};text-transform:uppercase;padding:4px 12px;border:1px solid ${pnlColor}55;border-radius:20px;background:${pnlColor}11">TRADE CLOSED</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;padding:24px 26px 0">
+        <span style="font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:0.1em;color:#f8e49b;line-height:1">${record.ticker}</span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:0.16em;padding:4px 13px;border-radius:5px;background:${isLong ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)"};border:1px solid ${isLong ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"};color:${isLong ? "#22c55e" : "#ef4444"}">${record.direction}</span>
+        <span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:#b99c64;text-transform:uppercase">${(record.tabLabel || "").toUpperCase()}</span>
+      </div>
+      <div style="padding:14px 26px 4px">
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:74px;letter-spacing:0.02em;line-height:0.95;color:${pnlColor};text-shadow:0 0 44px ${pnlColor}55">${(pnl >= 0 ? "+" : "") + pnl.toFixed(2)}%</div>
+      </div>
+      <div style="margin:16px 26px 0;display:flex;gap:10px">
+        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
+          <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Holding</div>
+          <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${record.daysHeld != null ? record.daysHeld + "d" : "—"}</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
+          <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Exit</div>
+          <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${exitLabel}</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
+          <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Closed</div>
+          <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${fmtDateDE(record.closeDate)}</div>
+        </div>
+      </div>
+      <div style="margin:18px 26px 0;padding-top:13px;border-top:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:space-between">
+        <div style="font-size:7px;letter-spacing:0.26em;color:#b99c64;text-transform:uppercase;font-weight:700">Proprietary Trading · Official Track Record</div>
+        <div style="font-family:'DM Mono',monospace;font-size:7.5px;color:#444">Realized · Not investment advice</div>
+      </div>
+    </div>`;
+  return wrap;
+};
+
 const postTrackRecordToDiscord = async (record) => {
   try {
     const pnl = record.pnlPct || 0;
-    const resultEmoji = pnl > 0.005 ? "🟢" : pnl < -0.005 ? "🔴" : "⚪";
+    const win = pnl > 0.005, loss = pnl < -0.005;
+    const resultEmoji = win ? "🟢" : loss ? "🔴" : "⚪";
     const dirEmoji = record.direction === "LONG" ? "📈" : "📉";
     const exitEmoji = EXIT_EMOJI[record.reason] || "✋";
     const exitLabel = CLOSE_REASONS[record.reason] || "Manual Close";
-    const content = [
-      `${resultEmoji} **TRADE CLOSED · ${record.ticker}**`,
-      `━━━━━━━━━━━━━━━━━━`,
-      `🗂️  Asset Class  ·  **${(record.tabLabel || "—").toUpperCase()}**`,
-      `${dirEmoji}  Direction  ·  **${record.direction}**`,
-      `⏳  Holding  ·  **${record.daysHeld != null ? record.daysHeld + (record.daysHeld === 1 ? " day" : " days") : "—"}**`,
-      `${resultEmoji}  Result  ·  **${fmtSignedPct(pnl)}**`,
-      `${exitEmoji}  Exit  ·  ${exitLabel}`,
-      `📅  Closed  ·  ${fmtDateDE(record.closeDate)}`,
-      `━━━━━━━━━━━━━━━━━━`,
-      `*VisionX Market Analytics · Official Track Record*`,
-    ].join("\n");
-    await fetch(FREE_CONTENT_WEBHOOKS.trackRecord, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    });
+    const embedColor = win ? 0x22c55e : loss ? 0xef4444 : 0xd4af37;
+
+    // 1. Card off-screen rendern & capturen
+    let fileBlob = null;
+    try {
+      const html2canvas = await loadHtml2Canvas();
+      const el = buildCloseCardEl(record);
+      document.body.appendChild(el);
+      await new Promise(r => setTimeout(r, 350)); // Logo/Font laden lassen
+      const canvas = await html2canvas(el.firstElementChild, { backgroundColor: null, scale: 3, useCORS: true, logging: false });
+      el.remove();
+      fileBlob = await new Promise(r => canvas.toBlob(r, "image/png"));
+    } catch (cardErr) { console.error("close card render", cardErr); }
+
+    // 2. Embed bauen — Bild als attachment referenziert, Fallback ohne Bild
+    const fileName = `vsx-close-${record.ticker}-${Date.now()}.png`;
+    const embed = {
+      title: `${resultEmoji}  TRADE CLOSED · ${record.ticker}`,
+      color: embedColor,
+      fields: [
+        { name: "🗂️ Asset Class", value: `**${(record.tabLabel || "—").toUpperCase()}**`, inline: true },
+        { name: `${dirEmoji} Direction`, value: `**${record.direction}**`, inline: true },
+        { name: "⏳ Holding", value: `**${record.daysHeld != null ? record.daysHeld + (record.daysHeld === 1 ? " day" : " days") : "—"}**`, inline: true },
+        { name: `${resultEmoji} Result`, value: `**${fmtSignedPct(pnl)}**`, inline: true },
+        { name: `${exitEmoji} Exit`, value: exitLabel, inline: true },
+        { name: "📅 Closed", value: fmtDateDE(record.closeDate), inline: true },
+      ],
+      footer: { text: "VisionX Market Analytics · Official Track Record" },
+      timestamp: new Date().toISOString(),
+    };
+    if (fileBlob) embed.image = { url: `attachment://${fileName}` };
+
+    const form = new FormData();
+    form.append("payload_json", JSON.stringify({ embeds: [embed] }));
+    if (fileBlob) form.append("files[0]", fileBlob, fileName);
+    await fetch(FREE_CONTENT_WEBHOOKS.trackRecord, { method: "POST", body: form });
   } catch (e) { console.error("track record post", e); }
 };
 
@@ -2384,6 +2461,166 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
   );
 }
 
+// ── PNL SHARE CARD · VSX-branded share image (Bitget-style) ─────────────────
+function PnLShareModal({ position, tab, onClose }) {
+  useBodyScrollLock();
+  const p = position;
+  const entry = num(p.entry);
+  const live = p.currentPrice;
+  const q = num(p.qty);
+  const pnlPct = calcPnL(p.direction, entry, live);
+  const pnlUSD = (live && !isNaN(entry) && !isNaN(q)) ? (p.direction === "LONG" ? (live - entry) * q : (entry - live) * q) : null;
+  const days = p.date ? daysBetween(p.date, new Date().toISOString().split("T")[0]) : null;
+  const isLong = p.direction === "LONG";
+  const win = pnlPct != null && pnlPct >= 0;
+  const pnlColor = win ? "#22c55e" : "#ef4444";
+
+  // Toggles — defaults follow VSX public rules: percentages yes, sizes/USD no
+  const [showUSD, setShowUSD] = useState(false);
+  const [showPrices, setShowPrices] = useState(true);
+  const [showQty, setShowQty] = useState(false);
+  const [busy, setBusy] = useState(null); // copy | download | discord
+  const [result, setResult] = useState(null);
+
+  const flash = (r) => { setResult(r); setTimeout(() => setResult(null), 2500); };
+
+  const capture = async () => {
+    const html2canvas = await loadHtml2Canvas();
+    const el = document.getElementById("vsx-pnl-card-capture");
+    return await html2canvas(el, { backgroundColor: null, scale: 3, useCORS: true, logging: false });
+  };
+  const doCopy = async () => {
+    try {
+      setBusy("copy");
+      const canvas = await capture();
+      const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      flash("copy-ok");
+    } catch (e) { console.error(e); flash("err"); }
+    setBusy(null);
+  };
+  const doDownload = async () => {
+    try {
+      setBusy("download");
+      const canvas = await capture();
+      const a = document.createElement("a");
+      a.download = `vsx-pnl-${p.ticker}-${Date.now()}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+      flash("dl-ok");
+    } catch (e) { console.error(e); flash("err"); }
+    setBusy(null);
+  };
+
+  const toggle = (label, val, set) => (
+    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+      <div onClick={() => set(v => !v)} style={{ width: 34, height: 18, borderRadius: 9, background: val ? "rgba(212,175,55,0.7)" : "#222", border: `1px solid ${val ? "rgba(212,175,55,0.4)" : "#333"}`, position: "relative", transition: `all 0.3s ${SPRING}`, flexShrink: 0 }}>
+        <div style={{ position: "absolute", top: 1.5, left: val ? 16 : 2, width: 13, height: 13, borderRadius: 7, background: val ? "#d4af37" : "#555", transition: `left 0.3s ${SPRING}` }} />
+      </div>
+      <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: val ? "#d4af37" : "#555", textTransform: "uppercase" }}>{label}</span>
+    </label>
+  );
+
+  const shareBtn = (label, key, onClick, primary = false) => (
+    <button onClick={onClick} disabled={!!busy}
+      style={{ background: primary ? "linear-gradient(135deg, #d4af37, #c59958)" : "rgba(255,255,255,0.03)", border: primary ? "none" : "1px solid rgba(255,255,255,0.1)", color: primary ? "#0a0a0a" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 18px", borderRadius: 8, cursor: busy ? "wait" : "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}`, boxShadow: primary ? "0 4px 18px rgba(212,175,55,0.25)" : "none" }}>
+      {busy === key ? "…" : label}
+    </button>
+  );
+
+  return createPortal(
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.82)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)" }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 560, maxWidth: "95vw", maxHeight: "94vh", overflowY: "auto", fontFamily: "'Montserrat', sans-serif" }}>
+
+        {/* ── THE CARD (captured) ── */}
+        <div id="vsx-pnl-card-capture" style={{ position: "relative", borderRadius: 22, overflow: "hidden", background: "linear-gradient(155deg, #16150f 0%, #0d0d0d 45%, #0a0a0a 100%)", border: "1px solid rgba(212,175,55,0.22)", padding: "0 0 22px", boxShadow: "0 24px 90px rgba(0,0,0,0.8)" }}>
+          {/* gold top bar */}
+          <div style={{ height: 4, background: "linear-gradient(90deg, #b99c64, #d4af37, #f8e49b, #d4af37, #b99c64)" }} />
+          {/* ambient glow + grid */}
+          <div style={{ position: "absolute", top: -80, right: -80, width: 340, height: 340, background: "radial-gradient(circle, rgba(212,175,55,0.09) 0%, transparent 65%)", pointerEvents: "none" }} />
+          <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)", backgroundSize: "44px 44px", maskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", pointerEvents: "none" }} />
+
+          {/* header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 0" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <VSXLogo size={38} />
+              <div>
+                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 19, letterSpacing: "0.26em", color: "#fdfdfd", lineHeight: 1 }}>VISION<span style={{ color: "#d4af37" }}>X</span></div>
+                <div style={{ fontSize: 6.5, letterSpacing: "0.38em", color: "#b99c64", textTransform: "uppercase", marginTop: 3 }}>Market Analytics</div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555" }}>
+              {new Date().toLocaleDateString("en-GB")} · {new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+            </div>
+          </div>
+
+          {/* ticker + direction */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "24px 26px 0" }}>
+            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, letterSpacing: "0.1em", color: "#f8e49b", lineHeight: 1 }}>{p.ticker}</span>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", padding: "4px 13px", borderRadius: 5, background: isLong ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)", border: `1px solid ${isLong ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`, color: isLong ? "#22c55e" : "#ef4444" }}>{p.direction}</span>
+            {days != null && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{days}d</span>}
+          </div>
+
+          {/* big pnl */}
+          <div style={{ padding: "14px 26px 4px" }}>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 74, letterSpacing: "0.02em", lineHeight: 0.95, color: pnlColor, textShadow: `0 0 44px ${pnlColor}55` }}>
+              {pnlPct != null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}
+            </div>
+            {showUSD && pnlUSD != null && (
+              <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, color: pnlColor, marginTop: 8, opacity: 0.85 }}>{fmtUSD(pnlUSD)}</div>
+            )}
+          </div>
+
+          {/* glass info strip */}
+          {(showPrices || showQty) && (
+            <div style={{ margin: "16px 26px 0", display: "flex", gap: 10 }}>
+              {showPrices && (
+                <>
+                  <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                    <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase", marginBottom: 5 }}>Entry</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#e8e8e8" }}>{!isNaN(entry) ? fmtPrice(entry) : "—"}</div>
+                  </div>
+                  <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                    <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase", marginBottom: 5 }}>Current</div>
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#fdfdfd" }}>{live ? fmtPrice(live) : "—"}</div>
+                  </div>
+                </>
+              )}
+              {showQty && (
+                <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                  <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase", marginBottom: 5 }}>Qty</div>
+                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#c59958" }}>{p.qty || "—"}</div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* footer */}
+          <div style={{ margin: "18px 26px 0", paddingTop: 13, borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 7, letterSpacing: "0.26em", color: "#b99c64", textTransform: "uppercase", fontWeight: 700 }}>Proprietary Trading · Official Track Record</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 7.5, color: "#444" }}>Unrealized · Not investment advice</div>
+          </div>
+        </div>
+
+        {/* ── CONTROLS (not captured) ── */}
+        <div style={{ marginTop: 16, background: "rgba(17,17,17,0.92)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 16, padding: "16px 20px", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
+          <div style={{ display: "flex", gap: 18, marginBottom: 14, flexWrap: "wrap" }}>
+            {toggle("PnL USD", showUSD, setShowUSD)}
+            {toggle("Prices", showPrices, setShowPrices)}
+            {toggle("Quantity", showQty, setShowQty)}
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+            {result && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: result === "err" ? "#ef4444" : "#22c55e", marginRight: "auto" }}>{result === "err" ? "✕ FAILED" : result === "copy-ok" ? "✓ COPIED" : result === "dl-ok" ? "✓ SAVED" : "✓ POSTED"}</span>}
+            <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 16px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", marginRight: "auto" }}>CLOSE</button>
+            {shareBtn("⧉ COPY", "copy", doCopy)}
+            {shareBtn("⬇ PNG", "download", doDownload, true)}
+          </div>
+        </div>
+      </div>
+    </div>
+  , document.body);
+}
+
 // ── POSITION DETAIL PANEL · broker-style overview on row click ───────────────
 function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete, onSetFlag }) {
   useBodyScrollLock();
@@ -2406,16 +2643,19 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
   const flagCfg = flagged ? FLAGS[p.flag] : null;
 
   const cell = (label, val, color = "#e8e8e8", sub = null) => (
-    <div style={{ padding: "13px 16px", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 10 }}>
+    <div style={{ padding: "13px 16px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
       <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, color }}>{val}</div>
       {sub && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 3 }}>{sub}</div>}
     </div>
   );
 
+  const [showShare, setShowShare] = useState(false);
+
   return createPortal(
-    <div className="modal-overlay" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
-      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ background: "rgba(17,17,17,0.97)", border: "1px solid #2a2a2a", borderRadius: 18, width: 640, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "26px 28px 22px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
+    <div className="modal-overlay" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ background: "linear-gradient(160deg, rgba(24,24,24,0.88), rgba(13,13,13,0.92))", border: "1px solid rgba(212,175,55,0.16)", borderRadius: 20, width: 660, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "26px 28px 22px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8", backdropFilter: "blur(32px) saturate(160%)", WebkitBackdropFilter: "blur(32px) saturate(160%)", boxShadow: "0 24px 90px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,255,255,0.06), 0 0 60px rgba(212,175,55,0.05)" }}>
+        {showShare && <PnLShareModal position={p} tab={tab} onClose={() => setShowShare(false)} />}
 
         {/* HEADER · ticker + direction + pack + flag */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
@@ -2427,7 +2667,6 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", color: "#d4af37", fontWeight: 700 }}>{tab.label.toUpperCase()} PACK</span>
-              <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "1px solid #222", color: "#666", fontWeight: 600 }}>{tab.source === "binance" ? "BINANCE LIVE" : "YAHOO FINANCE"}</span>
             </div>
           </div>
           <button onClick={onClose}
@@ -2437,10 +2676,10 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
         </div>
 
         {/* PNL HERO */}
-        <div style={{ background: "#0a0a0a", border: `1px solid ${pnlPct == null ? "#1a1a1a" : pnlPct >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 12, padding: "16px 20px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${pnlPct == null ? "rgba(255,255,255,0.06)" : pnlPct >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 14, padding: "16px 20px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
           <div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>Unrealized PnL</div>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: "0.04em", color: pnlColor, lineHeight: 1 }}>{pnlUSD != null ? fmtUSD(pnlUSD) : "—"}</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: "0.04em", color: pnlColor, lineHeight: 1, textShadow: pnlPct != null ? `0 0 24px ${pnlColor}44` : "none" }}>{pnlUSD != null ? fmtUSD(pnlUSD) : "—"}</div>
             <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pnlColor, marginTop: 4, opacity: 0.75 }}>{pnlPct != null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}</div>
           </div>
           <div style={{ textAlign: "right" }}>
@@ -2451,10 +2690,11 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
         </div>
 
         {/* STATS GRID */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
           {cell("Entry Price", !isNaN(entry) ? fmtPrice(entry) : "—")}
           {cell("Quantity", p.qty || "—", "#c59958")}
           {cell("Position Value", posValue != null ? "$" + fmtValue(posValue) : "—", "#d4af37")}
+          {cell("Entry Date", p.date || "—", "#8a8a8a")}
           {cell("Stop Loss", !isNaN(sl) ? fmtPrice(sl) : "—")}
           {cell("SL Distance", dist != null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—",
             slLock == null ? "#c59958" : slLock > 1e-9 ? "#c59958" : slLock < -1e-9 ? "#ef4444" : "#8a8a8a",
@@ -2463,8 +2703,6 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
             riskUSD == null ? "#555" : riskUSD > 0 ? "#ef4444" : "#22c55e",
             "if stopped out")}
           {cell("Breakeven", !isNaN(entry) ? fmtPrice(entry) : "—", "#8a8a8a", "excl. fees")}
-          {cell("Entry Date", p.date || "—", "#8a8a8a")}
-          {cell("Flag Status", flagCfg ? flagCfg.label : "NONE", flagCfg ? "#f8e49b" : "#555", flagged ? `${Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000)}h remaining` : null)}
         </div>
 
         {/* QUICK FLAG */}
@@ -2489,6 +2727,12 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
           <button onClick={onClose}
             style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase" }}>
             BACK
+          </button>
+          <button onClick={() => setShowShare(true)}
+            style={{ background: "rgba(212,175,55,0.08)", border: "1px solid rgba(212,175,55,0.35)", color: "#d4af37", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}` }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.16)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.08)"; }}>
+            ⇪ SHARE PNL
           </button>
           <button onClick={onRequestClose}
             style={{ background: "linear-gradient(135deg, #d4af37, #c59958)", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 26px", borderRadius: 8, cursor: "pointer", border: "none", textTransform: "uppercase", boxShadow: "0 4px 18px rgba(212,175,55,0.25)", transition: `all 0.3s ${SPRING}` }}>
