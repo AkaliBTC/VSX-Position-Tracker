@@ -528,15 +528,15 @@ const buildCloseCardEl = (record) => {
         <div style="font-family:'Bebas Neue',sans-serif;font-size:74px;letter-spacing:0.02em;line-height:0.95;color:${pnlColor};text-shadow:0 0 44px ${pnlColor}55">${(pnl >= 0 ? "+" : "") + pnl.toFixed(2)}%</div>
       </div>
       <div style="margin:16px 26px 0;display:flex;gap:10px;position:relative;z-index:1">
-        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
+        <div style="flex:1;background:rgba(19,17,12,0.96);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:11px 15px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)">
           <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Holding</div>
           <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${record.daysHeld != null ? record.daysHeld + "d" : "—"}</div>
         </div>
-        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
+        <div style="flex:1;background:rgba(19,17,12,0.96);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:11px 15px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)">
           <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Exit</div>
           <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${exitLabel}</div>
         </div>
-        <div style="flex:1;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:12px;padding:11px 15px">
+        <div style="flex:1;background:rgba(19,17,12,0.96);border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:11px 15px;box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)">
           <div style="font-size:7px;font-weight:700;letter-spacing:0.22em;color:#666;text-transform:uppercase;margin-bottom:5px">Closed</div>
           <div style="font-family:'DM Mono',monospace;font-size:14px;color:#e8e8e8">${fmtDateDE(record.closeDate)}</div>
         </div>
@@ -2688,18 +2688,18 @@ function PnLShareModal({ position, tab, onClose }) {
             <div style={{ margin: "16px 26px 0", display: "flex", gap: 10, position: "relative", zIndex: 1 }}>
               {showPrices && (
                 <>
-                  <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                  <div style={{ flex: 1, background: "rgba(19,17,12,0.96)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, padding: "11px 15px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
                     <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase", marginBottom: 5 }}>Entry</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#e8e8e8" }}>{!isNaN(entry) ? fmtPrice(entry) : "—"}</div>
                   </div>
-                  <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                  <div style={{ flex: 1, background: "rgba(19,17,12,0.96)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, padding: "11px 15px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
                     <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase", marginBottom: 5 }}>Current</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#fdfdfd" }}>{live ? fmtPrice(live) : "—"}</div>
                   </div>
                 </>
               )}
               {showQty && (
-                <div style={{ flex: 1, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, padding: "11px 15px", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+                <div style={{ flex: 1, background: "rgba(19,17,12,0.96)", border: "1px solid rgba(255,255,255,0.09)", borderRadius: 12, padding: "11px 15px", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
                   <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#666", textTransform: "uppercase", marginBottom: 5 }}>Qty</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#c59958" }}>{p.qty || "—"}</div>
                 </div>
