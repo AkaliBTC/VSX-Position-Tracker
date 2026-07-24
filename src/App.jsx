@@ -219,6 +219,21 @@ const fetchYahooSingle = async (ticker) => {
   return await fetchYahooDirect(ticker.toUpperCase().trim());
 };
 
+// Voller Instrumentname (z.B. "Apple Inc.") via Yahoo-Search über die Proxy-Kette.
+// Nur für Yahoo-Quellen — Binance-Paare haben keine sinnvollen Klarnamen.
+const fetchTickerName = async (ticker) => {
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&quotesCount=3&newsCount=0`;
+  for (const proxy of PROXIES) {
+    try {
+      const d = await proxy(url);
+      const q = d?.quotes?.find(x => (x.symbol || "").toUpperCase() === ticker.toUpperCase()) || d?.quotes?.[0];
+      const name = q?.longname || q?.shortname;
+      if (name) return name;
+    } catch {}
+  }
+  return null;
+};
+
 const fetchYahooBatch = async (tickers) => {
   const results = {};
   tickers.forEach(t => { results[t] = null; });
@@ -1387,65 +1402,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         <td style="padding:7px 8px;color:${isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
-    // ── PAGE: QUARTER EQUITY CURVE · realized base across the quarter + current float ──
-    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD, selectedQ, equitySnapshots);
-    const equityCurvePage = qCurve.points.length > 0 ? (() => {
-      const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
-      const pts = qCurve.points;
-      const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = Math.max(t1 - t0, 1);
-      const vals = [100, ...pts.map(p => p.index), qCurve.index];
-      const vMin = Math.min(...vals), vMax = Math.max(...vals);
-      const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
-      const yLo = vMin - vPad, yHi = vMax + vPad;
-      const X = (t) => pts.length === 1 ? W / 2 : P.l + ((t - t0) / span) * (W - P.l - P.r);
-      const Y = (v) => H - P.b - ((v - yLo) / (yHi - yLo)) * (H - P.t - P.b);
-      // one line: each day's point = realized + that day's float
-      const pathIdx = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.index).toFixed(1)}`).join(" ");
-      const last = pts[pts.length - 1];
-      const grid = [yLo, (yLo + yHi) / 2, yHi].map(v =>
-        `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="#1d1d1d" stroke-width="1"/><text x="${P.l - 10}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:#666">${v.toFixed(1)}</text>`).join("");
-      const curveStat = (l, v, c) => `<div style="text-align:right"><div style="font-size:7px;font-weight:700;letter-spacing:0.18em;color:${MUTE};text-transform:uppercase">${l}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${c}">${v}</div></div>`;
-      return `
-    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
-      ${goldBar}
-      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
-          <div>
-            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
-            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">EQUITY CURVE</div>
-          </div>
-          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-          <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${GOLD3};text-transform:uppercase">TOTAL PERFORMANCE · ${qLabel} · REALIZED + FLOAT · BASE 100</div>
-          <div style="display:flex;gap:24px">
-            ${curveStat("Total Performance", (qCurve.index - 100 >= 0 ? "+" : "") + (qCurve.index - 100).toFixed(2) + "%", qCurve.index >= 100 ? "#22c55e" : "#ef4444")}
-            ${curveStat("Max DD", "-" + qCurve.maxDrawdownPct.toFixed(2) + "%", "#ef4444")}
-            ${curveStat("Closes", String(qCurve.totalCloses), GOLD2)}
-          </div>
-        </div>
-        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:12px;padding:24px 26px;page-break-inside:avoid">
-          <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
-            ${grid}
-            <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
-            <path d="${pathIdx} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
-            <path d="${pathIdx}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
-            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="4" fill="${GOLD2}" stroke="#0d0d0d" stroke-width="1.5"/>
-            <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${qCurve.index >= 100 ? "#22c55e" : "#ef4444"}">${qCurve.index.toFixed(2)}</text>
-            <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
-            <text x="${P.l}" y="${H - 14}" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${pts[0].day}</text>
-            <text x="${W - P.r}" y="${H - 14}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${last.day}</text>
-          </svg>
-        </div>
-        <div style="margin-top:18px;font-size:8px;line-height:1.7;color:${DIM};letter-spacing:0.04em">
-          One line, one point per day: each day's value is the realized P&L base plus that day's floating P&L of open positions, combined. Realized base is exact from documented closed trades on a segment-start capital basis (identical methodology to the public realized index); the daily float comes from a once-per-day snapshot. Days prior to the first recorded snapshot carry no float. Today's point uses the live float at report generation. ${METHODOLOGY_NOTE}
-        </div>
-        <div style="flex:1"></div>
-      </div>
-      ${footer()}
-      ${goldBar}
-    </div>`;
-    })() : "";
 
     const packBreakdownPage = `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
@@ -1598,7 +1554,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     </head><body>
       ${coverPage}
       ${overviewPage}
-      ${equityCurvePage}
       ${packBreakdownPage}
       ${tradeLogPage}
       ${disclaimerPage}
@@ -1649,71 +1604,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         {totalTrades === 0 && allOpen.length === 0 ? (
           <div style={{ padding: "72px 32px", textAlign: "center", fontFamily: "'Montserrat', sans-serif", fontSize: 10, letterSpacing: "0.3em", color: "#2a2a2a" }}>NO DATA FOR {getQuarterLabel(selectedQ)}</div>
         ) : (<>
-          {/* ── QUARTER EQUITY CURVE · realized base across the quarter + current float ── */}
-          <div style={S.section}>
-            <div style={S.sectionTitle}>Equity Curve — Total Performance · {qLabel} (Realized + Float)</div>
-            {(() => {
-              if (!perfSegments || perfSegments.length === 0) {
-                return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO QUARTER CONFIGURED<br /><span style={{ fontSize: 8, color: "#444" }}>SET QUARTER-START CAPITAL IN FREE CONTENT → QUARTER MANAGEMENT</span></div>;
-              }
-              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD, selectedQ, equitySnapshots);
-              if (qc.points.length === 0) {
-                return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO DATA FOR THIS QUARTER YET</div>;
-              }
-              const CW = 700, CH = 260, PAD = { l: 52, r: 16, t: 16, b: 30 };
-              const ts = qc.points.map(p => p.t);
-              const t0 = Math.min(...ts), t1 = Math.max(...ts);
-              const span = Math.max(t1 - t0, 1);
-              const vals = [100, ...qc.points.map(p => p.index), qc.index];
-              const vMin = Math.min(...vals), vMax = Math.max(...vals);
-              const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
-              const y0 = vMin - vPad, y1 = vMax + vPad;
-              const X = (t) => qc.points.length === 1 ? CW / 2 : PAD.l + ((t - t0) / span) * (CW - PAD.l - PAD.r);
-              const Y = (v) => CH - PAD.b - ((v - y0) / (y1 - y0)) * (CH - PAD.t - PAD.b);
-              // one line: each day's point = realized + that day's float
-              const dIdx = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(p.index)}`).join(" ");
-              const last = qc.points[qc.points.length - 1];
-              const grid = [y0, (y0 + y1) / 2, y1];
-              return (
-                <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "20px 22px" }}>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 22, marginBottom: 10 }}>
-                    {[
-                      ["TOTAL PERFORMANCE", (qc.index - 100 >= 0 ? "+" : "") + (qc.index - 100).toFixed(2) + "%", qc.index >= 100 ? "#22c55e" : "#ef4444"],
-                      ["MAX DD", "-" + qc.maxDrawdownPct.toFixed(2) + "%", "#ef4444"],
-                      ["CLOSES", String(qc.totalCloses), "#d4af37"],
-                    ].map(([l, v, c]) => (
-                      <div key={l} style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.18em", color: "#555", fontFamily: "'Montserrat', sans-serif" }}>{l}</div>
-                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: c }}>{v}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: "block" }}>
-                    {grid.map((v, i) => (
-                      <g key={i}>
-                        <line x1={PAD.l} x2={CW - PAD.r} y1={Y(v)} y2={Y(v)} stroke="#1d1d1d" strokeWidth="1" />
-                        <text x={PAD.l - 8} y={Y(v) + 3} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fill: "#666" }}>{v.toFixed(1)}</text>
-                      </g>
-                    ))}
-                    <line x1={PAD.l} x2={CW - PAD.r} y1={Y(100)} y2={Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
-                    <path d={`${dIdx} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
-                    <path d={dIdx} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
-                    <circle cx={X(last.t)} cy={Y(qc.index)} r="3.6" fill="#d4af37" stroke="#0d0d0d" strokeWidth="1.4">
-                      <title>{`Total performance ${(qc.index - 100 >= 0 ? "+" : "") + (qc.index - 100).toFixed(2)}% · Index ${qc.index.toFixed(2)} (realized + float)`}</title>
-                    </circle>
-                    <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, fill: qc.index >= 100 ? "#22c55e" : "#ef4444" }}>{qc.index.toFixed(2)}</text>
-                    <line x1={PAD.l} x2={CW - PAD.r} y1={CH - PAD.b} y2={CH - PAD.b} stroke="#2a2a2a" strokeWidth="1" />
-                    <text x={PAD.l} y={CH - 10} style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{qc.points[0].day}</text>
-                    <text x={CW - PAD.r} y={CH - 10} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{last.day}</text>
-                  </svg>
-                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a1a1a", fontSize: 7.5, lineHeight: 1.6, color: "#555", letterSpacing: "0.04em", fontFamily: "'Montserrat', sans-serif" }}>
-                    One line, one point per day: each day's value is the realized base plus that day's floating P&L of open positions, combined. Realized base is exact (documented closed trades, segment-start capital basis, identical methodology to the public realized index); daily float comes from a once-per-day snapshot. Days before the first recorded snapshot carry no float; today's point uses the live float. Past performance is not indicative of future results.
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
             <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -2289,6 +2179,7 @@ function DiscordPostModal({ tab, positions, onClose, onConfirm }) {
   };
 
   const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
+  const editLine = (idx, text) => setLines(prev => prev.map((l, i) => i === idx ? { ...l, text } : l));
   const fullMessage = lines.map(l => l.text).join("\n\n");
 
   return createPortal(
@@ -2348,8 +2239,11 @@ function DiscordPostModal({ tab, positions, onClose, onConfirm }) {
                     <button onClick={() => removeLine(idx)} style={{ position: "absolute", top: 8, right: 10, background: "none", border: "none", color: "#333", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }}
                       onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
                       onMouseLeave={e => e.currentTarget.style.color = "#333"}>✕</button>
-                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: preset?.textColor || "#555", textTransform: "uppercase", marginBottom: 6 }}>{preset?.label}</div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", paddingRight: 24 }}>{line.text}</div>
+                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: preset?.textColor || "#555", textTransform: "uppercase", marginBottom: 6 }}>{preset?.label} <span style={{ color: "#444", letterSpacing: 0, textTransform: "none", fontWeight: 500 }}>· editierbar</span></div>
+                    <input value={line.text} onChange={(e) => editLine(idx, e.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box", background: "#0d0d0d", border: "1px solid #1e1e1e", borderRadius: 6, color: "#c8c8c8", fontFamily: "'DM Mono', monospace", fontSize: 11, lineHeight: 1.7, padding: "7px 10px", paddingRight: 26, outline: "none" }}
+                      onFocus={e => e.currentTarget.style.borderColor = "rgba(212,175,55,0.4)"}
+                      onBlur={e => e.currentTarget.style.borderColor = "#1e1e1e"} />
                   </div>
                 );
               })}
@@ -2922,6 +2816,24 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState(null);
 
+  // ── Ticker-Namen-Maske: sobald ein Ticker eingegeben und der Preis gefunden
+  // wurde, wird der volle Instrumentname geladen und unter dem Ticker angezeigt.
+  const [tickerNames, setTickerNames] = useState({});
+  const namesInFlight = useRef(new Set());
+  useEffect(() => {
+    if (tab.source !== "yahoo") return;
+    positions.forEach(p => {
+      const t = p.ticker.trim().toUpperCase();
+      if (!t || p.currentPrice == null) return;                       // erst nach erfolgreichem Preis-Fetch
+      if (tickerNames[t] !== undefined || namesInFlight.current.has(t)) return;
+      namesInFlight.current.add(t);
+      fetchTickerName(t).then(name => {
+        setTickerNames(prev => ({ ...prev, [t]: name || null }));
+        namesInFlight.current.delete(t);
+      });
+    });
+  }, [positions, tab.source, tickerNames]);
+
   const handleDiscordPost = async (lines) => {
     setShowDiscordModal(false);
     setPosting(true);
@@ -2959,11 +2871,12 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
   const add = (row) => setPositions((prev) => [...prev, row]);
-  // Toggle: Flag anklicken fügt hinzu, nochmal anklicken entfernt. TTL startet bei jeder Änderung neu.
+  // Toggle: anklicken fügt hinzu / entfernt. Max 2 Flags pro Position —
+  // eine dritte ersetzt die älteste. TTL startet bei jeder Änderung neu.
   const setFlag = (id, type) => setPositions((prev) => prev.map((p) => {
     if (p.id !== id) return p;
     const cur = getFlags(p);
-    const next = type == null ? [] : cur.includes(type) ? cur.filter(f => f !== type) : [...cur, type];
+    const next = type == null ? [] : cur.includes(type) ? cur.filter(f => f !== type) : [...cur, type].slice(-2);
     return { ...p, flags: next, flag: null, flaggedAt: next.length ? Date.now() : null };
   }));
 
@@ -3109,13 +3022,25 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   style={{ cursor: p.ticker.trim() ? "pointer" : "default", ...(flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}) }}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
-                        onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
-                        onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                      {rowFlags.map(k => {
-                        const f = FLAGS[k];
-                        return <span key={k} className="flag-badge" style={{ color: "#fff", borderColor: f.solidBorder, background: f.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{f.short}</span>;
-                      })}
+                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                        <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
+                          onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
+                          onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
+                        {tab.source === "yahoo" && tickerNames[p.ticker.trim().toUpperCase()] && (
+                          <div title={tickerNames[p.ticker.trim().toUpperCase()]}
+                            style={{ fontSize: 8, color: "#5c5c5c", fontFamily: "'Montserrat', sans-serif", letterSpacing: "0.05em", maxWidth: 118, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2, paddingLeft: 2 }}>
+                            {tickerNames[p.ticker.trim().toUpperCase()]}
+                          </div>
+                        )}
+                      </div>
+                      {rowFlags.length > 0 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
+                          {rowFlags.map(k => {
+                            const f = FLAGS[k];
+                            return <span key={k} className="flag-badge" style={{ color: "#fff", borderColor: f.solidBorder, background: f.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{f.short}</span>;
+                          })}
+                        </div>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -3202,57 +3127,6 @@ export default function App() {
 
   // ── Daily equity snapshots · 00:00 Europe/Berlin ──
   const [equitySnapshots, setEquitySnapshots] = useState({});
-  const equitySnapshotsRef = useRef(equitySnapshots);
-  useEffect(() => { equitySnapshotsRef.current = equitySnapshots; }, [equitySnapshots]);
-  useEffect(() => { loadEquitySnapshots().then(setEquitySnapshots); }, []);
-
-  const takeEquitySnapshot = useCallback(async () => {
-    const day = cestDateStr();
-    if (equitySnapshotsRef.current[day]) return; // one snapshot per CEST day
-    const all = Object.values(allPositionsRef.current).flat();
-    if (all.length > 0 && !all.some(p => p.currentPrice != null)) return; // prices not in yet — retry next tick
-    // Re-check the live document first: the 00:00 cron may already have written today
-    // (client is only the fallback) — never clobber a cron snapshot.
-    const fresh = await loadEquitySnapshots();
-    if (fresh[day]) { setEquitySnapshots(fresh); return; }
-    let floatUSD = 0;
-    for (const p of all) { const f = calcOpenFloatUSD(p); if (f != null) floatUSD += f; }
-    const days = { ...fresh, [day]: { floatUSD, openCount: all.length, takenAt: Date.now(), source: "client" } };
-    setEquitySnapshots(days);
-    saveEquitySnapshots(days);
-  }, []);
-
-  useEffect(() => {
-    if (isLoading) return;
-    const warmup = setTimeout(takeEquitySnapshot, 8000);       // first-open-of-day catch-up
-    const ticker = setInterval(takeEquitySnapshot, 60000);     // fires within 60s of 00:00 CET/CEST
-    return () => { clearTimeout(warmup); clearInterval(ticker); };
-  }, [isLoading, takeEquitySnapshot]);
-
-  // ── Manual daily snapshot · header button. Writes/overwrites TODAY's snapshot with
-  // the current float of open positions, so the equity curve gets a fresh point on
-  // demand (no waiting for 00:00). Merges with existing days; only today is touched.
-  const [snapState, setSnapState] = useState("idle"); // idle | saving | ok | noprices | error
-  const takeManualSnapshot = useCallback(async () => {
-    try {
-      setSnapState("saving");
-      const all = Object.values(allPositionsRef.current).flat();
-      if (all.length > 0 && !all.some(p => p.currentPrice != null)) {
-        setSnapState("noprices"); setTimeout(() => setSnapState("idle"), 3000); return;
-      }
-      let floatUSD = 0;
-      for (const p of all) { const f = calcOpenFloatUSD(p); if (f != null) floatUSD += f; }
-      const fresh = await loadEquitySnapshots();
-      const day = cestDateStr();
-      const days = { ...fresh, [day]: { floatUSD, openCount: all.length, takenAt: Date.now(), source: "manual" } };
-      setEquitySnapshots(days);
-      await saveEquitySnapshots(days);
-      setSnapState("ok"); setTimeout(() => setSnapState("idle"), 3000);
-    } catch (e) {
-      console.error("manual snapshot", e);
-      setSnapState("error"); setTimeout(() => setSnapState("idle"), 3000);
-    }
-  }, []);
 
   // Re-trigger the content fade on tab switch WITHOUT remounting PositionTable
   // (keeps per-tab search/sort state alive)
@@ -3776,13 +3650,6 @@ export default function App() {
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
               ◈ FREE CONTENT
-            </button>
-            <button onClick={takeManualSnapshot} disabled={snapState === "saving"}
-              title="Speichert jetzt einen Equity-Snapshot für heute (Float der offenen Positionen). Überschreibt den heutigen Punkt mit dem aktuellen Stand."
-              style={{ background: snapState === "ok" ? "rgba(34,197,94,0.1)" : (snapState === "error" || snapState === "noprices") ? "rgba(239,68,68,0.1)" : "rgba(212,175,55,0.07)", border: `1px solid ${snapState === "ok" ? "rgba(34,197,94,0.4)" : (snapState === "error" || snapState === "noprices") ? "rgba(239,68,68,0.4)" : "rgba(212,175,55,0.28)"}`, color: snapState === "ok" ? "#22c55e" : (snapState === "error" || snapState === "noprices") ? "#ef4444" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: snapState === "saving" ? "wait" : "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
-              onMouseEnter={e => { if (snapState !== "idle") return; e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
-              onMouseLeave={e => { if (snapState !== "idle") return; e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
-              {snapState === "saving" ? "◉ SNAPPING…" : snapState === "ok" ? "✓ SNAPPED" : snapState === "noprices" ? "… NO PRICES" : snapState === "error" ? "✕ FAILED" : "◉ DAILY SNAP"}
             </button>
             <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
             {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
