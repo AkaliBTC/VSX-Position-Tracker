@@ -320,6 +320,45 @@ const VSXLogo = ({ size = 72 }) => (
     style={{ objectFit: "contain", display: "block", filter: "drop-shadow(0 0 16px rgba(212,175,55,0.5))" }} />
 );
 
+// ── 3D GOLD ARROW · extruded metallic SVG for PnL cards (↗ win / ↘ loss) ────
+// Pure SVG fake-3D (front face + dark extrusion + specular sheen + ground glow):
+// renders crisp through html2canvas, unlike CSS 3D transforms which get flattened.
+const vsxArrow3D = (win, idp = "vxa") => `
+<svg width="100%" height="100%" viewBox="0 0 220 220" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="${idp}f" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff6cf"/>
+      <stop offset="30%" stop-color="#f4d876"/>
+      <stop offset="58%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#7a5e1a"/>
+    </linearGradient>
+    <linearGradient id="${idp}s" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8a6d24"/>
+      <stop offset="100%" stop-color="#241b06"/>
+    </linearGradient>
+    <linearGradient id="${idp}h" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="rgba(255,252,235,0.65)"/>
+      <stop offset="45%" stop-color="rgba(255,252,235,0)"/>
+    </linearGradient>
+    <radialGradient id="${idp}g" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="rgba(212,175,55,0.32)"/>
+      <stop offset="100%" stop-color="rgba(212,175,55,0)"/>
+    </radialGradient>
+  </defs>
+  <circle cx="110" cy="108" r="102" fill="url(#${idp}g)"/>
+  <g transform="rotate(${win ? 45 : 135} 110 110)">
+    <g transform="translate(12,12)">
+      <polygon points="52,96 168,96 110,22" fill="url(#${idp}s)"/>
+      <rect x="87" y="92" width="46" height="112" rx="10" fill="url(#${idp}s)"/>
+    </g>
+    <polygon points="52,96 168,96 110,22" fill="url(#${idp}f)" stroke="rgba(255,248,214,0.35)" stroke-width="1.2"/>
+    <rect x="87" y="92" width="46" height="112" rx="10" fill="url(#${idp}f)" stroke="rgba(255,248,214,0.35)" stroke-width="1.2"/>
+    <polygon points="52,96 168,96 110,22" fill="url(#${idp}h)"/>
+    <rect x="87" y="92" width="46" height="56" rx="10" fill="url(#${idp}h)" opacity="0.5"/>
+  </g>
+  <ellipse cx="112" cy="200" rx="72" ry="11" fill="url(#${idp}g)"/>
+</svg>`;
+
 // ── FREE CONTENT · public-facing performance assets ─────────────────────────
 const FREE_CONTENT_WEBHOOKS = {
   aggregatedStats: "https://discord.com/api/webhooks/1514405089270431814/4wjw15gS_mYPbnl4-xbcycTEng_4shodjF8nG12cNUJif3MsZ12OXCWNFg1aWObH1vzg",
@@ -406,6 +445,7 @@ const buildCloseCardEl = (record) => {
     <div style="position:relative;border-radius:22px;overflow:hidden;background:linear-gradient(155deg,#16150f 0%,#0d0d0d 45%,#0a0a0a 100%);border:1px solid rgba(212,175,55,0.22);padding:0 0 22px;font-family:'Montserrat',sans-serif;">
       <div style="height:4px;background:linear-gradient(90deg,#b99c64,#d4af37,#f8e49b,#d4af37,#b99c64)"></div>
       <div style="position:absolute;top:-80px;right:-80px;width:340px;height:340px;background:radial-gradient(circle,rgba(212,175,55,0.09) 0%,transparent 65%);pointer-events:none"></div>
+      <div style="position:absolute;top:62px;right:10px;width:208px;height:208px;pointer-events:none;opacity:0.96">${vsxArrow3D(win, "vxclose")}</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px 0">
         <div style="display:flex;align-items:center;gap:12px">
           <img src="https://i.postimg.cc/pd4xzT1r/87011e66-b8e4-4d2b-9977-a06bb4b29902.png" width="38" height="38" style="object-fit:contain;filter:drop-shadow(0 0 14px rgba(212,175,55,0.5))">
@@ -2538,6 +2578,9 @@ function PnLShareModal({ position, tab, onClose }) {
           <div style={{ height: 4, background: "linear-gradient(90deg, #b99c64, #d4af37, #f8e49b, #d4af37, #b99c64)" }} />
           {/* ambient glow + grid */}
           <div style={{ position: "absolute", top: -80, right: -80, width: 340, height: 340, background: "radial-gradient(circle, rgba(212,175,55,0.09) 0%, transparent 65%)", pointerEvents: "none" }} />
+          {/* 3D gold arrow · fills the right side like a broker share card */}
+          <div style={{ position: "absolute", top: 62, right: 10, width: 208, height: 208, pointerEvents: "none", opacity: 0.96 }}
+            dangerouslySetInnerHTML={{ __html: vsxArrow3D(win, "vxshare") }} />
           <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)", backgroundSize: "44px 44px", maskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", WebkitMaskImage: "radial-gradient(ellipse 420px 300px at 30% 0%, black, transparent 75%)", pointerEvents: "none" }} />
 
           {/* header */}
