@@ -2819,6 +2819,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   // ── Ticker-Namen-Maske: sobald ein Ticker eingegeben und der Preis gefunden
   // wurde, wird der volle Instrumentname geladen und unter dem Ticker angezeigt.
   const [tickerNames, setTickerNames] = useState({});
+  const [editingTickerId, setEditingTickerId] = useState(null); // Klick auf den Klarnamen blendet das Ticker-Feld wieder ein
   const namesInFlight = useRef(new Set());
   useEffect(() => {
     if (tab.source !== "yahoo") return;
@@ -2871,8 +2872,21 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
   const add = (row) => setPositions((prev) => [...prev, row]);
-  // Toggle: anklicken fügt hinzu / entfernt. Max 2 Flags pro Position —
-  // eine dritte ersetzt die älteste. TTL startet bei jeder Änderung neu.
+  // Slot-Setter für die zwei gestapelten Flag-Buttons: Slot 0 / Slot 1 direkt setzen,
+  // leeren oder überschreiben. Duplikat im anderen Slot wird automatisch entfernt.
+  const setFlagSlot = (id, slot, type) => setPositions((prev) => prev.map((p) => {
+    if (p.id !== id) return p;
+    let next = getFlags(p).slice(0, 2);
+    if (!type) {
+      next.splice(slot, 1);
+    } else {
+      const dup = next.findIndex((f, i) => f === type && i !== slot);
+      if (dup !== -1) next.splice(dup, 1);
+      if (slot < next.length) next[slot] = type; else next.push(type);
+      next = next.slice(0, 2);
+    }
+    return { ...p, flags: next, flag: null, flaggedAt: next.length ? Date.now() : null };
+  }));
   const setFlag = (id, type) => setPositions((prev) => prev.map((p) => {
     if (p.id !== id) return p;
     const cur = getFlags(p);
@@ -3016,23 +3030,30 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                 <tr key={p.id}
                   onClick={(e) => {
                     // Klicks auf Edit-Felder/Buttons/Selects öffnen KEIN Panel — nur echte Zeilen-Klicks
-                    if (e.target.closest("input, select, button, a, label")) return;
+                    if (e.target.closest("input, select, button, a, label, [data-noopen]")) return;
                     if (p.ticker.trim()) setDetailPosition(p.id);
                   }}
                   style={{ cursor: p.ticker.trim() ? "pointer" : "default", ...(flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}) }}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                        <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
-                          onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
-                          onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                        {tab.source === "yahoo" && tickerNames[p.ticker.trim().toUpperCase()] && (
-                          <div title={tickerNames[p.ticker.trim().toUpperCase()]}
-                            style={{ fontSize: 8, color: "#5c5c5c", fontFamily: "'Montserrat', sans-serif", letterSpacing: "0.05em", maxWidth: 118, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2, paddingLeft: 2 }}>
-                            {tickerNames[p.ticker.trim().toUpperCase()]}
+                      {(() => {
+                        const name = tab.source === "yahoo" ? tickerNames[p.ticker.trim().toUpperCase()] : null;
+                        const showName = name && editingTickerId !== p.id;
+                        return showName ? (
+                          // Klarname ersetzt den Ticker in der Anzeige — der Ticker-Wert bleibt
+                          // erhalten (Tooltip zeigt ihn); Klick öffnet das Feld zum Bearbeiten.
+                          <div data-noopen className="cell-input ticker-inp" onClick={() => setEditingTickerId(p.id)} title={p.ticker}
+                            style={{ cursor: "text", display: "flex", alignItems: "center", maxWidth: 132, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
                           </div>
-                        )}
-                      </div>
+                        ) : (
+                          <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
+                            autoFocus={editingTickerId === p.id}
+                            onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
+                            onFocus={() => setFocus(p.id)}
+                            onBlur={() => { setEditingTickerId(null); clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
+                        );
+                      })()}
                       {rowFlags.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                           {rowFlags.map(k => {
@@ -3075,14 +3096,21 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   </td>
                   <td>{pnl !== null && !isNaN(pnl) ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
                   <td>
-                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <select className="flag-sel" value="" onChange={(e) => e.target.value && setFlag(p.id, e.target.value)}
-                        style={flagCfg ? { color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.08)` } : {}}>
-                        <option value="">{rowFlags.length ? `${rowFlags.length} FLAG${rowFlags.length > 1 ? "S" : ""} ±` : "+ FLAG"}</option>
-                        {Object.entries(FLAGS).map(([k, f]) => (
-                          <option key={k} value={k}>{(rowFlags.includes(k) ? "✓ " : "") + f.label}</option>
-                        ))}
-                      </select>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+                      {[0, 1].map(slot => {
+                        const val = rowFlags[slot] || "";
+                        const cfg = val ? FLAGS[val] : null;
+                        return (
+                          <select key={slot} className="flag-sel" value={val} onChange={(e) => setFlagSlot(p.id, slot, e.target.value || null)}
+                            style={cfg ? { color: cfg.textColor, borderColor: `rgba(${cfg.color},0.4)`, background: `rgba(${cfg.color},0.08)` } : {}}>
+                            <option value="">{val ? "— CLEAR —" : "+ FLAG"}</option>
+                            <option value="new_position">NEW POSITION</option>
+                            <option value="stop_adjust">STOP ADJUST</option>
+                            <option value="added">ADDED</option>
+                            <option value="partials">PARTIALS</option>
+                          </select>
+                        );
+                      })}
                       {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
                     </div>
                   </td>
