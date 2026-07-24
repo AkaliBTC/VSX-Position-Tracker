@@ -219,14 +219,23 @@ const fetchYahooSingle = async (ticker) => {
   return await fetchYahooDirect(ticker.toUpperCase().trim());
 };
 
-// Voller Instrumentname (z.B. "Apple Inc.") via Yahoo-Search über die Proxy-Kette.
-// Nur für Yahoo-Quellen — Binance-Paare haben keine sinnvollen Klarnamen.
+// Voller Instrumentname. Modul-Cache, damit auch die PnL-Karten (Share/Close)
+// ohne Prop-Drilling an die Namen kommen. Quelle: eigene Vercel-Route /api/name
+// (kein CORS, edge-gecached) mit der öffentlichen Proxy-Kette als Fallback.
+const TICKER_NAME_CACHE = {};
+const TICKER_NAME_FAIL = {};   // Fehlschläge mit Timestamp → Retry nach 10 Min statt nie
+const getTickerName = (t) => TICKER_NAME_CACHE[(t || "").trim().toUpperCase()] || null;
 const fetchTickerName = async (ticker) => {
-  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(ticker)}&quotesCount=3&newsCount=0`;
-  for (const proxy of PROXIES) {
+  const sym = ticker.toUpperCase().trim();
+  try {
+    const r = await fetch(`/api/name?symbol=${encodeURIComponent(sym)}`);
+    if (r.ok) { const d = await r.json(); if (d?.name) return d.name; }
+  } catch {}
+  const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(sym)}&quotesCount=3&newsCount=0`;
+  for (const proxy of PROXIES.slice(1)) { // Direkt-Fetch überspringen — scheitert im Browser immer an CORS
     try {
       const d = await proxy(url);
-      const q = d?.quotes?.find(x => (x.symbol || "").toUpperCase() === ticker.toUpperCase()) || d?.quotes?.[0];
+      const q = d?.quotes?.find(x => (x.symbol || "").toUpperCase() === sym) || d?.quotes?.[0];
       const name = q?.longname || q?.shortname;
       if (name) return name;
     } catch {}
@@ -549,6 +558,7 @@ const buildCloseCardEl = (record) => {
   const pnlColor = win ? "#22c55e" : loss ? "#ef4444" : "#d4af37";
   const isLong = record.direction === "LONG";
   const exitLabel = CLOSE_REASONS[record.reason] || "Manual Close";
+  const dispName = getTickerName(record.ticker);
   const wrap = document.createElement("div");
   wrap.id = "vsx-close-card-capture";
   wrap.style.cssText = "position:fixed;left:-9999px;top:0;width:520px;z-index:-1;";
@@ -567,8 +577,9 @@ const buildCloseCardEl = (record) => {
         </div>
         <div style="font-size:8px;font-weight:700;letter-spacing:0.24em;color:${pnlColor};text-transform:uppercase;padding:4px 12px;border:1px solid ${pnlColor}55;border-radius:20px;background:${pnlColor}11">TRADE CLOSED</div>
       </div>
-      <div style="display:flex;align-items:center;gap:12px;padding:24px 26px 0">
-        <span style="font-family:'Bebas Neue',sans-serif;font-size:30px;letter-spacing:0.1em;color:#f8e49b;line-height:1">${record.ticker}</span>
+      <div style="display:flex;align-items:center;gap:12px;padding:24px 26px 0;position:relative;z-index:1">
+        <span title="${record.ticker}" style="font-family:'Bebas Neue',sans-serif;font-size:${dispName ? "22px" : "30px"};letter-spacing:0.08em;color:#f8e49b;line-height:1;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${dispName || record.ticker}</span>
+        ${dispName ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:#8a8a8a">${record.ticker}</span>` : ""}
         <span style="font-size:10px;font-weight:800;letter-spacing:0.16em;padding:4px 13px;border-radius:5px;background:${isLong ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)"};border:1px solid ${isLong ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"};color:${isLong ? "#22c55e" : "#ef4444"}">${record.direction}</span>
         <span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:#b99c64;text-transform:uppercase">${(record.tabLabel || "").toUpperCase()}</span>
       </div>
@@ -2607,8 +2618,14 @@ function PnLShareModal({ position, tab, onClose }) {
           </div>
 
           {/* ticker + direction */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "24px 26px 0" }}>
-            <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 30, letterSpacing: "0.1em", color: "#f8e49b", lineHeight: 1 }}>{p.ticker}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "24px 26px 0", position: "relative", zIndex: 1 }}>
+            {(() => {
+              const dispName = getTickerName(p.ticker);
+              return (<>
+                <span title={p.ticker} style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: dispName ? 22 : 30, letterSpacing: "0.08em", color: "#f8e49b", lineHeight: 1, maxWidth: 265, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "inline-block" }}>{dispName || p.ticker}</span>
+                {dispName && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#8a8a8a" }}>{p.ticker}</span>}
+              </>);
+            })()}
             <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", padding: "4px 13px", borderRadius: 5, background: isLong ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.14)", border: `1px solid ${isLong ? "rgba(34,197,94,0.4)" : "rgba(239,68,68,0.4)"}`, color: isLong ? "#22c55e" : "#ef4444" }}>{p.direction}</span>
             {days != null && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{days}d</span>}
           </div>
@@ -2816,24 +2833,39 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState(null);
 
-  // ── Ticker-Namen-Maske: sobald ein Ticker eingegeben und der Preis gefunden
-  // wurde, wird der volle Instrumentname geladen und unter dem Ticker angezeigt.
+  // ── Ticker-Namen-Maske: sequentielle Queue (öffentliche Proxies vertragen keine
+  // 30 parallelen Requests), Modul-Cache, Retry fehlgeschlagener Lookups nach 10 Min.
   const [tickerNames, setTickerNames] = useState({});
   const [editingTickerId, setEditingTickerId] = useState(null); // Klick auf den Klarnamen blendet das Ticker-Feld wieder ein
-  const namesInFlight = useRef(new Set());
+  const nameQueue = useRef([]);
+  const nameBusy = useRef(false);
+  const pumpNames = useCallback(async () => {
+    if (nameBusy.current) return;
+    nameBusy.current = true;
+    while (nameQueue.current.length) {
+      const t = nameQueue.current.shift();
+      const name = await fetchTickerName(t);
+      if (name) { TICKER_NAME_CACHE[t] = name; setTickerNames(prev => ({ ...prev, [t]: name })); }
+      else TICKER_NAME_FAIL[t] = Date.now();
+      await new Promise(r => setTimeout(r, 350)); // sanfter Takt gegen Rate-Limits
+    }
+    nameBusy.current = false;
+  }, []);
   useEffect(() => {
     if (tab.source !== "yahoo") return;
     positions.forEach(p => {
       const t = p.ticker.trim().toUpperCase();
-      if (!t || p.currentPrice == null) return;                       // erst nach erfolgreichem Preis-Fetch
-      if (tickerNames[t] !== undefined || namesInFlight.current.has(t)) return;
-      namesInFlight.current.add(t);
-      fetchTickerName(t).then(name => {
-        setTickerNames(prev => ({ ...prev, [t]: name || null }));
-        namesInFlight.current.delete(t);
-      });
+      if (!t || p.currentPrice == null) return;                      // erst nach erfolgreichem Preis-Fetch
+      if (TICKER_NAME_CACHE[t]) {
+        if (tickerNames[t] !== TICKER_NAME_CACHE[t]) setTickerNames(prev => ({ ...prev, [t]: TICKER_NAME_CACHE[t] }));
+        return;
+      }
+      if (TICKER_NAME_FAIL[t] && Date.now() - TICKER_NAME_FAIL[t] < 10 * 60 * 1000) return;
+      if (nameQueue.current.includes(t)) return;
+      nameQueue.current.push(t);
     });
-  }, [positions, tab.source, tickerNames]);
+    pumpNames();
+  }, [positions, tab.source, tickerNames, pumpNames]);
 
   const handleDiscordPost = async (lines) => {
     setShowDiscordModal(false);
