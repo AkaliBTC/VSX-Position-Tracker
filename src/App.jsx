@@ -36,7 +36,7 @@ const loadHtml2Canvas = () => new Promise((resolve, reject) => {
   document.head.appendChild(s);
 });
 
-const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, message = "", emoji = "📊") => {
+const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, lines = []) => {
   const el = document.getElementById(elementId);
   if (!el) return { ok: false, error: "Element not found" };
   try {
@@ -69,12 +69,42 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     document.getElementById("screenshot-hide")?.remove();
     replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
+    const fileName = `vsx-${tabId}-${Date.now()}.png`;
+
+    // ── Embed mit kategorisierten Inline-Fields (max 2 nebeneinander) ──
+    // lines: [{ presetId, text }] — gruppiert nach Kategorie; ein unsichtbares
+    // Spacer-Field nach jedem 2er-Paar verhindert, dass Discord 3 in eine Reihe packt.
+    const GROUP_META = {
+      new:     "New Positions",
+      sl:      "Stop Loss",
+      partial: "Partials",
+      adding:  "Added",
+      closed:  "Closed",
+    };
+    const groups = {};
+    (lines || []).forEach(l => { (groups[l.presetId] = groups[l.presetId] || []).push(l.text); });
+    const realFields = Object.keys(GROUP_META)
+      .filter(id => groups[id]?.length)
+      .map(id => ({ name: GROUP_META[id], value: groups[id].join("\n").slice(0, 1024), inline: true }));
+    const fields = [];
+    realFields.forEach((f, i) => {
+      fields.push(f);
+      if (i % 2 === 1 && i < realFields.length - 1) fields.push({ name: "\u200b", value: "\u200b", inline: true });
+    });
+
+    const embed = {
+      author: { name: "VISIONX · POSITIONING" },
+      title: `◆  ${tabLabel.toUpperCase()} PACK`,
+      color: 0xd4af37,
+      ...(fields.length ? { fields } : {}),
+      image: { url: `attachment://${fileName}` },
+      footer: { text: "VisionX Market Analytics · Proprietary Positioning Desk" },
+      timestamp: new Date().toISOString(),
+    };
+
     const form = new FormData();
-    const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
-    const header = `📊 **${tabLabel.toUpperCase()} PACK** | ${now}`;
-    const msgLine = message ? `\n\n${message}` : "";
-    form.append("content", header + msgLine);
-    form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
+    form.append("payload_json", JSON.stringify({ embeds: [embed] }));
+    form.append("files[0]", blob, fileName);
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
   } catch (e) {
@@ -154,7 +184,10 @@ const saveClosedToStorage = async (d) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-const isFlagged = (p) => p.flag && p.flaggedAt && (Date.now() - p.flaggedAt) < NEW_TTL;
+// Multi-Flag: Positionen tragen ein flags-Array; Legacy-Daten (einzelnes flag-Feld
+// aus Firestore) werden transparent als Ein-Element-Array gelesen.
+const getFlags = (p) => Array.isArray(p.flags) ? p.flags : (p.flag ? [p.flag] : []);
+const isFlagged = (p) => getFlags(p).length > 0 && p.flaggedAt && (Date.now() - p.flaggedAt) < NEW_TTL;
 const isNew = (p) => isFlagged(p);
 
 const fetchBinance = async (ticker) => {
@@ -281,7 +314,7 @@ const newRow = () => ({
   id: Math.random().toString(36).slice(2),
   ticker: "", direction: "LONG", qty: "", entry: "", sl: "",
   date: new Date().toISOString().split("T")[0],
-  flag: null, flaggedAt: null,
+  flags: [], flaggedAt: null,
   currentPrice: null, loading: false, error: false,
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
@@ -2232,10 +2265,23 @@ const DISCORD_PRESETS = [
   },
 ];
 
-function DiscordPostModal({ tab, onClose, onConfirm }) {
+function DiscordPostModal({ tab, positions, onClose, onConfirm }) {
   useBodyScrollLock();
   const [ticker, setTicker] = useState("");
-  const [lines, setLines] = useState([]);
+  // Auto-Prefill: gesetzte Flags aller Positionen dieses Tabs werden beim Öffnen
+  // direkt als Nachrichtenzeilen übernommen (Flag → passendes Preset + Ticker).
+  const FLAG_TO_PRESET = { new_position: "new", stop_adjust: "sl", added: "adding", partials: "partial" };
+  const [lines, setLines] = useState(() => {
+    const auto = [];
+    (positions || []).forEach(p => {
+      if (!isFlagged(p) || !p.ticker.trim()) return;
+      getFlags(p).forEach(k => {
+        const preset = DISCORD_PRESETS.find(d => d.id === FLAG_TO_PRESET[k]);
+        if (preset) auto.push({ presetId: preset.id, text: preset.generate(p.ticker.trim().toUpperCase(), tab.label.toUpperCase()) });
+      });
+    });
+    return auto;
+  });
 
   const addPreset = (preset) => {
     const text = preset.generate(ticker.trim().toUpperCase(), tab.label.toUpperCase());
@@ -2331,7 +2377,7 @@ function DiscordPostModal({ tab, onClose, onConfirm }) {
 
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => onConfirm(fullMessage, "")}  disabled={false}
+          <button onClick={() => onConfirm(lines)}  disabled={false}
             style={{ background: "linear-gradient(135deg, #5865f2, #4752c4)", color: "#fff", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: "pointer", border: "none", textTransform: "uppercase" }}>
             SHOOT & POST
           </button>
@@ -2443,7 +2489,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
         {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flag: flag || null, flaggedAt: flag ? Date.now() : null })}
+          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flags: flag ? [flag] : [], flaggedAt: flag ? Date.now() : null })}
             disabled={!canConfirm}
             style={{ background: canConfirm ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: canConfirm ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: canConfirm ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
             + ADD POSITION
@@ -2752,7 +2798,7 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
   const dirColor = isLong ? "#22c55e" : "#ef4444";
   const pnlColor = pnlPct == null ? "#555" : pnlPct > 0.005 ? "#22c55e" : pnlPct < -0.005 ? "#ef4444" : "#d4af37";
   const flagged = isFlagged(p);
-  const flagCfg = flagged ? FLAGS[p.flag] : null;
+  const activeFlags = flagged ? getFlags(p) : [];
 
   const cell = (label, val, color = "#e8e8e8", sub = null) => (
     <div style={{ padding: "13px 16px", background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 12, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
@@ -2775,7 +2821,10 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, letterSpacing: "0.1em", color: "#f8e49b", lineHeight: 1 }}>{p.ticker || "—"}</span>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", padding: "4px 12px", borderRadius: 5, background: isLong ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: dirColor }}>{p.direction}</span>
-              {flagCfg && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 5, background: flagCfg.solidBg, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>{flagCfg.short}</span>}
+              {activeFlags.map(k => {
+                const f = FLAGS[k];
+                return <span key={k} style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 5, background: f.solidBg, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>{f.short}</span>;
+              })}
             </div>
             <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
               <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", color: "#d4af37", fontWeight: 700 }}>{tab.label.toUpperCase()} PACK</span>
@@ -2820,12 +2869,15 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
         {/* QUICK FLAG */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
           <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginRight: 4 }}>Set Flag</span>
-          {Object.entries(FLAGS).map(([key, f]) => (
-            <button key={key} onClick={() => onSetFlag(p.id, flagged && p.flag === key ? null : key)}
-              style={{ padding: "5px 12px", background: flagged && p.flag === key ? `rgba(${f.color},0.18)` : "transparent", border: `1px solid rgba(${f.color},${flagged && p.flag === key ? "0.55" : "0.2"})`, color: f.solidBg, fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.12em", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}` }}>
-              {f.short}
-            </button>
-          ))}
+          {Object.entries(FLAGS).map(([key, f]) => {
+            const on = activeFlags.includes(key);
+            return (
+              <button key={key} onClick={() => onSetFlag(p.id, key)}
+                style={{ padding: "5px 12px", background: on ? `rgba(${f.color},0.18)` : "transparent", border: `1px solid rgba(${f.color},${on ? "0.55" : "0.2"})`, color: f.solidBg, fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.12em", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}` }}>
+                {on ? "✓ " : ""}{f.short}
+              </button>
+            );
+          })}
         </div>
 
         {/* ACTIONS */}
@@ -2870,7 +2922,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState(null);
 
-  const handleDiscordPost = async (message, emoji) => {
+  const handleDiscordPost = async (lines) => {
     setShowDiscordModal(false);
     setPosting(true);
     setPostResult(null);
@@ -2879,14 +2931,13 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
       tab.id,
       tab.label,
       DISCORD_WEBHOOKS[tab.id],
-      message,
-      emoji
+      lines
     );
     setPosting(false);
     setPostResult(result.ok ? "ok" : "error");
     if (result.ok) {
       // Clear all flags on this tab after successful post
-      setPositions(prev => prev.map(p => ({ ...p, flag: null, flaggedAt: null })));
+      setPositions(prev => prev.map(p => ({ ...p, flags: [], flag: null, flaggedAt: null })));
     }
     setTimeout(() => setPostResult(null), 3000);
   };
@@ -2908,7 +2959,13 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
   const add = (row) => setPositions((prev) => [...prev, row]);
-  const setFlag = (id, type) => setPositions((prev) => prev.map((p) => p.id !== id ? p : { ...p, flag: type || null, flaggedAt: type ? Date.now() : null }));
+  // Toggle: Flag anklicken fügt hinzu, nochmal anklicken entfernt. TTL startet bei jeder Änderung neu.
+  const setFlag = (id, type) => setPositions((prev) => prev.map((p) => {
+    if (p.id !== id) return p;
+    const cur = getFlags(p);
+    const next = type == null ? [] : cur.includes(type) ? cur.filter(f => f !== type) : [...cur, type];
+    return { ...p, flags: next, flag: null, flaggedAt: next.length ? Date.now() : null };
+  }));
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -2951,6 +3008,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
       {showDiscordModal && (
         <DiscordPostModal
           tab={tab}
+          positions={positions}
           onClose={() => setShowDiscordModal(false)}
           onConfirm={(message, emoji) => handleDiscordPost(message, emoji)}
         />
@@ -3036,7 +3094,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
               const posValue = fmtValue(posValueNum);
               const flagged = isFlagged(p);
-              const flagCfg = flagged ? FLAGS[p.flag] : null;
+              const rowFlags = flagged ? getFlags(p) : [];
+              const flagCfg = rowFlags.length ? FLAGS[rowFlags[0]] : null;
               const timeLeft = flagged ? Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000) : 0;
               const rowBorderColor = flagCfg ? `rgba(${flagCfg.color},0.4)` : "transparent";
               const rowBg = flagCfg ? `rgba(${flagCfg.color},0.04)` : "";
@@ -3053,9 +3112,10 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                       <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
                         onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
                         onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                      {flagged && flagCfg && (
-                        <span className="flag-badge" style={{ color: "#fff", borderColor: flagCfg.solidBorder, background: flagCfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{flagCfg.short}</span>
-                      )}
+                      {rowFlags.map(k => {
+                        const f = FLAGS[k];
+                        return <span key={k} className="flag-badge" style={{ color: "#fff", borderColor: f.solidBorder, background: f.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{f.short}</span>;
+                      })}
                     </div>
                   </td>
                   <td>
@@ -3091,13 +3151,12 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   <td>{pnl !== null && !isNaN(pnl) ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                      <select className="flag-sel" value={flagged ? p.flag : ""} onChange={(e) => setFlag(p.id, e.target.value || null)}
+                      <select className="flag-sel" value="" onChange={(e) => e.target.value && setFlag(p.id, e.target.value)}
                         style={flagCfg ? { color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.08)` } : {}}>
-                        <option value="">— NONE —</option>
-                        <option value="new_position">NEW POSITION</option>
-                        <option value="stop_adjust">STOP ADJUST</option>
-                        <option value="added">ADDED</option>
-                        <option value="partials">PARTIALS</option>
+                        <option value="">{rowFlags.length ? `${rowFlags.length} FLAG${rowFlags.length > 1 ? "S" : ""} ±` : "+ FLAG"}</option>
+                        {Object.entries(FLAGS).map(([k, f]) => (
+                          <option key={k} value={k}>{(rowFlags.includes(k) ? "✓ " : "") + f.label}</option>
+                        ))}
                       </select>
                       {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
                     </div>
@@ -3211,7 +3270,7 @@ export default function App() {
       const stored = await loadFromStorage();
       if (stored) {
         setAllPositions(Object.fromEntries(
-          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flaggedAt: null, ...r, flags: Array.isArray(r.flags) ? r.flags : (r.flag ? [r.flag] : []), flag: null }))])
         ));
       }
       const closedStored = await loadClosedFromStorage();
@@ -3220,7 +3279,7 @@ export default function App() {
       // Directly trigger refresh for all tabs with positions
       if (stored) {
         const loadedPositions = Object.fromEntries(
-          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flaggedAt: null, ...r, flags: Array.isArray(r.flags) ? r.flags : (r.flag ? [r.flag] : []), flag: null }))])
         );
         allPositionsRef.current = loadedPositions;
         setTimeout(() => {
@@ -3258,7 +3317,7 @@ export default function App() {
       setAllPositions(prev => {
         let changed = false;
         const next = Object.fromEntries(Object.entries(prev).map(([id, rows]) => [id, rows.map(p => {
-          if (p.flaggedAt && !isFlagged(p)) { changed = true; return { ...p, flag: null, flaggedAt: null }; }
+          if (p.flaggedAt && !isFlagged(p)) { changed = true; return { ...p, flags: [], flag: null, flaggedAt: null }; }
           return p;
         })]));
         if (changed) {
