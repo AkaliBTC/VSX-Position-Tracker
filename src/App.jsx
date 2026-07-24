@@ -23,33 +23,6 @@ const DISCORD_WEBHOOKS = {
   etfs:        "https://discord.com/api/webhooks/1511535403746853104/DPOGxol_dxf5VUw7Zt0LBTriO2LNXWFIn-CQ1c1q8oDwZjFtP4IC_qT4KZqLfsDwS1_i",
 };
 
-// ── VSX DISCORD EMBED IDENTITY ───────────────────────────────────────────────
-const VSX_GOLD = 0xD4AF37;                    // embed accent strip
-// Optional: hosted PNG of the gold trident mark (e.g. raw.githubusercontent URL).
-// Leave empty to use the webhook's own avatar.
-const VSX_WEBHOOK_AVATAR = "";
-const VSX_EMBED_FOOTER = "VisionX Market Analytics  ·  Proprietary Positioning Desk";
-const VSX_EMBED_DIVIDER = "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔";
-
-// "CRYPTO PACK" → "C R Y P T O   P A C K"  (thin-space letterspacing, luxe wordmark look)
-const letterspace = (s) =>
-  s.toUpperCase().split("").map(c => (c === " " ? "\u2009\u2009" : c)).join("\u2009");
-
-// Builds the multipart payload_json for a VSX pack embed
-const buildPackEmbed = (tabLabel, message, filename) => ({
-  username: "VISIONX",
-  ...(VSX_WEBHOOK_AVATAR ? { avatar_url: VSX_WEBHOOK_AVATAR } : {}),
-  embeds: [{
-    color: VSX_GOLD,
-    author: { name: "VISIONX  ·  POSITIONING", ...(VSX_WEBHOOK_AVATAR ? { icon_url: VSX_WEBHOOK_AVATAR } : {}) },
-    title: `◆\u2002${letterspace(tabLabel + " PACK")}`,
-    description: VSX_EMBED_DIVIDER + (message ? `\n${message}` : ""),
-    image: { url: `attachment://${filename}` },
-    footer: { text: VSX_EMBED_FOOTER },
-    timestamp: new Date().toISOString(),
-  }],
-});
-
 // ── MOTION TOKENS · Apple-style fluid easing ─────────────────────────────────
 const EASE   = "cubic-bezier(0.22, 1, 0.36, 1)";
 const SPRING = "cubic-bezier(0.34, 1.4, 0.64, 1)";
@@ -97,9 +70,11 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, m
     replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
-    const filename = `vsx-${tabId}-${Date.now()}.png`;
-    form.append("payload_json", JSON.stringify(buildPackEmbed(tabLabel, message, filename)));
-    form.append("files[0]", blob, filename);
+    const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+    const header = `📊 **${tabLabel.toUpperCase()} PACK** | ${now}`;
+    const msgLine = message ? `\n\n${message}` : "";
+    form.append("content", header + msgLine);
+    form.append("file", blob, `vsx-${tabId}-${Date.now()}.png`);
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
   } catch (e) {
@@ -179,17 +154,7 @@ const saveClosedToStorage = async (d) => {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-const flagActive = (type, at) => !!(type && at && (Date.now() - at) < NEW_TTL);
-// Up to TWO flags per position: slot 1 = flag/flaggedAt (legacy fields, backwards
-// compatible with existing Firestore data), slot 2 = flag2/flag2At. Each slot has
-// its own timestamp and expires independently after NEW_TTL.
-const activeFlags = (p) => {
-  const out = [];
-  if (flagActive(p.flag, p.flaggedAt)) out.push({ slot: 1, type: p.flag, at: p.flaggedAt });
-  if (flagActive(p.flag2, p.flag2At)) out.push({ slot: 2, type: p.flag2, at: p.flag2At });
-  return out;
-};
-const isFlagged = (p) => activeFlags(p).length > 0;
+const isFlagged = (p) => p.flag && p.flaggedAt && (Date.now() - p.flaggedAt) < NEW_TTL;
 const isNew = (p) => isFlagged(p);
 
 const fetchBinance = async (ticker) => {
@@ -316,7 +281,7 @@ const newRow = () => ({
   id: Math.random().toString(36).slice(2),
   ticker: "", direction: "LONG", qty: "", entry: "", sl: "",
   date: new Date().toISOString().split("T")[0],
-  flag: null, flaggedAt: null, flag2: null, flag2At: null,
+  flag: null, flaggedAt: null,
   currentPrice: null, loading: false, error: false,
 });
 const EMPTY_STATE = Object.fromEntries(TABS.map((t) => [t.id, []]));
@@ -475,6 +440,148 @@ const postFreeContentScreenshot = async (elementId, webhookUrl, title, fileTag) 
     return { ok: false, error: e.message };
   }
 };
+
+// ── DAILY EQUITY SNAPSHOTS · captured at 00:00 Europe/Berlin (CET/CEST) ─────
+const EQUITY_SNAPSHOT_KEY = "equity_snapshots_v1";
+const cestDateStr = (d = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+const loadEquitySnapshots = async () => {
+  try {
+    const snap = await getDoc(doc(db, "tracker", EQUITY_SNAPSHOT_KEY));
+    if (snap.exists()) return snap.data().value?.days || {};
+  } catch (e) { console.error("equity snapshots load", e); }
+  return {};
+};
+const saveEquitySnapshots = async (days) => {
+  try { await setDoc(doc(db, "tracker", EQUITY_SNAPSHOT_KEY), { value: { days } }); } catch (e) { console.error("equity snapshots save", e); }
+};
+
+const calcOpenFloatUSD = (p) => {
+  const ep = num(p.entry);
+  if (!p.currentPrice || !ep || isNaN(ep)) return null;
+  return calcPnLUSD(p.direction, ep, p.currentPrice, p.qty);
+};
+
+// Daily index incl. open positions: realized chain (identical methodology) plus the
+// snapshot's floating P&L as % of the segment-start capital. Snapshot data only — no live prices.
+function computeDailyEquityCurve(closedPositions, segments, snapshotDays) {
+  const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
+  if (segs.length === 0) return { points: [], maxDrawdownPct: 0 };
+  const t0 = segStartMs(segs[0]);
+  const snaps = Object.entries(snapshotDays || {})
+    .map(([day, s]) => ({ day, ...s }))
+    .filter(s => s.takenAt >= t0)
+    .sort((a, b) => a.takenAt - b.takenAt);
+  const trades = closedPositions.filter(c => c.closedAt >= t0 && c.pnlUSD != null).sort((a, b) => a.closedAt - b.closedAt);
+  let chain = 1, qtd = 0, segIdx = 0, ti = 0;
+  const advanceTo = (ms) => {
+    while (segIdx + 1 < segs.length && ms >= segStartMs(segs[segIdx + 1])) { chain *= (1 + qtd); qtd = 0; segIdx++; }
+  };
+  const points = [];
+  for (const snap of snaps) {
+    while (ti < trades.length && trades[ti].closedAt <= snap.takenAt) {
+      advanceTo(trades[ti].closedAt);
+      const cap = segs[segIdx].startCapitalUsd;
+      qtd += cap > 0 ? (trades[ti].pnlUSD || 0) / cap : 0;
+      ti++;
+    }
+    advanceTo(snap.takenAt);
+    const cap = segs[segIdx].startCapitalUsd;
+    const fl = cap > 0 ? (snap.floatUSD || 0) / cap : 0;
+    points.push({ t: snap.takenAt, day: snap.day, index: 100 * chain * (1 + qtd + fl), floatPct: fl * 100, openCount: snap.openCount });
+  }
+  let peak = 100, mdd = 0;
+  for (const p of points) { peak = Math.max(peak, p.index); mdd = Math.max(mdd, (peak - p.index) / peak * 100); }
+  return { points, maxDrawdownPct: mdd };
+}
+
+// ── QUARTER EQUITY CURVE · realized base across the FULL selected quarter + current float ──
+// Index startet bei 100 am Quartalsanfang. Jeder realisierte Close verschiebt die Basis
+// dauerhaft (Stufe). Der aktuelle offene Float wird am rechten Rand als Fortsetzung der
+// GLEICHEN Kurve obendrauf addiert (kein separater Marker). Ein Kapital-Basiswert je
+// Quartal (quarter-start capital). Deterministisch, keine historischen Preisabrufe.
+function quarterBounds(selectedQ) {
+  const m = /Q(\d)-(\d{4})/.exec(selectedQ || "");
+  if (!m) return null;
+  const q = parseInt(m[1], 10), year = parseInt(m[2], 10);
+  const start = new Date(year, (q - 1) * 3, 1).getTime();
+  const end   = new Date(year, q * 3, 1).getTime() - 1;
+  return { start, end };
+}
+function computeQuarterEquityCurve(closedPositions, segments, currentFloatUSD, selectedQ, snapshotDays = {}, nowMs = Date.now()) {
+  const segs = [...segments].sort((a, b) => segStartMs(a) - segStartMs(b));
+  const qb = quarterBounds(selectedQ);
+  const empty = { points: [], index: 100, baseIndex: 100, basePct: 0, floatPct: 0, maxDrawdownPct: 0, totalCloses: 0, activeSeg: null, floatDays: 0 };
+  if (segs.length === 0 || !qb) return empty;
+
+  // One capital basis for the whole quarter: the segment active at quarter start,
+  // else the earliest configured segment (best available basis).
+  let basisSeg = segs[0];
+  for (const s of segs) { if (segStartMs(s) <= qb.start) basisSeg = s; }
+  const cap = basisSeg.startCapitalUsd;
+  if (!cap || cap <= 0) return { ...empty, activeSeg: basisSeg };
+
+  const isCurrentQuarter = nowMs >= qb.start && nowMs <= qb.end;
+  const DAY = 24 * 60 * 60 * 1000;
+  const dayFloor = (ms) => new Date(new Date(ms).toISOString().slice(0, 10) + "T00:00:00").getTime();
+  const startDay = dayFloor(qb.start);
+  const endDay   = dayFloor(Math.min(nowMs, qb.end));
+  const trades = closedPositions
+    .filter(c => c.pnlUSD != null && c.closedAt >= qb.start && c.closedAt <= Math.min(nowMs, qb.end))
+    .sort((a, b) => a.closedAt - b.closedAt);
+
+  // ONE point per day = realized base + that day's floating P&L, combined into a single
+  // index value. Float per day comes from saved daily snapshots (one per CEST day); the
+  // curve therefore moves every day instead of being flat with a single terminal spike.
+  const snaps = snapshotDays || {};
+
+  let cum = 0, ti = 0, lastFloatUSD = null, floatDays = 0;
+  const points = [];
+  for (let dms = startDay; dms <= endDay; dms += DAY) {
+    const dayEnd = dms + DAY - 1;
+    while (ti < trades.length && trades[ti].closedAt <= dayEnd) { cum += (trades[ti].pnlUSD || 0); ti++; }
+    const baseIndex = 100 * (1 + cum / cap);
+    const dayStr = cestDateStr(new Date(dms)); // Berlin date — MUSS zu den Snapshot-Keys passen (die via cestDateStr gespeichert werden)
+    const isLast = dms + DAY > endDay;
+
+    // Float for this day: live value for today (current quarter); otherwise the snapshot
+    // taken that day; on days WITHOUT a snapshot (weekends, bank holidays, app closed)
+    // carry the previous day's value forward so the line stays flat-continuous, never 0.
+    const snap = snaps[dayStr];
+    let floatUSD, hasFloat;
+    if (isLast && isCurrentQuarter) {
+      floatUSD = currentFloatUSD || 0; hasFloat = true;
+    } else if (snap && snap.floatUSD != null) {
+      floatUSD = snap.floatUSD; lastFloatUSD = floatUSD; hasFloat = true; floatDays++;
+    } else if (lastFloatUSD != null) {
+      floatUSD = lastFloatUSD; hasFloat = true; // ← Fallback: Tag davor (WE / Feiertag)
+    } else {
+      floatUSD = 0; hasFloat = false;           // vor dem allerersten Snapshot: noch kein Float
+    }
+    const fl = cap > 0 ? floatUSD / cap : 0;
+    // index = realized + float for the day → this single value is the plotted point
+    points.push({ t: dms, day: dayStr, baseIndex, index: baseIndex + 100 * fl, floatPct: fl * 100, hasFloat });
+  }
+
+  // ── Kill the vertical cliff ─────────────────────────────────────────────────
+  // Days BEFORE the first snapshot have no float (base only). Plotting them at 0 float
+  // and then jumping to the first snapshot's full total = exactly that vertical spike.
+  // Fix: drop the leading no-float days. The curve then STARTS at the first real total
+  // and every plotted day carries float (snapshot or carried-forward) → continuous line,
+  // no terminal cliff. Only trims when a real float series exists (≥2 float days).
+  const floatCount = points.filter(p => p.hasFloat).length;
+  const firstFloat = points.findIndex(p => p.hasFloat);
+  const plotted = (floatCount >= 2 && firstFloat > 0) ? points.slice(firstFloat) : points;
+
+  const baseFinal = plotted.length ? plotted[plotted.length - 1].baseIndex : 100;
+  const idxFinal  = plotted.length ? plotted[plotted.length - 1].index : 100;
+  const floatPct  = isCurrentQuarter && cap > 0 ? (currentFloatUSD || 0) / cap * 100 : 0;
+  // Drawdown measured on the combined daily index, relative to the curve's own start.
+  let peak = plotted.length ? plotted[0].index : 100, mdd = 0;
+  for (const pt of plotted) { peak = Math.max(peak, pt.index); mdd = Math.max(mdd, (peak - pt.index) / peak * 100); }
+
+  return { points: plotted, index: idxFinal, baseIndex: baseFinal, basePct: baseFinal - 100, floatPct, maxDrawdownPct: mdd, totalCloses: trades.length, activeSeg: basisSeg, floatDays };
+}
+
 
 // ── DONUT SVG helpers ────────────────────────────────────────────────────────
 const polarXY = (cx, cy, r, ang) => [cx + r * Math.cos(ang), cy + r * Math.sin(ang)];
@@ -739,7 +846,7 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
 }
 
 // ── QUARTERLY REPORT PANEL ────────────────────────────────────────────────────
-function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, onClose }) {
+function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equitySnapshots, onClose }) {
   useBodyScrollLock();
   const [selectedQ, setSelectedQ] = useState(getQuarter(new Date()));
 
@@ -1061,6 +1168,65 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, onC
         <td style="padding:7px 8px;color:${isWin(c) ? "#22c55e" : isLoss(c) ? "#ef4444" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
+    // ── PAGE: QUARTER EQUITY CURVE · realized base across the quarter + current float ──
+    const qCurve = computeQuarterEquityCurve(closedPositions, perfSegments || [], totalFloatUSD, selectedQ, equitySnapshots);
+    const equityCurvePage = qCurve.points.length > 0 ? (() => {
+      const W = 980, H = 430, P = { l: 64, r: 24, t: 24, b: 42 };
+      const pts = qCurve.points;
+      const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = Math.max(t1 - t0, 1);
+      const vals = [100, ...pts.map(p => p.index), qCurve.index];
+      const vMin = Math.min(...vals), vMax = Math.max(...vals);
+      const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
+      const yLo = vMin - vPad, yHi = vMax + vPad;
+      const X = (t) => pts.length === 1 ? W / 2 : P.l + ((t - t0) / span) * (W - P.l - P.r);
+      const Y = (v) => H - P.b - ((v - yLo) / (yHi - yLo)) * (H - P.t - P.b);
+      // one line: each day's point = realized + that day's float
+      const pathIdx = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t).toFixed(1)} ${Y(p.index).toFixed(1)}`).join(" ");
+      const last = pts[pts.length - 1];
+      const grid = [yLo, (yLo + yHi) / 2, yHi].map(v =>
+        `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" stroke="#1d1d1d" stroke-width="1"/><text x="${P.l - 10}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:#666">${v.toFixed(1)}</text>`).join("");
+      const curveStat = (l, v, c) => `<div style="text-align:right"><div style="font-size:7px;font-weight:700;letter-spacing:0.18em;color:${MUTE};text-transform:uppercase">${l}</div><div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${c}">${v}</div></div>`;
+      return `
+    <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
+      ${goldBar}
+      <div style="padding:44px 56px;flex:1;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid ${BORDER};padding-bottom:22px;margin-bottom:32px">
+          <div>
+            <div style="font-size:7px;font-weight:700;letter-spacing:0.3em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">VISIONX MARKET ANALYTICS · ${qLabel}</div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.14em;color:${GOLD2}">EQUITY CURVE</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:10px;color:${MUTE}">${today}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${GOLD3};text-transform:uppercase">TOTAL PERFORMANCE · ${qLabel} · REALIZED + FLOAT · BASE 100</div>
+          <div style="display:flex;gap:24px">
+            ${curveStat("Total Performance", (qCurve.index - 100 >= 0 ? "+" : "") + (qCurve.index - 100).toFixed(2) + "%", qCurve.index >= 100 ? "#22c55e" : "#ef4444")}
+            ${curveStat("Max DD", "-" + qCurve.maxDrawdownPct.toFixed(2) + "%", "#ef4444")}
+            ${curveStat("Closes", String(qCurve.totalCloses), GOLD2)}
+          </div>
+        </div>
+        <div style="background:${BG2};border:1px solid ${BORDER};border-radius:12px;padding:24px 26px;page-break-inside:avoid">
+          <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block">
+            ${grid}
+            <line x1="${P.l}" x2="${W - P.r}" y1="${Y(100).toFixed(1)}" y2="${Y(100).toFixed(1)}" stroke="rgba(212,175,55,0.3)" stroke-width="1" stroke-dasharray="4 4"/>
+            <path d="${pathIdx} L ${X(t1).toFixed(1)} ${H - P.b} L ${X(t0).toFixed(1)} ${H - P.b} Z" fill="rgba(212,175,55,0.07)" stroke="none"/>
+            <path d="${pathIdx}" fill="none" stroke="${GOLD2}" stroke-width="2.5" stroke-linejoin="round"/>
+            <circle cx="${X(last.t).toFixed(1)}" cy="${Y(qCurve.index).toFixed(1)}" r="4" fill="${GOLD2}" stroke="#0d0d0d" stroke-width="1.5"/>
+            <text x="${W - P.r}" y="${P.t + 6}" text-anchor="end" style="font-family:'Bebas Neue',sans-serif;font-size:20px;fill:${qCurve.index >= 100 ? "#22c55e" : "#ef4444"}">${qCurve.index.toFixed(2)}</text>
+            <line x1="${P.l}" x2="${W - P.r}" y1="${H - P.b}" y2="${H - P.b}" stroke="${BORDER2}" stroke-width="1"/>
+            <text x="${P.l}" y="${H - 14}" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${pts[0].day}</text>
+            <text x="${W - P.r}" y="${H - 14}" text-anchor="end" style="font-family:'DM Mono',monospace;font-size:10px;fill:${MUTE}">${last.day}</text>
+          </svg>
+        </div>
+        <div style="margin-top:18px;font-size:8px;line-height:1.7;color:${DIM};letter-spacing:0.04em">
+          One line, one point per day: each day's value is the realized P&L base plus that day's floating P&L of open positions, combined. Realized base is exact from documented closed trades on a segment-start capital basis (identical methodology to the public realized index); the daily float comes from a once-per-day snapshot. Days prior to the first recorded snapshot carry no float. Today's point uses the live float at report generation. ${METHODOLOGY_NOTE}
+        </div>
+        <div style="flex:1"></div>
+      </div>
+      ${footer()}
+      ${goldBar}
+    </div>`;
+    })() : "";
 
     const packBreakdownPage = `
     <div style="page-break-before:always;min-height:100vh;background:${BG1};display:flex;flex-direction:column">
@@ -1213,6 +1379,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, onC
     </head><body>
       ${coverPage}
       ${overviewPage}
+      ${equityCurvePage}
       ${packBreakdownPage}
       ${tradeLogPage}
       ${disclaimerPage}
@@ -1263,6 +1430,71 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, onC
         {totalTrades === 0 && allOpen.length === 0 ? (
           <div style={{ padding: "72px 32px", textAlign: "center", fontFamily: "'Montserrat', sans-serif", fontSize: 10, letterSpacing: "0.3em", color: "#2a2a2a" }}>NO DATA FOR {getQuarterLabel(selectedQ)}</div>
         ) : (<>
+          {/* ── QUARTER EQUITY CURVE · realized base across the quarter + current float ── */}
+          <div style={S.section}>
+            <div style={S.sectionTitle}>Equity Curve — Total Performance · {qLabel} (Realized + Float)</div>
+            {(() => {
+              if (!perfSegments || perfSegments.length === 0) {
+                return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO QUARTER CONFIGURED<br /><span style={{ fontSize: 8, color: "#444" }}>SET QUARTER-START CAPITAL IN FREE CONTENT → QUARTER MANAGEMENT</span></div>;
+              }
+              const qc = computeQuarterEquityCurve(closedPositions, perfSegments, totalFloatUSD, selectedQ, equitySnapshots);
+              if (qc.points.length === 0) {
+                return <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "32px 24px", textAlign: "center", fontSize: 9, letterSpacing: "0.2em", color: "#555", lineHeight: 2 }}>NO DATA FOR THIS QUARTER YET</div>;
+              }
+              const CW = 700, CH = 260, PAD = { l: 52, r: 16, t: 16, b: 30 };
+              const ts = qc.points.map(p => p.t);
+              const t0 = Math.min(...ts), t1 = Math.max(...ts);
+              const span = Math.max(t1 - t0, 1);
+              const vals = [100, ...qc.points.map(p => p.index), qc.index];
+              const vMin = Math.min(...vals), vMax = Math.max(...vals);
+              const vPad = Math.max((vMax - vMin) * 0.12, 1.5);
+              const y0 = vMin - vPad, y1 = vMax + vPad;
+              const X = (t) => qc.points.length === 1 ? CW / 2 : PAD.l + ((t - t0) / span) * (CW - PAD.l - PAD.r);
+              const Y = (v) => CH - PAD.b - ((v - y0) / (y1 - y0)) * (CH - PAD.t - PAD.b);
+              // one line: each day's point = realized + that day's float
+              const dIdx = qc.points.map((p, i) => `${i === 0 ? "M" : "L"} ${X(p.t)} ${Y(p.index)}`).join(" ");
+              const last = qc.points[qc.points.length - 1];
+              const grid = [y0, (y0 + y1) / 2, y1];
+              return (
+                <div style={{ background: "#111", border: "1px solid #1a1a1a", borderRadius: 12, padding: "20px 22px" }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 22, marginBottom: 10 }}>
+                    {[
+                      ["TOTAL PERFORMANCE", (qc.index - 100 >= 0 ? "+" : "") + (qc.index - 100).toFixed(2) + "%", qc.index >= 100 ? "#22c55e" : "#ef4444"],
+                      ["MAX DD", "-" + qc.maxDrawdownPct.toFixed(2) + "%", "#ef4444"],
+                      ["CLOSES", String(qc.totalCloses), "#d4af37"],
+                    ].map(([l, v, c]) => (
+                      <div key={l} style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 7, fontWeight: 700, letterSpacing: "0.18em", color: "#555", fontFamily: "'Montserrat', sans-serif" }}>{l}</div>
+                        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: c }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <svg width="100%" viewBox={`0 0 ${CW} ${CH}`} style={{ display: "block" }}>
+                    {grid.map((v, i) => (
+                      <g key={i}>
+                        <line x1={PAD.l} x2={CW - PAD.r} y1={Y(v)} y2={Y(v)} stroke="#1d1d1d" strokeWidth="1" />
+                        <text x={PAD.l - 8} y={Y(v) + 3} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, fill: "#666" }}>{v.toFixed(1)}</text>
+                      </g>
+                    ))}
+                    <line x1={PAD.l} x2={CW - PAD.r} y1={Y(100)} y2={Y(100)} stroke="rgba(212,175,55,0.25)" strokeWidth="1" strokeDasharray="4 4" />
+                    <path d={`${dIdx} L ${X(last.t)} ${CH - PAD.b} L ${X(qc.points[0].t)} ${CH - PAD.b} Z`} fill="rgba(212,175,55,0.06)" stroke="none" />
+                    <path d={dIdx} fill="none" stroke="#d4af37" strokeWidth="2" strokeLinejoin="round" />
+                    <circle cx={X(last.t)} cy={Y(qc.index)} r="3.6" fill="#d4af37" stroke="#0d0d0d" strokeWidth="1.4">
+                      <title>{`Total performance ${(qc.index - 100 >= 0 ? "+" : "") + (qc.index - 100).toFixed(2)}% · Index ${qc.index.toFixed(2)} (realized + float)`}</title>
+                    </circle>
+                    <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 15, fill: qc.index >= 100 ? "#22c55e" : "#ef4444" }}>{qc.index.toFixed(2)}</text>
+                    <line x1={PAD.l} x2={CW - PAD.r} y1={CH - PAD.b} y2={CH - PAD.b} stroke="#2a2a2a" strokeWidth="1" />
+                    <text x={PAD.l} y={CH - 10} style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{qc.points[0].day}</text>
+                    <text x={CW - PAD.r} y={CH - 10} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{last.day}</text>
+                  </svg>
+                  <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid #1a1a1a", fontSize: 7.5, lineHeight: 1.6, color: "#555", letterSpacing: "0.04em", fontFamily: "'Montserrat', sans-serif" }}>
+                    One line, one point per day: each day's value is the realized base plus that day's floating P&L of open positions, combined. Realized base is exact (documented closed trades, segment-start capital basis, identical methodology to the public realized index); daily float comes from a once-per-day snapshot. Days before the first recorded snapshot carry no float; today's point uses the live float. Past performance is not indicative of future results.
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
             <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#22c55e" : "#ef4444"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1814,10 +2046,7 @@ const DISCORD_PRESETS = [
   },
 ];
 
-// Which preset each position flag maps to when auto-adding flagged positions
-const FLAG_TO_PRESET = { new_position: "new", stop_adjust: "sl", added: "adding", partials: "partial" };
-
-function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
+function DiscordPostModal({ tab, onClose, onConfirm }) {
   useBodyScrollLock();
   const [ticker, setTicker] = useState("");
   const [lines, setLines] = useState([]);
@@ -1827,25 +2056,7 @@ function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
     setLines(prev => [...prev, { presetId: preset.id, text }]);
   };
 
-  // One block per active flag on every flagged position of this tab (max 2 flags each).
-  // Dedupes against blocks already in the list, so double-clicking never doubles.
-  const flaggedBlocks = positions.flatMap(p => {
-    if (!p.ticker?.trim()) return [];
-    return activeFlags(p).map(f => {
-      const preset = DISCORD_PRESETS.find(x => x.id === FLAG_TO_PRESET[f.type]);
-      return preset ? { presetId: preset.id, text: preset.generate(p.ticker.trim().toUpperCase(), tab.label.toUpperCase()) } : null;
-    }).filter(Boolean);
-  });
-  const addFlagged = () => {
-    if (flaggedBlocks.length === 0) return;
-    setLines(prev => {
-      const seen = new Set(prev.map(l => l.presetId + "|" + l.text));
-      return [...prev, ...flaggedBlocks.filter(b => !seen.has(b.presetId + "|" + b.text))];
-    });
-  };
-
   const removeLine = (idx) => setLines(prev => prev.filter((_, i) => i !== idx));
-  const updateLine = (idx, text) => setLines(prev => prev.map((l, i) => i === idx ? { ...l, text } : l));
   const fullMessage = lines.map(l => l.text).join("\n\n");
 
   return createPortal(
@@ -1873,13 +2084,6 @@ function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
         <div style={{ marginBottom: 18 }}>
           <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>Click to add a block</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button onClick={addFlagged} disabled={flaggedBlocks.length === 0}
-              title="Fügt automatisch einen Block pro aktiver Flag aller geflaggten Positionen dieses Tabs hinzu"
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", background: flaggedBlocks.length ? "rgba(212,175,55,0.1)" : "#0d0d0d", border: `1px solid rgba(212,175,55,${flaggedBlocks.length ? "0.4" : "0.1"})`, borderRadius: 7, cursor: flaggedBlocks.length ? "pointer" : "not-allowed", transition: "all 0.15s", opacity: flaggedBlocks.length ? 1 : 0.35 }}
-              onMouseEnter={e => { if (!flaggedBlocks.length) return; e.currentTarget.style.background = "rgba(212,175,55,0.2)"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.7)"; }}
-              onMouseLeave={e => { if (!flaggedBlocks.length) return; e.currentTarget.style.background = "rgba(212,175,55,0.1)"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.4)"; }}>
-              <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: "#d4af37", textTransform: "uppercase" }}>⚑ Add Flagged{flaggedBlocks.length ? ` (${flaggedBlocks.length})` : ""}</span>
-            </button>
             {DISCORD_PRESETS.map(p => (
               <button key={p.id} onClick={() => { if (!ticker.trim()) return; addPreset(p); setTicker(""); }}
                 disabled={!ticker.trim()}
@@ -1902,7 +2106,7 @@ function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
         {lines.length > 0 && (
           <div style={{ marginBottom: 18 }}>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", marginBottom: 10 }}>
-              Message blocks <span style={{ color: "#444", fontSize: 9, letterSpacing: 0, textTransform: "none" }}>(click text to edit — e.g. MSFT → Microsoft · X to remove)</span>
+              Message blocks <span style={{ color: "#444", fontSize: 9, letterSpacing: 0, textTransform: "none" }}>(click X to remove)</span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {lines.map((line, idx) => {
@@ -1913,12 +2117,7 @@ function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
                       onMouseEnter={e => e.currentTarget.style.color = "#ef4444"}
                       onMouseLeave={e => e.currentTarget.style.color = "#333"}>✕</button>
                     <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: preset?.textColor || "#555", textTransform: "uppercase", marginBottom: 6 }}>{preset?.label}</div>
-                    <textarea value={line.text} onChange={e => updateLine(idx, e.target.value)}
-                      rows={Math.max(1, line.text.split("\n").length + (line.text.length > 70 ? 1 : 0))}
-                      spellCheck={false}
-                      style={{ display: "block", width: "100%", background: "transparent", border: "1px solid transparent", borderRadius: 5, fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", paddingRight: 24, resize: "none", outline: "none", transition: "all 0.15s" }}
-                      onFocus={e => { e.currentTarget.style.borderColor = "rgba(212,175,55,0.35)"; e.currentTarget.style.background = "#0d0d0d"; e.currentTarget.style.color = "#dcddde"; }}
-                      onBlur={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#888"; }} />
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#888", lineHeight: 1.7, whiteSpace: "pre-wrap", paddingRight: 24 }}>{line.text}</div>
                   </div>
                 );
               })}
@@ -1933,22 +2132,11 @@ function DiscordPostModal({ tab, positions = [], onClose, onConfirm }) {
               <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #d4af37, #c59958)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#000", flexShrink: 0 }}>V</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                  <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VISIONX</span>
-                  <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.06em", padding: "1px 5px", borderRadius: 3, background: "#5865f2", color: "#fff" }}>APP</span>
+                  <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VisionX</span>
                   <span style={{ fontSize: 9, color: "#555" }}>Today at {new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
                 </div>
-                {/* Embed card */}
-                <div style={{ background: "#2b2d31", borderLeft: "4px solid #d4af37", borderRadius: 5, padding: "12px 16px 12px 14px", maxWidth: 440 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: "#dcddde", letterSpacing: "0.04em", marginBottom: 7 }}>VISIONX  ·  POSITIONING</div>
-                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 13, fontWeight: 700, color: "#f8e49b", marginBottom: 8 }}>◆ {letterspace(tab.label + " PACK")}</div>
-                  <div style={{ color: "#3a3d42", fontSize: 9, letterSpacing: "-1px", marginBottom: 6, overflow: "hidden", whiteSpace: "nowrap" }}>{VSX_EMBED_DIVIDER}</div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#dcddde", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word", marginBottom: 10 }}>
-                    {fullMessage}
-                  </div>
-                  <div style={{ background: "#0a0a0a", border: "1px dashed #333", borderRadius: 5, padding: "18px 0", textAlign: "center", marginBottom: 10 }}>
-                    <span style={{ color: "#555", fontSize: 9, letterSpacing: "0.16em", textTransform: "uppercase" }}>📸 Pack Screenshot</span>
-                  </div>
-                  <div style={{ fontSize: 9, color: "#72767d" }}>{VSX_EMBED_FOOTER}  ·  {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}</div>
+                <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#dcddde", lineHeight: 1.8, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                  {fullMessage}{"\n"}<span style={{ color: "#555", fontSize: 10 }}>[screenshot attached]</span>
                 </div>
               </div>
             </div>
@@ -1978,7 +2166,6 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
   const [sl, setSl] = useState("");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [flag, setFlag] = useState("");
-  const [flag2, setFlag2] = useState("");
 
   const PLACEHOLDERS_MAP = { crypto: "BTC", stocks: "MSFT", indices: "^GSPC", commodities: "GC=F", etfs: "SPY" };
 
@@ -2055,26 +2242,22 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
               style={{ width: "100%", background: "#0a0a0a", border: "1px solid #222", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 13, padding: "10px 12px", borderRadius: 6, outline: "none", colorScheme: "dark" }} />
           </div>
           <div>
-            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Flags (max 2)</label>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <select value={flag} onChange={e => { const v = e.target.value; setFlag(v); if (v && v === flag2) setFlag2(""); }}
-                style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag && FLAGS[flag] ? `rgba(${FLAGS[flag].color},0.4)` : "#222"}`, color: flag && FLAGS[flag] ? FLAGS[flag].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase" }}>
-                <option value="">— NONE —</option>
-                {Object.entries(FLAGS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
-              </select>
-              <select value={flag2} onChange={e => setFlag2(e.target.value)} disabled={!flag}
-                style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag2 && FLAGS[flag2] ? `rgba(${FLAGS[flag2].color},0.4)` : "#222"}`, color: flag2 && FLAGS[flag2] ? FLAGS[flag2].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase", opacity: flag ? 1 : 0.4, cursor: flag ? "pointer" : "not-allowed" }}>
-                <option value="">— NONE —</option>
-                {Object.entries(FLAGS).filter(([k]) => k !== flag).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
-              </select>
-            </div>
+            <label style={{ fontSize: 9, letterSpacing: "0.2em", color: "#888", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Flag</label>
+            <select value={flag} onChange={e => setFlag(e.target.value)}
+              style={{ width: "100%", background: "#0a0a0a", border: `1px solid ${flag && FLAGS[flag] ? `rgba(${FLAGS[flag].color},0.4)` : "#222"}`, color: flag && FLAGS[flag] ? FLAGS[flag].textColor : "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", padding: "10px 12px", borderRadius: 6, outline: "none", textTransform: "uppercase" }}>
+              <option value="">— NONE —</option>
+              <option value="new_position">NEW POSITION</option>
+              <option value="stop_adjust">STOP ADJUST</option>
+              <option value="added">ADDED</option>
+              <option value="partials">PARTIALS</option>
+            </select>
           </div>
         </div>
 
         {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
-          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flag: flag || null, flaggedAt: flag ? Date.now() : null, flag2: flag2 && flag2 !== flag ? flag2 : null, flag2At: flag2 && flag2 !== flag ? Date.now() : null })}
+          <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flag: flag || null, flaggedAt: flag ? Date.now() : null })}
             disabled={!canConfirm}
             style={{ background: canConfirm ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: canConfirm ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: canConfirm ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
             + ADD POSITION
@@ -2201,6 +2384,122 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
   );
 }
 
+// ── POSITION DETAIL PANEL · broker-style overview on row click ───────────────
+function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete, onSetFlag }) {
+  useBodyScrollLock();
+  const p = position;
+  const entry = num(p.entry);
+  const sl = parseFloat(p.sl);
+  const q = num(p.qty);
+  const live = p.currentPrice;
+  const pnlPct = calcPnL(p.direction, entry, live);
+  const pnlUSD = (live && !isNaN(entry) && !isNaN(q)) ? (p.direction === "LONG" ? (live - entry) * q : (entry - live) * q) : null;
+  const dist = calcSLDist(p.direction, live, sl);
+  const slLock = (!isNaN(entry) && !isNaN(sl)) ? (p.direction === "LONG" ? sl - entry : entry - sl) : null;
+  const riskUSD = (!isNaN(entry) && !isNaN(sl) && !isNaN(q)) ? (p.direction === "LONG" ? (entry - sl) * q : (sl - entry) * q) : null;
+  const posValue = calcPositionValue(p.direction, p.qty, p.entry, live);
+  const days = p.date ? daysBetween(p.date, new Date().toISOString().split("T")[0]) : null;
+  const isLong = p.direction === "LONG";
+  const dirColor = isLong ? "#22c55e" : "#ef4444";
+  const pnlColor = pnlPct == null ? "#555" : pnlPct > 0.005 ? "#22c55e" : pnlPct < -0.005 ? "#ef4444" : "#d4af37";
+  const flagged = isFlagged(p);
+  const flagCfg = flagged ? FLAGS[p.flag] : null;
+
+  const cell = (label, val, color = "#e8e8e8", sub = null) => (
+    <div style={{ padding: "13px 16px", background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 10 }}>
+      <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>{label}</div>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, color }}>{val}</div>
+      {sub && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+
+  return createPortal(
+    <div className="modal-overlay" onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)" }}>
+      <div className="modal-card" onClick={e => e.stopPropagation()} style={{ background: "rgba(17,17,17,0.97)", border: "1px solid #2a2a2a", borderRadius: 18, width: 640, maxWidth: "95vw", maxHeight: "92vh", overflowY: "auto", padding: "26px 28px 22px", fontFamily: "'Montserrat', sans-serif", color: "#e8e8e8" }}>
+
+        {/* HEADER · ticker + direction + pack + flag */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, letterSpacing: "0.1em", color: "#f8e49b", lineHeight: 1 }}>{p.ticker || "—"}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", padding: "4px 12px", borderRadius: 5, background: isLong ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)", color: dirColor }}>{p.direction}</span>
+              {flagCfg && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 5, background: flagCfg.solidBg, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>{flagCfg.short}</span>}
+            </div>
+            <div style={{ display: "flex", gap: 8, marginTop: 9 }}>
+              <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(212,175,55,0.1)", border: "1px solid rgba(212,175,55,0.25)", color: "#d4af37", fontWeight: 700 }}>{tab.label.toUpperCase()} PACK</span>
+              <span style={{ fontSize: 9, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 4, background: "rgba(255,255,255,0.04)", border: "1px solid #222", color: "#666", fontWeight: 600 }}>{tab.source === "binance" ? "BINANCE LIVE" : "YAHOO FINANCE"}</span>
+            </div>
+          </div>
+          <button onClick={onClose}
+            onMouseEnter={e => { e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.transform = "rotate(90deg)"; }}
+            onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.transform = "none"; }}
+            style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 8, transition: `all 0.35s ${EASE}` }}>✕</button>
+        </div>
+
+        {/* PNL HERO */}
+        <div style={{ background: "#0a0a0a", border: `1px solid ${pnlPct == null ? "#1a1a1a" : pnlPct >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 12, padding: "16px 20px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>Unrealized PnL</div>
+            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, letterSpacing: "0.04em", color: pnlColor, lineHeight: 1 }}>{pnlUSD != null ? fmtUSD(pnlUSD) : "—"}</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pnlColor, marginTop: 4, opacity: 0.75 }}>{pnlPct != null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginBottom: 4 }}>Live Price</div>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, color: "#fdfdfd" }}>{live ? fmtPrice(live) : "—"}</div>
+            {days != null && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555", marginTop: 4 }}>{days}d held</div>}
+          </div>
+        </div>
+
+        {/* STATS GRID */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+          {cell("Entry Price", !isNaN(entry) ? fmtPrice(entry) : "—")}
+          {cell("Quantity", p.qty || "—", "#c59958")}
+          {cell("Position Value", posValue != null ? "$" + fmtValue(posValue) : "—", "#d4af37")}
+          {cell("Stop Loss", !isNaN(sl) ? fmtPrice(sl) : "—")}
+          {cell("SL Distance", dist != null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—",
+            slLock == null ? "#c59958" : slLock > 1e-9 ? "#c59958" : slLock < -1e-9 ? "#ef4444" : "#8a8a8a",
+            slLock == null ? null : slLock > 1e-9 ? "profit locked" : slLock < -1e-9 ? "open risk" : "break-even")}
+          {cell("Risk to Stop", riskUSD != null ? (riskUSD > 0 ? "-" + fmtUSD(riskUSD).slice(1) : "locked " + fmtUSD(-riskUSD)) : "—",
+            riskUSD == null ? "#555" : riskUSD > 0 ? "#ef4444" : "#22c55e",
+            "if stopped out")}
+          {cell("Breakeven", !isNaN(entry) ? fmtPrice(entry) : "—", "#8a8a8a", "excl. fees")}
+          {cell("Entry Date", p.date || "—", "#8a8a8a")}
+          {cell("Flag Status", flagCfg ? flagCfg.label : "NONE", flagCfg ? "#f8e49b" : "#555", flagged ? `${Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000)}h remaining` : null)}
+        </div>
+
+        {/* QUICK FLAG */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+          <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase", marginRight: 4 }}>Set Flag</span>
+          {Object.entries(FLAGS).map(([key, f]) => (
+            <button key={key} onClick={() => onSetFlag(p.id, flagged && p.flag === key ? null : key)}
+              style={{ padding: "5px 12px", background: flagged && p.flag === key ? `rgba(${f.color},0.18)` : "transparent", border: `1px solid rgba(${f.color},${flagged && p.flag === key ? "0.55" : "0.2"})`, color: f.solidBg, fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.12em", borderRadius: 6, cursor: "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}` }}>
+              {f.short}
+            </button>
+          ))}
+        </div>
+
+        {/* ACTIONS */}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #1a1a1a", paddingTop: 18 }}>
+          <button onClick={() => { onDelete(p.id); }}
+            style={{ background: "transparent", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", marginRight: "auto", transition: `all 0.25s ${EASE}` }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(239,68,68,0.1)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
+            ✕ DELETE
+          </button>
+          <button onClick={onClose}
+            style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase" }}>
+            BACK
+          </button>
+          <button onClick={onRequestClose}
+            style={{ background: "linear-gradient(135deg, #d4af37, #c59958)", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 26px", borderRadius: 8, cursor: "pointer", border: "none", textTransform: "uppercase", boxShadow: "0 4px 18px rgba(212,175,55,0.25)", transition: `all 0.3s ${SPRING}` }}>
+            ◼ CLOSE POSITION
+          </button>
+        </div>
+      </div>
+    </div>
+  , document.body);
+}
+
 // ── TABLE ─────────────────────────────────────────────────────────────────────
 function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, anyFocused, closedPositions, onClosePosition, onDeleteClosed, onDeleteQuarter }) {
   const [sortKey, setSortKey] = useState(null);
@@ -2209,6 +2508,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [focusedId, setFocusedId] = useState(null);
   const frozenOrder = useRef(null);
   const [closingPosition, setClosingPosition] = useState(null);
+  const [detailPosition, setDetailPosition] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [posting, setPosting] = useState(false);
@@ -2230,7 +2530,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     setPostResult(result.ok ? "ok" : "error");
     if (result.ok) {
       // Clear all flags on this tab after successful post
-      setPositions(prev => prev.map(p => ({ ...p, flag: null, flaggedAt: null, flag2: null, flag2At: null })));
+      setPositions(prev => prev.map(p => ({ ...p, flag: null, flaggedAt: null })));
     }
     setTimeout(() => setPostResult(null), 3000);
   };
@@ -2252,13 +2552,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const update = (id, f, v) => setPositions((prev) => prev.map((p) => (p.id === id ? { ...p, [f]: v } : p)));
   const remove = (id) => { if (window.confirm("Delete this position?")) setPositions((prev) => prev.filter((p) => p.id !== id)); };
   const add = (row) => setPositions((prev) => [...prev, row]);
-  const setFlag = (id, slot, type) => setPositions((prev) => prev.map((p) => {
-    if (p.id !== id) return p;
-    if (slot === 2) return { ...p, flag2: type || null, flag2At: type ? Date.now() : null };
-    const next = { ...p, flag: type || null, flaggedAt: type ? Date.now() : null };
-    if (next.flag2 && next.flag2 === next.flag) { next.flag2 = null; next.flag2At = null; } // never the same flag twice
-    return next;
-  }));
+  const setFlag = (id, type) => setPositions((prev) => prev.map((p) => p.id !== id ? p : { ...p, flag: type || null, flaggedAt: type ? Date.now() : null }));
 
   const handleSort = (key) => {
     if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -2301,7 +2595,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
       {showDiscordModal && (
         <DiscordPostModal
           tab={tab}
-          positions={positions}
           onClose={() => setShowDiscordModal(false)}
           onConfirm={(message, emoji) => handleDiscordPost(message, emoji)}
         />
@@ -2313,6 +2606,20 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
           onConfirm={(row) => { add(row); setShowAddModal(false); }}
         />
       )}
+      {detailPosition && (() => {
+        const liveP = positions.find(x => x.id === detailPosition); // live lookup → Panel tickt mit Preis-Updates mit
+        if (!liveP) return null;
+        return (
+          <PositionDetailPanel
+            position={liveP}
+            tab={tab}
+            onClose={() => setDetailPosition(null)}
+            onRequestClose={() => { setDetailPosition(null); setClosingPosition(liveP); }}
+            onDelete={(id) => { setDetailPosition(null); remove(id); }}
+            onSetFlag={(id, type) => setFlag(id, type)}
+          />
+        );
+      })()}
       {closingPosition && (
         <ClosePositionModal
           position={closingPosition}
@@ -2372,23 +2679,27 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                 : null;
               const posValueNum = calcPositionValue(p.direction, p.qty, p.entry, p.currentPrice);
               const posValue = fmtValue(posValueNum);
-              const actFlags = activeFlags(p);
-              const flagged = actFlags.length > 0;
-              const flagCfg = flagged ? FLAGS[actFlags[0].type] : null;
-              const hoursLeft = (at) => Math.ceil((NEW_TTL - (Date.now() - at)) / 3600000);
+              const flagged = isFlagged(p);
+              const flagCfg = flagged ? FLAGS[p.flag] : null;
+              const timeLeft = flagged ? Math.ceil((NEW_TTL - (Date.now() - p.flaggedAt)) / 3600000) : 0;
               const rowBorderColor = flagCfg ? `rgba(${flagCfg.color},0.4)` : "transparent";
               const rowBg = flagCfg ? `rgba(${flagCfg.color},0.04)` : "";
               return (
-                <tr key={p.id} style={flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}}>
+                <tr key={p.id}
+                  onClick={(e) => {
+                    // Klicks auf Edit-Felder/Buttons/Selects öffnen KEIN Panel — nur echte Zeilen-Klicks
+                    if (e.target.closest("input, select, button, a, label")) return;
+                    if (p.ticker.trim()) setDetailPosition(p.id);
+                  }}
+                  style={{ cursor: p.ticker.trim() ? "pointer" : "default", ...(flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}) }}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                       <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
                         onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
                         onFocus={() => setFocus(p.id)} onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                      {actFlags.map(f => {
-                        const cfg = FLAGS[f.type];
-                        return <span key={f.slot} className="flag-badge" style={{ color: "#fff", borderColor: cfg.solidBorder, background: cfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{cfg.short}</span>;
-                      })}
+                      {flagged && flagCfg && (
+                        <span className="flag-badge" style={{ color: "#fff", borderColor: flagCfg.solidBorder, background: flagCfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{flagCfg.short}</span>
+                      )}
                     </div>
                   </td>
                   <td>
@@ -2423,33 +2734,16 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   </td>
                   <td>{pnl !== null && !isNaN(pnl) ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
                   <td>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                      {(() => {
-                        const s1 = flagActive(p.flag, p.flaggedAt) ? p.flag : "";
-                        const s2 = flagActive(p.flag2, p.flag2At) ? p.flag2 : "";
-                        const cfg1 = s1 ? FLAGS[s1] : null;
-                        const cfg2 = s2 ? FLAGS[s2] : null;
-                        return (<>
-                          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                            <select className="flag-sel" value={s1} onChange={(e) => setFlag(p.id, 1, e.target.value || null)}
-                              style={cfg1 ? { color: cfg1.textColor, borderColor: `rgba(${cfg1.color},0.4)`, background: `rgba(${cfg1.color},0.08)` } : {}}>
-                              <option value="">— NONE —</option>
-                              {Object.entries(FLAGS).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
-                            </select>
-                            {s1 && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{hoursLeft(p.flaggedAt)}h</span>}
-                          </div>
-                          {(s1 || s2) && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                              <select className="flag-sel" value={s2} onChange={(e) => setFlag(p.id, 2, e.target.value || null)}
-                                style={cfg2 ? { color: cfg2.textColor, borderColor: `rgba(${cfg2.color},0.4)`, background: `rgba(${cfg2.color},0.08)` } : {}}>
-                                <option value="">— NONE —</option>
-                                {Object.entries(FLAGS).filter(([k]) => k !== s1).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}
-                              </select>
-                              {s2 && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{hoursLeft(p.flag2At)}h</span>}
-                            </div>
-                          )}
-                        </>);
-                      })()}
+                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <select className="flag-sel" value={flagged ? p.flag : ""} onChange={(e) => setFlag(p.id, e.target.value || null)}
+                        style={flagCfg ? { color: flagCfg.textColor, borderColor: `rgba(${flagCfg.color},0.4)`, background: `rgba(${flagCfg.color},0.08)` } : {}}>
+                        <option value="">— NONE —</option>
+                        <option value="new_position">NEW POSITION</option>
+                        <option value="stop_adjust">STOP ADJUST</option>
+                        <option value="added">ADDED</option>
+                        <option value="partials">PARTIALS</option>
+                      </select>
+                      {flagged && <span style={{ fontSize: 9, color: "var(--text-mute)", fontFamily: "'DM Mono',monospace" }}>{timeLeft}h</span>}
                     </div>
                   </td>
                   <td>
@@ -2491,6 +2785,60 @@ export default function App() {
   useEffect(() => { loadPerfConfig().then(setPerfSegments); }, []);
   const handleSaveSegments = (segments) => { setPerfSegments(segments); savePerfConfig(segments); };
 
+  // ── Daily equity snapshots · 00:00 Europe/Berlin ──
+  const [equitySnapshots, setEquitySnapshots] = useState({});
+  const equitySnapshotsRef = useRef(equitySnapshots);
+  useEffect(() => { equitySnapshotsRef.current = equitySnapshots; }, [equitySnapshots]);
+  useEffect(() => { loadEquitySnapshots().then(setEquitySnapshots); }, []);
+
+  const takeEquitySnapshot = useCallback(async () => {
+    const day = cestDateStr();
+    if (equitySnapshotsRef.current[day]) return; // one snapshot per CEST day
+    const all = Object.values(allPositionsRef.current).flat();
+    if (all.length > 0 && !all.some(p => p.currentPrice != null)) return; // prices not in yet — retry next tick
+    // Re-check the live document first: the 00:00 cron may already have written today
+    // (client is only the fallback) — never clobber a cron snapshot.
+    const fresh = await loadEquitySnapshots();
+    if (fresh[day]) { setEquitySnapshots(fresh); return; }
+    let floatUSD = 0;
+    for (const p of all) { const f = calcOpenFloatUSD(p); if (f != null) floatUSD += f; }
+    const days = { ...fresh, [day]: { floatUSD, openCount: all.length, takenAt: Date.now(), source: "client" } };
+    setEquitySnapshots(days);
+    saveEquitySnapshots(days);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
+    const warmup = setTimeout(takeEquitySnapshot, 8000);       // first-open-of-day catch-up
+    const ticker = setInterval(takeEquitySnapshot, 60000);     // fires within 60s of 00:00 CET/CEST
+    return () => { clearTimeout(warmup); clearInterval(ticker); };
+  }, [isLoading, takeEquitySnapshot]);
+
+  // ── Manual daily snapshot · header button. Writes/overwrites TODAY's snapshot with
+  // the current float of open positions, so the equity curve gets a fresh point on
+  // demand (no waiting for 00:00). Merges with existing days; only today is touched.
+  const [snapState, setSnapState] = useState("idle"); // idle | saving | ok | noprices | error
+  const takeManualSnapshot = useCallback(async () => {
+    try {
+      setSnapState("saving");
+      const all = Object.values(allPositionsRef.current).flat();
+      if (all.length > 0 && !all.some(p => p.currentPrice != null)) {
+        setSnapState("noprices"); setTimeout(() => setSnapState("idle"), 3000); return;
+      }
+      let floatUSD = 0;
+      for (const p of all) { const f = calcOpenFloatUSD(p); if (f != null) floatUSD += f; }
+      const fresh = await loadEquitySnapshots();
+      const day = cestDateStr();
+      const days = { ...fresh, [day]: { floatUSD, openCount: all.length, takenAt: Date.now(), source: "manual" } };
+      setEquitySnapshots(days);
+      await saveEquitySnapshots(days);
+      setSnapState("ok"); setTimeout(() => setSnapState("idle"), 3000);
+    } catch (e) {
+      console.error("manual snapshot", e);
+      setSnapState("error"); setTimeout(() => setSnapState("idle"), 3000);
+    }
+  }, []);
+
   // Re-trigger the content fade on tab switch WITHOUT remounting PositionTable
   // (keeps per-tab search/sort state alive)
   useEffect(() => {
@@ -2507,7 +2855,7 @@ export default function App() {
       const stored = await loadFromStorage();
       if (stored) {
         setAllPositions(Object.fromEntries(
-          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, flag2: null, flag2At: null, ...r }))])
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
         ));
       }
       const closedStored = await loadClosedFromStorage();
@@ -2516,7 +2864,7 @@ export default function App() {
       // Directly trigger refresh for all tabs with positions
       if (stored) {
         const loadedPositions = Object.fromEntries(
-          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, flag2: null, flag2At: null, ...r }))])
+          Object.entries(stored).map(([id, rows]) => [id, rows.map(r => ({ qty: "", flag: null, flaggedAt: null, ...r }))])
         );
         allPositionsRef.current = loadedPositions;
         setTimeout(() => {
@@ -2554,9 +2902,7 @@ export default function App() {
       setAllPositions(prev => {
         let changed = false;
         const next = Object.fromEntries(Object.entries(prev).map(([id, rows]) => [id, rows.map(p => {
-          const exp1 = p.flaggedAt && !flagActive(p.flag, p.flaggedAt);
-          const exp2 = p.flag2At && !flagActive(p.flag2, p.flag2At);
-          if (exp1 || exp2) { changed = true; return { ...p, ...(exp1 ? { flag: null, flaggedAt: null } : {}), ...(exp2 ? { flag2: null, flag2At: null } : {}) }; }
+          if (p.flaggedAt && !isFlagged(p)) { changed = true; return { ...p, flag: null, flaggedAt: null }; }
           return p;
         })]));
         if (changed) {
@@ -2946,7 +3292,7 @@ export default function App() {
       `}</style>
 
       {showReport && (
-        <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} perfSegments={perfSegments} onClose={() => setShowReport(false)} />
+        <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} perfSegments={perfSegments} equitySnapshots={equitySnapshots} onClose={() => setShowReport(false)} />
       )}
       {showFreeContent && (
         <FreeContentPanel allPositions={allPositions} closedPositions={closedPositions} perfSegments={perfSegments} onSaveSegments={handleSaveSegments} onClose={() => setShowFreeContent(false)} />
@@ -3015,6 +3361,13 @@ export default function App() {
               onMouseEnter={e => { e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
               onMouseLeave={e => { e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
               ◈ FREE CONTENT
+            </button>
+            <button onClick={takeManualSnapshot} disabled={snapState === "saving"}
+              title="Speichert jetzt einen Equity-Snapshot für heute (Float der offenen Positionen). Überschreibt den heutigen Punkt mit dem aktuellen Stand."
+              style={{ background: snapState === "ok" ? "rgba(34,197,94,0.1)" : (snapState === "error" || snapState === "noprices") ? "rgba(239,68,68,0.1)" : "rgba(212,175,55,0.07)", border: `1px solid ${snapState === "ok" ? "rgba(34,197,94,0.4)" : (snapState === "error" || snapState === "noprices") ? "rgba(239,68,68,0.4)" : "rgba(212,175,55,0.28)"}`, color: snapState === "ok" ? "#22c55e" : (snapState === "error" || snapState === "noprices") ? "#ef4444" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.16em", padding: "5px 13px", borderRadius: 5, cursor: snapState === "saving" ? "wait" : "pointer", textTransform: "uppercase", whiteSpace: "nowrap", transition: "all 0.2s" }}
+              onMouseEnter={e => { if (snapState !== "idle") return; e.currentTarget.style.background = "rgba(212,175,55,0.14)"; e.currentTarget.style.color = "#d4af37"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.5)"; }}
+              onMouseLeave={e => { if (snapState !== "idle") return; e.currentTarget.style.background = "rgba(212,175,55,0.07)"; e.currentTarget.style.color = "#b99c64"; e.currentTarget.style.borderColor = "rgba(212,175,55,0.28)"; }}>
+              {snapState === "saving" ? "◉ SNAPPING…" : snapState === "ok" ? "✓ SNAPPED" : snapState === "noprices" ? "… NO PRICES" : snapState === "error" ? "✕ FAILED" : "◉ DAILY SNAP"}
             </button>
             <div className={`save-flash ${savedFlash ? "on" : "off"}`}>✓ SAVED</div>
             {lastRefresh && <div className="refresh-ts">{lastRefresh.toLocaleTimeString()}</div>}
