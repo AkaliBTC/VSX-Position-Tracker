@@ -225,6 +225,8 @@ const fetchYahooSingle = async (ticker) => {
 const TICKER_NAME_CACHE = {};
 const TICKER_NAME_FAIL = {};   // Fehlschläge mit Timestamp → Retry nach 10 Min statt nie
 const getTickerName = (t) => TICKER_NAME_CACHE[(t || "").trim().toUpperCase()] || null;
+// Anzeigename für Report/Karten: gespeicherter Name (Closed-Record) → Live-Cache → Ticker
+const displayName = (o) => (o?.name) || getTickerName(o?.ticker) || o?.ticker || "—";
 const fetchTickerName = async (ticker) => {
   const sym = ticker.toUpperCase().trim();
   try {
@@ -558,7 +560,7 @@ const buildCloseCardEl = (record) => {
   const pnlColor = win ? "#22c55e" : loss ? "#ef4444" : "#d4af37";
   const isLong = record.direction === "LONG";
   const exitLabel = CLOSE_REASONS[record.reason] || "Manual Close";
-  const dispName = getTickerName(record.ticker);
+  const dispName = record.name || getTickerName(record.ticker);
   const wrap = document.createElement("div");
   wrap.id = "vsx-close-card-capture";
   wrap.style.cssText = "position:fixed;left:-9999px;top:0;width:520px;z-index:-1;";
@@ -1348,7 +1350,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-left:3px solid ${tc};border-radius:10px;padding:20px 22px">
                 <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">${label}</div>
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                  <span style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${GOLD};letter-spacing:0.06em">${trade.ticker}</span>
+                  <span style="font-family:'Bebas Neue',sans-serif;font-size:${displayName(trade).length > 18 ? "17px" : "24px"};color:${GOLD};letter-spacing:0.06em">${displayName(trade)}</span>
+                  <span style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE}">${trade.ticker}</span>
                   <span style="font-size:8px;padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)"};color:${trade.direction === "LONG" ? "#22c55e" : "#ef4444"}">${trade.direction}</span>
                   <span style="font-size:8px;color:${GOLD3};font-family:'Montserrat',sans-serif;font-weight:600">${trade.tabLabel || ""}</span>
                 </div>
@@ -1385,7 +1388,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       const upct = p.currentPrice ? (p.direction === "LONG" ? ((p.currentPrice - ep) / ep) * 100 : ((ep - p.currentPrice) / ep) * 100) : null;
       const rowBg = i % 2 === 0 ? BG2 : BG3;
       return `<tr style="background:${rowBg}">
-        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${p.ticker}</td>
+        <td style="padding:9px 11px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:15px;letter-spacing:0.06em">${displayName(p)}<div style="font-family:'DM Mono',monospace;font-size:8px;color:${MUTE};letter-spacing:0.04em">${p.ticker}</div></td>
         <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${p.tabLabel}</td>
         <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${p.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${p.direction === "LONG" ? "#22c55e" : "#ef4444"}">${p.direction}</span></td>
         <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.qty || "—"}</td>
@@ -1401,7 +1404,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       const rowBg = i % 2 === 0 ? BG2 : BG3;
       return `<tr style="background:${rowBg};page-break-inside:avoid">
         <td style="padding:7px 8px;color:${DIM};font-size:9px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
-        <td style="padding:7px 8px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:13px">${c.ticker}${c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : ""}</td>
+        <td style="padding:7px 8px;color:${GOLD};font-family:'Bebas Neue',sans-serif;font-size:13px">${displayName(c)}${c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : ""}<div style="font-family:'DM Mono',monospace;font-size:8px;color:${MUTE};letter-spacing:0.04em">${c.ticker}</div></td>
         <td style="padding:7px 8px;font-size:8px;font-weight:700;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
         <td style="padding:7px 8px"><span style="font-size:7px;font-weight:700;padding:2px 6px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)"};color:${c.direction === "LONG" ? "#22c55e" : "#ef4444"}">${c.direction}</span></td>
         <td style="padding:7px 8px;color:#888;font-family:'DM Mono',monospace;font-size:10px">${c.qty || "—"}</td>
@@ -1713,7 +1716,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                       <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
                       {trade ? (<>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                          <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: "#d4af37", letterSpacing: "0.06em" }}>{trade.ticker}</span>
+                          <span title={trade.ticker} style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: displayName(trade).length > 18 ? 15 : 22, color: "#d4af37", letterSpacing: "0.06em" }}>{displayName(trade)}</span>
                           <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 3, background: trade.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: trade.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{trade.direction}</span>
                           <span style={{ fontSize: 8, color: "#b99c64", fontFamily: "'Montserrat', sans-serif", fontWeight: 600, letterSpacing: "0.1em" }}>{trade.tabLabel}</span>
                         </div>
@@ -1772,7 +1775,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                     const uusd = p.currentPrice && p.qty ? (p.direction === "LONG" ? (p.currentPrice - ep) * num(p.qty) : (ep - p.currentPrice) * num(p.qty)) : null;
                     return (
                       <tr key={p.id} style={{ borderBottom: "1px solid #0f0f0f" }}>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{p.ticker}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>{displayName(p)}<div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555" }}>{p.ticker}</div></td>
                         <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#b99c64", letterSpacing: "0.08em" }}>{p.tabLabel}</td>
                         <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", padding: "2px 7px", borderRadius: 3, background: p.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: p.direction === "LONG" ? "#22c55e" : "#ef4444" }}>{p.direction}</span></td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{p.qty || "—"}</td>
@@ -1805,8 +1808,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                     <tr key={c.id} style={{ borderBottom: "1px solid #111" }}>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#333" }}>{String(i + 1).padStart(2, "0")}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#d4af37" }}>
-                        {c.ticker}
+                        {displayName(c)}
                         {c.partialPct && <span style={{ fontSize: 9, color: "#d4af37", marginLeft: 4 }}>[{c.partialPct}%]</span>}
+                        <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555" }}>{c.ticker}</div>
                       </td>
                       <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#b99c64", letterSpacing: "0.08em" }}>{c.tabLabel}</td>
                       <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: c.direction === "LONG" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)", color: c.direction === "LONG" ? "#22c55e" : "#ef4444", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{c.direction}</span></td>
@@ -2083,6 +2087,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               const record = {
                 id: position.id,
                 ticker: position.ticker,
+                name: getTickerName(position.ticker) || null, // Klarname für Report & Karte festhalten
                 direction: position.direction,
                 qty: closedQty,
                 entry: position.entry,
@@ -2178,14 +2183,14 @@ function DiscordPostModal({ tab, positions, onClose, onConfirm }) {
       if (!isFlagged(p) || !p.ticker.trim()) return;
       getFlags(p).forEach(k => {
         const preset = DISCORD_PRESETS.find(d => d.id === FLAG_TO_PRESET[k]);
-        if (preset) auto.push({ presetId: preset.id, text: preset.generate(p.ticker.trim().toUpperCase(), tab.label.toUpperCase()) });
+        if (preset) auto.push({ presetId: preset.id, text: preset.generate(getTickerName(p.ticker) || p.ticker.trim().toUpperCase(), tab.label.toUpperCase()) });
       });
     });
     return auto;
   });
 
   const addPreset = (preset) => {
-    const text = preset.generate(ticker.trim().toUpperCase(), tab.label.toUpperCase());
+    const text = preset.generate(getTickerName(ticker) || ticker.trim().toUpperCase(), tab.label.toUpperCase());
     setLines(prev => [...prev, { presetId: preset.id, text }]);
   };
 
@@ -2836,7 +2841,6 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   // ── Ticker-Namen-Maske: sequentielle Queue (öffentliche Proxies vertragen keine
   // 30 parallelen Requests), Modul-Cache, Retry fehlgeschlagener Lookups nach 10 Min.
   const [tickerNames, setTickerNames] = useState({});
-  const [editingTickerId, setEditingTickerId] = useState(null); // Klick auf den Klarnamen blendet das Ticker-Feld wieder ein
   const nameQueue = useRef([]);
   const nameBusy = useRef(false);
   const pumpNames = useCallback(async () => {
@@ -3068,24 +3072,11 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                   style={{ cursor: p.ticker.trim() ? "pointer" : "default", ...(flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}) }}>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      {(() => {
-                        const name = tab.source === "yahoo" ? tickerNames[p.ticker.trim().toUpperCase()] : null;
-                        const showName = name && editingTickerId !== p.id;
-                        return showName ? (
-                          // Klarname ersetzt den Ticker in der Anzeige — der Ticker-Wert bleibt
-                          // erhalten (Tooltip zeigt ihn); Klick öffnet das Feld zum Bearbeiten.
-                          <div data-noopen className="cell-input ticker-inp" onClick={() => setEditingTickerId(p.id)} title={p.ticker}
-                            style={{ cursor: "text", display: "flex", alignItems: "center", width: "auto", minWidth: 80, maxWidth: 205, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{name}</span>
-                          </div>
-                        ) : (
-                          <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
-                            autoFocus={editingTickerId === p.id}
-                            onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
-                            onFocus={() => setFocus(p.id)}
-                            onBlur={() => { setEditingTickerId(null); clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
-                        );
-                      })()}
+                      <input className="cell-input ticker-inp" placeholder={PLACEHOLDERS[tab.id]} value={p.ticker}
+                        title={tickerNames[p.ticker.trim().toUpperCase()] || ""}
+                        onChange={(e) => update(p.id, "ticker", e.target.value.toUpperCase())}
+                        onFocus={() => setFocus(p.id)}
+                        onBlur={() => { clearFocus(); if (p.ticker.trim()) onRefresh(); }} />
                       {rowFlags.length > 0 && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                           {rowFlags.map(k => {
