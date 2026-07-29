@@ -1153,8 +1153,20 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     return { tab: t, positions, pnl, winners };
   }).filter(p => p.positions.length > 0);
   const hasFloatData = allOpen.some(p => p.currentPrice);
-  const slDists = allOpen.map(p => calcSLDist(p.direction, p.currentPrice, parseFloat(p.sl))).filter(v => v != null && !isNaN(v));
-  const pAvgSLDist = slDists.length ? slDists.reduce((a, b) => a + b, 0) / slDists.length : null;
+
+  // ── Ø realisiertes RRR · R-Vielfache der geschlossenen Trades ──────────────
+  // R = erzielte Bewegung ÷ ursprüngliches Risiko (Entry → Stop). Trades, deren
+  // Stop zum Zeitpunkt des Close bereits im Gewinn stand, haben kein positives
+  // Risiko mehr (Nenner ≤ 0) und fließen nicht ein — Zähler steht als Sub-Label.
+  const rrrVals = qData.map(c => {
+    const e = num(c.entry), s = num(c.sl), cp = c.closePrice;
+    if (!e || !s || !cp || isNaN(e) || isNaN(s) || isNaN(cp)) return null;
+    const risk   = c.direction === "LONG" ? e - s : s - e;
+    if (!(risk > 0)) return null;
+    const reward = c.direction === "LONG" ? cp - e : e - cp;
+    return reward / risk;
+  }).filter(v => v != null && isFinite(v));
+  const pAvgRRR = rrrVals.length ? rrrVals.reduce((a, b) => a + b, 0) / rrrVals.length : null;
 
   const qList   = getQuarterOptions();
   const qIdx    = qList.indexOf(selectedQ);
@@ -1206,10 +1218,6 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     const shortPositions = allOpenFull.filter(p => p.direction === "SHORT");
     const longPct = allOpenFull.length > 0 ? ((longPositions.length / allOpenFull.length) * 100).toFixed(0) : 0;
     const shortPct = allOpenFull.length > 0 ? ((shortPositions.length / allOpenFull.length) * 100).toFixed(0) : 0;
-    const avgSLDist = allOpenFull.filter(p => p.sl && p.currentPrice).map(p => {
-      const sl = parseFloat(p.sl); const cur = p.currentPrice;
-      return p.direction === "LONG" ? ((cur - sl) / cur) * 100 : ((sl - cur) / cur) * 100;
-    }).filter(v => !isNaN(v) && v > 0).reduce((s, v, _, a) => s + v / a.length, 0);
     const closedWinners = qData.filter(isWin);
     const closedLosers  = qData.filter(isLoss);
     const avgWinPct  = closedWinners.length > 0 ? closedWinners.reduce((s, c) => s + (c.pnlPct || 0), 0) / closedWinners.length : null;
@@ -1302,7 +1310,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           ${statCard("Win Rate", winRate != null ? winRate.toFixed(0) + "%" : "—", `${winners.length}W / ${totalTrades - winners.length}L`, winRate != null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : MUTE)}
           ${statCard("Win/Loss Ratio", profitFactor || "—", avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : "—", profitFactor >= 1 ? "#22c55e" : "#ef4444")}
           ${statCard("Avg Hold Time", avgHold != null ? avgHold + "D" : "—", "per closed trade", GOLD)}
-          ${statCard("Avg SL Distance", avgSLDist > 0 ? avgSLDist.toFixed(1) + "%" : "—", "open positions", GOLD3)}
+          ${statCard("Avg RRR", pAvgRRR !== null ? pAvgRRR.toFixed(2) + "R" : "—", `${rrrVals.length} of ${totalTrades} trades`, pAvgRRR === null ? MUTE : pAvgRRR >= 1 ? "#22c55e" : pAvgRRR > 0 ? GOLD : "#ef4444")}
         </div>
 
         <div style="margin-bottom:28px">
@@ -1647,7 +1655,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                 { label: "Win Rate", val: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners.length}W / ${totalTrades - winners.length}L`, color: winRate !== null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : "#555" },
                 { label: "Win/Loss Ratio", val: pProfitFactor !== null ? pProfitFactor.toFixed(2) : "—", sub: pAvgWinPct && pAvgLossPct ? `+${pAvgWinPct.toFixed(1)}% / -${pAvgLossPct.toFixed(1)}%` : "avg win / avg loss", color: pProfitFactor === null ? "#555" : pProfitFactor >= 1 ? "#22c55e" : "#ef4444" },
                 { label: "Avg Hold Time", val: avgHold !== null ? `${avgHold}D` : "—", sub: "per trade", color: "#d4af37" },
-                { label: "Avg SL Distance", val: pAvgSLDist !== null ? `${pAvgSLDist.toFixed(1)}%` : "—", sub: `${slDists.length} open w/ stop`, color: "#b99c64" },
+                { label: "Avg RRR", val: pAvgRRR !== null ? `${pAvgRRR.toFixed(2)}R` : "—", sub: `${rrrVals.length} of ${totalTrades} trades`, color: pAvgRRR === null ? "#555" : pAvgRRR >= 1 ? "#22c55e" : pAvgRRR > 0 ? "#d4af37" : "#ef4444" },
                 { label: "Open Positions", val: String(allOpen.length), sub: "across all packs", color: "#d4af37" },
               ].map(({ label, val, sub, color }) => (
                 <div key={label} style={S.statCard}>
