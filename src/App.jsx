@@ -1154,19 +1154,15 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
   }).filter(p => p.positions.length > 0);
   const hasFloatData = allOpen.some(p => p.currentPrice);
 
-  // ── Ø realisiertes RRR · R-Vielfache der geschlossenen Trades ──────────────
-  // R = erzielte Bewegung ÷ ursprüngliches Risiko (Entry → Stop). Trades, deren
-  // Stop zum Zeitpunkt des Close bereits im Gewinn stand, haben kein positives
-  // Risiko mehr (Nenner ≤ 0) und fließen nicht ein — Zähler steht als Sub-Label.
-  const rrrVals = qData.map(c => {
-    const e = num(c.entry), s = num(c.sl), cp = c.closePrice;
-    if (!e || !s || !cp || isNaN(e) || isNaN(s) || isNaN(cp)) return null;
-    const risk   = c.direction === "LONG" ? e - s : s - e;
-    if (!(risk > 0)) return null;
-    const reward = c.direction === "LONG" ? cp - e : e - cp;
-    return reward / risk;
-  }).filter(v => v != null && isFinite(v));
-  const pAvgRRR = rrrVals.length ? rrrVals.reduce((a, b) => a + b, 0) / rrrVals.length : null;
+  // ── Risk / Reward · ausschließlich realisierte Daten ───────────────────────
+  // Bruttogewinn aller Gewinner ÷ Bruttoverlust aller Verlierer (USD-gewichtet).
+  // Keine Stop-Daten, keine offenen Positionen, keine ausgeschlossenen Trades —
+  // jeder geschlossene Trade des Quartals fließt mit seinem echten Ergebnis ein.
+  const grossWinUSD  = winners.reduce((s, c) => s + (c.pnlUSD || 0), 0);
+  const grossLossUSD = Math.abs(losers.reduce((s, c) => s + (c.pnlUSD || 0), 0));
+  const pRiskReward  = grossLossUSD > 0 ? grossWinUSD / grossLossUSD : (grossWinUSD > 0 ? Infinity : null);
+  const rrDisplay    = pRiskReward === null ? "—" : pRiskReward === Infinity ? "∞" : pRiskReward.toFixed(2);
+  const rrSub        = pRiskReward === Infinity ? "no realized losses" : `${winners.length}W / ${losers.length}L realized`;
 
   const qList   = getQuarterOptions();
   const qIdx    = qList.indexOf(selectedQ);
@@ -1308,9 +1304,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
           ${statCard("Win Rate", winRate != null ? winRate.toFixed(0) + "%" : "—", `${winners.length}W / ${totalTrades - winners.length}L`, winRate != null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : MUTE)}
-          ${statCard("Win/Loss Ratio", profitFactor || "—", avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : "—", profitFactor >= 1 ? "#22c55e" : "#ef4444")}
+          ${statCard("Win/Loss Ratio", profitFactor || (avgWinPct && !avgLossPct ? "∞" : "—"), avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : (avgWinPct ? `+${avgWinPct.toFixed(1)}% avg win · no losses` : "—"), (profitFactor >= 1 || (avgWinPct && !avgLossPct)) ? "#22c55e" : "#ef4444")}
           ${statCard("Avg Hold Time", avgHold != null ? avgHold + "D" : "—", "per closed trade", GOLD)}
-          ${statCard("Avg RRR", pAvgRRR !== null ? pAvgRRR.toFixed(2) + "R" : "—", `${rrrVals.length} of ${totalTrades} trades`, pAvgRRR === null ? MUTE : pAvgRRR >= 1 ? "#22c55e" : pAvgRRR > 0 ? GOLD : "#ef4444")}
+          ${statCard("Risk / Reward", rrDisplay, rrSub, pRiskReward === null ? MUTE : (pRiskReward === Infinity || pRiskReward >= 1) ? "#22c55e" : "#ef4444")}
         </div>
 
         <div style="margin-bottom:28px">
@@ -1468,7 +1464,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       ${goldBar}
     </div>
     ${allOpenFull.length > 0 ? (() => {
-      const OPEN_CHUNK = 17;
+      const OPEN_CHUNK = 12;   // Klarnamen können 2–3 Zeilen hoch werden
       const openChunks = [];
       for (let i = 0; i < openRows.length; i += OPEN_CHUNK) openChunks.push(openRows.slice(i, i + OPEN_CHUNK));
       const openHdr = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["TICKER","PACK","DIR","QTY","ENTRY","LIVE PRICE *","UNRLSD %","UNRLSD USD","ENTRY DATE"].map(h=>`<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
@@ -1496,7 +1492,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     })() : ""}`;
 
     // ── PAGE 4: TRADE LOG ─────────────────────────────────────────────────────
-    const CHUNK = 16;
+    const CHUNK = 14;        // dito für den Trade-Log
     const tradeChunks = [];
     for (let i = 0; i < tradeRows.length; i += CHUNK) tradeChunks.push(tradeRows.slice(i, i + CHUNK));
     const tradeHeader = `<thead><tr style="background:#0c0c0c;border-bottom:2px solid ${BORDER2}">${["#", "TICKER", "PACK", "DIR", "QTY", "ENTRY", "CLOSE", "CLOSE DATE", "DAYS", "PNL %", "PNL USD"].map(h => `<th style="${thStyle}">${h}</th>`).join("")}</tr></thead>`;
@@ -1517,7 +1513,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         </table>
         ${ci === tradeChunks.length - 1 ? `
         <div style="margin-top:18px;padding:16px 20px;background:${BG2};border:1px solid ${BORDER};border-radius:8px;display:flex;justify-content:space-between;align-items:center">
-          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Win/Loss Ratio ${profitFactor || "—"} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
+          <div style="font-size:8px;font-weight:700;letter-spacing:0.2em;color:${MUTE};text-transform:uppercase">${totalTrades} Trades · ${winRate != null ? winRate.toFixed(0) + "%" : "—"} Win Rate · Win/Loss Ratio ${profitFactor || (avgWinPct && !avgLossPct ? "∞" : "—")} · ${avgHold != null ? avgHold + "d avg hold" : "—"}</div>
           <div style="font-family:'Bebas Neue',sans-serif;font-size:24px;color:${gc(totalPnL)}">${fu(totalPnL)}</div>
         </div>` : ""}
         <div style="flex:1"></div>
@@ -1653,9 +1649,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
               {[
                 { label: "Win Rate", val: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners.length}W / ${totalTrades - winners.length}L`, color: winRate !== null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : "#555" },
-                { label: "Win/Loss Ratio", val: pProfitFactor !== null ? pProfitFactor.toFixed(2) : "—", sub: pAvgWinPct && pAvgLossPct ? `+${pAvgWinPct.toFixed(1)}% / -${pAvgLossPct.toFixed(1)}%` : "avg win / avg loss", color: pProfitFactor === null ? "#555" : pProfitFactor >= 1 ? "#22c55e" : "#ef4444" },
+                { label: "Win/Loss Ratio", val: pProfitFactor !== null ? pProfitFactor.toFixed(2) : (pAvgWinPct && !pAvgLossPct ? "∞" : "—"), sub: pAvgWinPct && pAvgLossPct ? `+${pAvgWinPct.toFixed(1)}% / -${pAvgLossPct.toFixed(1)}%` : (pAvgWinPct ? `+${pAvgWinPct.toFixed(1)}% avg win · no losses` : "avg win / avg loss"), color: pProfitFactor === null ? (pAvgWinPct ? "#22c55e" : "#555") : pProfitFactor >= 1 ? "#22c55e" : "#ef4444" },
                 { label: "Avg Hold Time", val: avgHold !== null ? `${avgHold}D` : "—", sub: "per trade", color: "#d4af37" },
-                { label: "Avg RRR", val: pAvgRRR !== null ? `${pAvgRRR.toFixed(2)}R` : "—", sub: `${rrrVals.length} of ${totalTrades} trades`, color: pAvgRRR === null ? "#555" : pAvgRRR >= 1 ? "#22c55e" : pAvgRRR > 0 ? "#d4af37" : "#ef4444" },
+                { label: "Risk / Reward", val: rrDisplay, sub: rrSub, color: pRiskReward === null ? "#555" : pRiskReward === Infinity || pRiskReward >= 1 ? "#22c55e" : "#ef4444" },
                 { label: "Open Positions", val: String(allOpen.length), sub: "across all packs", color: "#d4af37" },
               ].map(({ label, val, sub, color }) => (
                 <div key={label} style={S.statCard}>
