@@ -1126,6 +1126,11 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
   const beTradesCount     = totalTrades - significantTrades.length;
   const avgPnLPctExBE     = significantTrades.length > 0 ? significantTrades.reduce((s, c) => s + (c.pnlPct || 0), 0) / significantTrades.length : null;
   const avgHold     = totalTrades > 0 ? Math.round(qData.reduce((s, c) => s + (c.daysHeld || 0), 0) / totalTrades) : null;
+
+  // ── Win/Loss-Ratio (Ø Gewinn ÷ Ø Verlust) und Ø Stop-Distanz der offenen Positionen ──
+  const pAvgWinPct  = winners.length > 0 ? winners.reduce((s, c) => s + (c.pnlPct || 0), 0) / winners.length : null;
+  const pAvgLossPct = losers.length  > 0 ? Math.abs(losers.reduce((s, c) => s + (c.pnlPct || 0), 0) / losers.length) : null;
+  const pProfitFactor = pAvgWinPct && pAvgLossPct ? (pAvgWinPct / pAvgLossPct) : null;
   const bestTrade   = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) > (b.pnlPct || 0) ? a : b) : null;
   const worstTrade  = totalTrades > 0 ? qData.reduce((a, b) => (a.pnlPct || 0) < (b.pnlPct || 0) ? a : b) : null;
   const longTrades  = qData.filter(c => c.direction === "LONG");
@@ -1148,6 +1153,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
     return { tab: t, positions, pnl, winners };
   }).filter(p => p.positions.length > 0);
   const hasFloatData = allOpen.some(p => p.currentPrice);
+  const slDists = allOpen.map(p => calcSLDist(p.direction, p.currentPrice, parseFloat(p.sl))).filter(v => v != null && !isNaN(v));
+  const pAvgSLDist = slDists.length ? slDists.reduce((a, b) => a + b, 0) / slDists.length : null;
 
   const qList   = getQuarterOptions();
   const qIdx    = qList.indexOf(selectedQ);
@@ -1635,10 +1642,12 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                 <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: "#d4af37" }}>{totalTrades}</div>
               </div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
               {[
                 { label: "Win Rate", val: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners.length}W / ${totalTrades - winners.length}L`, color: winRate !== null ? (winRate >= 50 ? "#22c55e" : "#ef4444") : "#555" },
+                { label: "Win/Loss Ratio", val: pProfitFactor !== null ? pProfitFactor.toFixed(2) : "—", sub: pAvgWinPct && pAvgLossPct ? `+${pAvgWinPct.toFixed(1)}% / -${pAvgLossPct.toFixed(1)}%` : "avg win / avg loss", color: pProfitFactor === null ? "#555" : pProfitFactor >= 1 ? "#22c55e" : "#ef4444" },
                 { label: "Avg Hold Time", val: avgHold !== null ? `${avgHold}D` : "—", sub: "per trade", color: "#d4af37" },
+                { label: "Avg SL Distance", val: pAvgSLDist !== null ? `${pAvgSLDist.toFixed(1)}%` : "—", sub: `${slDists.length} open w/ stop`, color: "#b99c64" },
                 { label: "Open Positions", val: String(allOpen.length), sub: "across all packs", color: "#d4af37" },
               ].map(({ label, val, sub, color }) => (
                 <div key={label} style={S.statCard}>
