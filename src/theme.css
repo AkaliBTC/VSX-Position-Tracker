@@ -1,0 +1,357 @@
+/* VSX Position Tracker — design system ==================================
+   Same material language as the VisionX Order Desk: warm charcoal, gold as
+   light rather than paint, one accent per region.
+
+   Two constraints shaped this file:
+   1. The table is the product. Customers see the Discord screenshot, not
+      this UI, so /table-wrap/ and everything inside it is tuned for
+      legibility at 2x capture: solid fills, no backdrop-filter, no masks,
+      no effects html2canvas cannot rasterise.
+   2. Every class name from the previous stylesheet is preserved. Nothing
+      in App.jsx needs to know this file was rewritten.
+   ---------------------------------------------------------------------- */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  /* Warm charcoal — neutral grey next to gold reads as cheap plastic. */
+  --black:  #0B0908;
+  --black2: #141110;
+  --black3: #1B1715;
+  --black4: #241F1B;
+  --border:  rgba(223,182,60,0.14);
+  --border2: rgba(223,182,60,0.30);
+
+  /* Gold as a ramp, not a two-stop fill. */
+  --gold1: #B78F2C;
+  --gold2: #DFB63C;
+  --gold3: #D3A945;
+  --gold4: #F2D98A;
+  --gold-fill: linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%);
+  --gold-bevel: inset 0 1px 0 rgba(255,246,220,0.5), inset 0 -1px 0 #7B5F16;
+
+  /* Warm text ramp, higher contrast than before on the two lower steps. */
+  --white:    #FCF8F1;
+  --text:     #EDE8DF;
+  --text-dim: #BDB4A6;
+  --text-mute:#8B8175;
+
+  --green: #3FCB7F;
+  --red:   #E5624E;
+
+  --ease:   cubic-bezier(0.16, 1, 0.3, 1);
+  --spring: cubic-bezier(0.22, 1.3, 0.36, 1);
+
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
+  --amb: 0 24px 60px -24px rgba(0,0,0,0.85);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; background: var(--black); }
+body { background: var(--black); }
+::selection { background: rgba(223,182,60,0.28); color: var(--black); }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #262019; border-radius: 999px; border: 2px solid var(--black); }
+::-webkit-scrollbar-thumb:hover { background: rgba(223,182,60,0.4); }
+:focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; border-radius: 4px; }
+
+.app {
+  min-height: 100vh;
+  font-family: 'Montserrat', sans-serif;
+  color: var(--text);
+  background: radial-gradient(120% 70% at 50% 0%, var(--black2) 0%, #100D0C 45%, var(--black) 100%);
+  background-attachment: fixed;
+}
+/* One wide gold source at the top. The grid overlay is gone — it competed
+   with the table rules for attention and made the page feel busy. */
+.app::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse 1000px 520px at 50% -8%, rgba(223,182,60,0.07), transparent 62%);
+}
+/* Grain. Kills banding on dark surfaces; the cheapest thing that makes a
+   dark UI read as expensive. */
+.app::after {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: 0.03;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+  background-size: 160px 160px;
+}
+
+/* ── HEADER ─────────────────────────────────────────────────────────── */
+.header {
+  min-height: 84px; padding: 14px 40px;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+  background: rgba(20,17,16,0.74);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.logo-area { display: flex; align-items: center; gap: 14px; }
+.logo-area img { display: block; }
+.logo-divider { width: 1px; height: 30px; background: var(--border); }
+.logo-name {
+  font-family: 'Bebas Neue', sans-serif; font-size: 25px; letter-spacing: 0.14em; line-height: 1;
+  background: var(--gold-fill); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.logo-sub { font-size: 9px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-mute); text-transform: uppercase; margin-top: 4px; }
+.header-right { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+
+/* Stat strip. Hairline separators instead of boxes — fewer edges, faster read. */
+.stat-block { padding: 2px 0 2px 24px; border-left: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
+.stat-block:first-child { border-left: none; padding-left: 0; }
+.stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-mute); text-transform: uppercase; }
+.stat-val {
+  font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 0.03em; line-height: 1;
+  font-variant-numeric: tabular-nums; color: var(--white);
+  transition: color 0.4s var(--ease);
+}
+.stat-block:hover .stat-val { color: var(--gold4); }
+
+.status-block { padding: 2px 0 2px 24px; border-left: 1px solid var(--border); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.live-badge {
+  display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+  border: 1px solid rgba(63,203,127,0.32); background: rgba(63,203,127,0.08);
+  border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: var(--green);
+}
+.live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); position: relative; }
+.live-dot::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid rgba(63,203,127,0.5); animation: livePulse 2.4s var(--ease) infinite; }
+@keyframes livePulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes glow { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+.live-pip { width: 4px; height: 4px; border-radius: 50%; background: var(--green); animation: glow 2.4s ease-in-out infinite; }
+.save-flash { font-size: 8px; letter-spacing: 0.18em; color: var(--gold2); font-weight: 600; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); }
+.save-flash.on { opacity: 1; transform: translateY(0); }
+.save-flash.off { opacity: 0; transform: translateY(3px); }
+.refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; font-family: 'DM Mono', monospace; }
+.new-count-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 10px; border-radius: 999px;
+  background: rgba(223,182,60,0.12); color: var(--gold2); border: 1px solid var(--border2);
+  animation: badgePop 0.5s var(--spring) both;
+}
+@keyframes badgePop { from { opacity: 0; transform: scale(0.7); } to { opacity: 1; transform: scale(1); } }
+
+/* ── TABS ───────────────────────────────────────────────────────────── */
+.tabs-wrap {
+  display: flex; gap: 2px; padding: 0 40px;
+  background: rgba(20,17,16,0.74);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 84px; z-index: 90;
+}
+.tab {
+  padding: 15px 18px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--text-mute); cursor: pointer; border: none; background: transparent; position: relative;
+  display: flex; align-items: center; gap: 8px; border-radius: var(--r-sm) var(--r-sm) 0 0;
+  transition: color 0.3s var(--ease), background 0.3s var(--ease);
+}
+.tab::after {
+  content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px;
+  background: var(--gold-fill); transform: scaleX(0); transform-origin: center;
+  transition: transform 0.45s var(--ease);
+}
+.tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+.tab:hover::after { transform: scaleX(0.4); }
+.tab.active { color: var(--gold4); }
+.tab.active::after { transform: scaleX(1); }
+.tab:active { transform: scale(0.98); }
+.tab-count {
+  font-size: 9px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px;
+  color: var(--text-mute); font-family: 'DM Mono', monospace; background: var(--black3);
+  transition: all 0.3s var(--ease);
+}
+.tab.active .tab-count { border-color: var(--border2); color: var(--gold2); background: rgba(223,182,60,0.08); }
+
+/* ── CONTENT ────────────────────────────────────────────────────────── */
+.content { padding: 32px 40px 72px; position: relative; z-index: 1; animation: contentIn 0.45s var(--ease) both; }
+@keyframes contentIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+.hint-bar {
+  display: flex; align-items: center; gap: 18px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em;
+  margin-bottom: 20px; padding: 11px 18px; border: 1px solid var(--border); background: var(--black2);
+  border-radius: var(--r-md); font-family: 'DM Mono', monospace;
+  transition: border-color 0.4s var(--ease);
+}
+.hint-bar:hover { border-color: var(--border2); }
+.hint-label { font-size: 8px; font-weight: 700; letter-spacing: 0.24em; color: var(--gold2); white-space: nowrap; padding-right: 18px; border-right: 1px solid var(--border); }
+.toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+
+/* ── BUTTONS ────────────────────────────────────────────────────────── */
+.btn {
+  padding: 10px 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; border: none; cursor: pointer;
+  text-transform: uppercase; border-radius: var(--r-sm); position: relative; overflow: hidden;
+  transition: transform 0.3s var(--spring), background 0.3s var(--ease), border-color 0.3s var(--ease), color 0.3s var(--ease);
+}
+.btn::after { content: none; }
+.btn:active { transform: scale(0.97) !important; transition-duration: 0.1s; }
+/* The one gold fill on the page: the primary action. */
+.btn-add { background: var(--gold-fill); box-shadow: var(--gold-bevel); color: #141110; border: 1px solid var(--gold1); }
+.btn-add:hover { transform: translateY(-1px); filter: brightness(1.06); }
+.btn-refresh { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+.btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: var(--black3); transform: translateY(-1px); }
+.btn-refresh:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.search-inp {
+  background: var(--black2); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace;
+  font-size: 11px; padding: 9px 14px; border-radius: var(--r-sm); outline: none; width: 220px; letter-spacing: 0.03em;
+  transition: border-color 0.3s var(--ease), width 0.4s var(--ease), background 0.3s var(--ease);
+}
+.search-inp:focus { border-color: var(--gold2); background: var(--black3); width: 280px; }
+.search-inp::placeholder { color: var(--text-mute); }
+.source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; font-family: 'DM Mono', monospace; }
+
+/* ── TABLE ──────────────────────────────────────────────────────────────
+   This block is the screenshot. Solid fills only, no blur, no masks.
+   ------------------------------------------------------------------- */
+.table-wrap {
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
+  border: 1px solid var(--border);
+  background: var(--black2);
+  border-radius: var(--r-lg);
+  box-shadow: var(--amb);
+  transition: border-color 0.4s var(--ease);
+}
+.table-wrap:hover { border-color: var(--border2); }
+table { width: 100%; border-collapse: collapse; min-width: 1100px; }
+
+thead tr { background: var(--black3); border-bottom: 1px solid var(--border2); }
+th {
+  padding: 13px 14px; font-size: 8px; font-weight: 700; letter-spacing: 0.22em;
+  color: var(--text-mute); text-align: left; white-space: nowrap;
+  transition: color 0.25s var(--ease);
+}
+th:hover { color: var(--gold2); }
+th:first-child { color: var(--gold2); }
+
+/* Zebra banding. On a twelve-column table this is worth more for scanning
+   than any amount of hover styling, and it survives the screenshot. */
+tbody tr { border-bottom: 1px solid rgba(223,182,60,0.07); transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease); }
+tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(223,182,60,0.05); box-shadow: inset 2px 0 0 var(--gold2); }
+tbody tr:hover .ticker-inp { color: var(--gold4); }
+td { padding: 11px 14px; vertical-align: middle; }
+
+/* Numbers right-align against their column edge so magnitudes stack up
+   visually. Text columns stay left. */
+th:nth-child(3), th:nth-child(4), th:nth-child(5), th:nth-child(6),
+th:nth-child(8), th:nth-child(9), th:nth-child(10),
+td:nth-child(3), td:nth-child(4), td:nth-child(5), td:nth-child(6),
+td:nth-child(8), td:nth-child(9), td:nth-child(10) { text-align: right; }
+td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-input { text-align: right; }
+
+.cell-input {
+  background: transparent; border: 1px solid transparent; color: var(--text);
+  font-family: 'DM Mono', monospace; font-size: 13px; font-variant-numeric: tabular-nums;
+  outline: none; padding: 5px 7px; width: 100%; border-radius: 6px;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.cell-input:hover { background: rgba(255,255,255,0.035); }
+.cell-input:focus { background: var(--black4); border-color: var(--gold2); }
+.cell-input::placeholder { color: var(--text-mute); }
+.ticker-inp { color: var(--gold4); letter-spacing: 0.05em; width: 84px; font-weight: 500; }
+.num-inp { width: 88px; }
+.qty-inp { color: var(--text-dim); width: 76px; }
+.date-inp { width: 128px; color-scheme: dark; color: var(--text-dim); font-size: 12px; }
+
+.dir-sel {
+  border: 1px solid transparent; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; cursor: pointer;
+  padding: 5px 11px; outline: none; -webkit-appearance: none; appearance: none; text-transform: uppercase;
+  border-radius: 999px; transition: all 0.25s var(--ease);
+}
+.dir-sel:active { transform: scale(0.96); }
+.dir-long  { background: rgba(63,203,127,0.10); color: var(--green); border-color: rgba(63,203,127,0.28); }
+.dir-short { background: rgba(229,98,78,0.10);  color: var(--red);   border-color: rgba(229,98,78,0.28); }
+.dir-long:hover  { background: rgba(63,203,127,0.2); }
+.dir-short:hover { background: rgba(229,98,78,0.2); }
+
+.dist-val  { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+.price-val { color: var(--white); font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; font-size: 13px; }
+.px-up   { animation: pxUp 1.2s var(--ease) both; }
+.px-down { animation: pxDown 1.2s var(--ease) both; }
+@keyframes pxUp   { 0% { color: var(--green); } 100% { color: var(--white); } }
+@keyframes pxDown { 0% { color: var(--red);   } 100% { color: var(--white); } }
+.value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+.fetching  { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
+.price-err { color: var(--red); font-size: 10px; }
+.price-dim { color: var(--text-mute); }
+
+/* P&L is the number people look for first. It gets a chip, not a glow. */
+.pnl-pos, .pnl-neg, .pnl-zero {
+  display: inline-block; min-width: 76px; text-align: right;
+  padding: 4px 9px; border-radius: 6px;
+  font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums;
+  font-size: 13px; font-weight: 500;
+}
+.pnl-pos  { color: var(--green); background: rgba(63,203,127,0.10); }
+.pnl-neg  { color: var(--red);   background: rgba(229,98,78,0.10); }
+.pnl-zero { color: var(--text-mute); background: rgba(255,255,255,0.03); }
+
+.flag-badge {
+  display: inline-block; font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
+  padding: 3px 8px; border-radius: 999px; border: 1px solid; text-transform: uppercase; white-space: nowrap;
+}
+.flag-sel {
+  background: var(--black3); border: 1px solid var(--border); color: var(--text-mute);
+  font-family: 'Montserrat', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
+  padding: 4px 8px; border-radius: 6px; cursor: pointer; outline: none; text-transform: uppercase;
+  transition: border-color 0.25s var(--ease);
+}
+.flag-sel:hover { border-color: var(--border2); }
+.flag-sel option { background: var(--black3); color: var(--text); }
+
+/* Rows for positions closed since the last Discord post. Read-only, dimmed,
+   and struck through so they read as history at a glance in the screenshot. */
+.row-closed { background: rgba(229,98,78,0.05) !important; }
+.row-closed:hover { background: rgba(229,98,78,0.08) !important; box-shadow: inset 2px 0 0 var(--red) !important; }
+.row-closed td { color: var(--text-mute); }
+.closed-cell { font-family: 'DM Mono', monospace; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-dim); padding: 5px 7px; }
+.closed-ticker { color: var(--text-dim); letter-spacing: 0.05em; font-weight: 500; text-decoration: line-through; text-decoration-color: rgba(229,98,78,0.6); }
+
+.close-pos-btn {
+  background: transparent; border: 1px solid var(--border); color: var(--text-mute);
+  font-family: 'Montserrat', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
+  padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  transition: all 0.25s var(--ease);
+}
+.close-pos-btn:hover { color: var(--gold4); border-color: var(--border2); background: rgba(223,182,60,0.08); }
+.close-pos-btn:active { transform: scale(0.96); }
+.del-btn {
+  background: transparent; border: none; color: var(--text-mute); cursor: pointer;
+  font-size: 12px; padding: 5px 8px; border-radius: 6px; transition: all 0.25s var(--ease);
+}
+.del-btn:hover { color: var(--red); background: rgba(229,98,78,0.10); }
+.del-btn:active { transform: scale(0.92); }
+
+.empty-cell { padding: 44px 14px !important; text-align: center; color: var(--text-mute); font-size: 9px; letter-spacing: 0.22em; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 0.9s linear infinite; }
+
+/* ── OVERLAYS ───────────────────────────────────────────────────────── */
+.modal-overlay, .report-overlay {
+  animation: overlayIn 0.3s var(--ease) both;
+  background: rgba(8,7,6,0.82) !important;
+}
+@keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-card, .report-panel { animation: cardIn 0.45s var(--ease) both; }
+@keyframes cardIn { from { opacity: 0; transform: translateY(16px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* ── RESPONSIVE ─────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .header { padding: 12px 24px; }
+  .tabs-wrap { padding: 0 24px; }
+  .content { padding: 24px 24px 64px; }
+}
+@media (max-width: 720px) {
+  .header { min-height: 0; padding: 12px 16px; gap: 12px; }
+  .header-right { gap: 16px; width: 100%; }
+  .stat-block, .status-block { padding-left: 14px; }
+  .tabs-wrap { padding: 0 8px; top: 0; position: static; overflow-x: auto; }
+  .content { padding: 20px 16px 56px; }
+  .toolbar { gap: 8px; }
+  .search-inp, .search-inp:focus { width: 100%; }
+  .btn { min-height: 40px; }
+}

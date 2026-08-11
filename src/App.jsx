@@ -5,6 +5,10 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const STORAGE_KEY = "position_monitor_v1";
 const CLOSED_STORAGE_KEY = "closed_positions_v1";
+// Positions closed since the last Discord post. They are kept out of
+// allPositions on purpose so that open-position counts, float and the
+// quarterly report are completely unaffected by them.
+const RECENT_CLOSES_KEY = "recent_closes_v1";
 const NEW_TTL = 24 * 60 * 60 * 1000;
 
 const TABS = [
@@ -124,6 +128,7 @@ const FLAGS = {
   "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "212,175,55", textColor: "#fff", solidBg: "#d4af37", solidBorder: "#d4af37" },
   "added":        { label: "ADDED",        short: "ADDED",    color: "99,182,255", textColor: "#fff", solidBg: "#63b6ff", solidBorder: "#63b6ff" },
   "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247", textColor: "#fff", solidBg: "#a855f7", solidBorder: "#a855f7" },
+  "closed":       { label: "CLOSED",       short: "CLOSED",   color: "229,98,78",  textColor: "#fff", solidBg: "#e5624e", solidBorder: "#e5624e" },
 };
 
 const CLOSE_REASONS = {
@@ -180,6 +185,19 @@ const loadClosedFromStorage = async () => {
 const saveClosedToStorage = async (d) => {
   try {
     await setDoc(doc(db, "tracker", CLOSED_STORAGE_KEY), { value: d });
+  } catch {}
+};
+
+const loadRecentClosesFromStorage = async () => {
+  try {
+    const snap = await getDoc(doc(db, "tracker", RECENT_CLOSES_KEY));
+    return snap.exists() ? (snap.data().value || []) : [];
+  } catch { return []; }
+};
+
+const saveRecentClosesToStorage = async (list) => {
+  try {
+    await setDoc(doc(db, "tracker", RECENT_CLOSES_KEY), { value: list });
   } catch {}
 };
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2184,12 +2202,12 @@ const DISCORD_PRESETS = [
   },
 ];
 
-function DiscordPostModal({ tab, positions, onClose, onConfirm }) {
+function DiscordPostModal({ tab, positions, recentCloses, onClose, onConfirm }) {
   useBodyScrollLock();
   const [ticker, setTicker] = useState("");
   // Auto-Prefill: gesetzte Flags aller Positionen dieses Tabs werden beim Öffnen
   // direkt als Nachrichtenzeilen übernommen (Flag → passendes Preset + Ticker).
-  const FLAG_TO_PRESET = { new_position: "new", stop_adjust: "sl", added: "adding", partials: "partial" };
+  const FLAG_TO_PRESET = { new_position: "new", stop_adjust: "sl", added: "adding", partials: "partial", closed: "closed" };
   const [lines, setLines] = useState(() => {
     const auto = [];
     (positions || []).forEach(p => {
@@ -2198,6 +2216,12 @@ function DiscordPostModal({ tab, positions, onClose, onConfirm }) {
         const preset = DISCORD_PRESETS.find(d => d.id === FLAG_TO_PRESET[k]);
         if (preset) auto.push({ presetId: preset.id, text: preset.generate(getTickerName(p.ticker) || p.ticker.trim().toUpperCase(), tab.label.toUpperCase()) });
       });
+    });
+    // Positions closed since the last post get the same treatment.
+    const closedPreset = DISCORD_PRESETS.find(d => d.id === "closed");
+    (recentCloses || []).forEach(rc => {
+      if (!closedPreset || !rc.ticker) return;
+      auto.push({ presetId: "closed", text: closedPreset.generate(getTickerName(rc.ticker) || rc.ticker.toUpperCase(), tab.label.toUpperCase()) });
     });
     return auto;
   });
@@ -2838,7 +2862,7 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
 }
 
 // ── TABLE ─────────────────────────────────────────────────────────────────────
-function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, anyFocused, closedPositions, onClosePosition, onDeleteClosed, onDeleteQuarter }) {
+function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, anyFocused, closedPositions, onClosePosition, onDeleteClosed, onDeleteQuarter, recentCloses = [], onClearRecentCloses }) {
   const [sortKey, setSortKey] = useState(null);
   const [sortDir, setSortDir] = useState("asc");
   const [search, setSearch] = useState("");
@@ -2850,6 +2874,10 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
   const [showDiscordModal, setShowDiscordModal] = useState(false);
   const [posting, setPosting] = useState(false);
   const [postResult, setPostResult] = useState(null);
+  // Where the mouse button went down. A drag that starts inside a cell input
+  // and ends over the row would otherwise register as a row click and open
+  // the detail panel while the user is only selecting text to overwrite it.
+  const pressOrigin = useRef(null);
 
   // ── Ticker-Namen-Maske: sequentielle Queue (öffentliche Proxies vertragen keine
   // 30 parallelen Requests), Modul-Cache, Retry fehlgeschlagener Lookups nach 10 Min.
@@ -2900,6 +2928,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     if (result.ok) {
       // Clear all flags on this tab after successful post
       setPositions(prev => prev.map(p => ({ ...p, flags: [], flag: null, flaggedAt: null })));
+      // Same mechanic for closed positions: they were announced, so they go.
+      if (onClearRecentCloses) onClearRecentCloses(tab.id);
     }
     setTimeout(() => setPostResult(null), 3000);
   };
@@ -2985,6 +3015,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
         <DiscordPostModal
           tab={tab}
           positions={positions}
+          recentCloses={recentCloses}
           onClose={() => setShowDiscordModal(false)}
           onConfirm={(message, emoji) => handleDiscordPost(message, emoji)}
         />
@@ -3056,7 +3087,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
             </tr>
           </thead>
           <tbody>
-            {sorted.length === 0 ? (
+            {sorted.length === 0 && recentCloses.length === 0 ? (
               <tr><td colSpan={12} className="empty-cell">{search ? "NO RESULTS" : "NO POSITIONS — PRESS ADD TO BEGIN"}</td></tr>
             ) : sorted.map((p) => {
               const entry = num(p.entry);
@@ -3077,9 +3108,20 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
               const rowBg = flagCfg ? `rgba(${flagCfg.color},0.04)` : "";
               return (
                 <tr key={p.id}
+                  onMouseDown={(e) => { pressOrigin.current = e.target; }}
                   onClick={(e) => {
+                    const origin = pressOrigin.current;
+                    pressOrigin.current = null;
+                    const CONTROLS = "input, select, button, a, label, textarea, [data-noopen]";
                     // Klicks auf Edit-Felder/Buttons/Selects öffnen KEIN Panel — nur echte Zeilen-Klicks
-                    if (e.target.closest("input, select, button, a, label, [data-noopen]")) return;
+                    if (e.target.closest(CONTROLS)) return;
+                    // Drag begonnen in einem Feld, losgelassen daneben → Textauswahl, kein Klick
+                    if (origin && origin.closest && origin.closest(CONTROLS)) return;
+                    // Aktive Textauswahl irgendwo in der Zeile → ebenfalls kein Panel
+                    const sel = typeof window !== "undefined" && window.getSelection ? window.getSelection() : null;
+                    if (sel && !sel.isCollapsed && String(sel).length) return;
+                    // Doppel-/Dreifachklick markiert Wort bzw. Zeile
+                    if (e.detail > 1) return;
                     if (p.ticker.trim()) setDetailPosition(p.id);
                   }}
                   style={{ cursor: p.ticker.trim() ? "pointer" : "default", ...(flagged ? { background: rowBg, borderLeft: `2px solid ${rowBorderColor}` } : {}) }}>
@@ -3161,6 +3203,40 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
                 </tr>
               );
             })}
+            {/* Positionen, die seit dem letzten Discord-Post geschlossen wurden.
+                Read-only, sie leben ausschließlich in recentCloses und fließen in
+                keine Zählung, keinen Float und keinen Report ein. Nach einem
+                erfolgreichen Post verschwinden sie automatisch. */}
+            {recentCloses.map((rc) => {
+              const cfg = FLAGS.closed;
+              const pnl = typeof rc.pnlPct === "number" ? rc.pnlPct : null;
+              return (
+                <tr key={`closed-${rc.id}-${rc.closedAt}`} className="row-closed">
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="closed-cell closed-ticker">{(rc.ticker || "").toUpperCase()}</span>
+                      <span className="flag-badge" style={{ color: "#fff", borderColor: cfg.solidBorder, background: cfg.solidBg, textShadow: "0 1px 2px rgba(0,0,0,0.8)", fontWeight: 800 }}>{cfg.short}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className={`dir-sel ${rc.direction === "LONG" ? "dir-long" : "dir-short"}`} style={{ display: "inline-block", opacity: 0.75 }}>{rc.direction}</span>
+                  </td>
+                  <td><span className="closed-cell">{rc.qty ?? "—"}</span></td>
+                  <td><span className="closed-cell">{rc.entry ?? "—"}</span></td>
+                  <td><span className="price-dim">—</span></td>
+                  <td><span className="price-dim">—</span></td>
+                  <td><span className="closed-cell" style={{ fontSize: 12 }}>{rc.entryDate || "—"}</span></td>
+                  <td><span className="closed-cell">{rc.closePriceDisplay || "—"}</span></td>
+                  <td><span className="closed-cell" style={{ fontSize: 12 }}>{rc.closeDate || "—"}</span></td>
+                  <td>{pnl !== null ? <span className={pnl > 0.005 ? "pnl-pos" : pnl < -0.005 ? "pnl-neg" : "pnl-zero"}>{pnl > 0 ? "+" : ""}{pnl.toFixed(2)}%</span> : <span className="price-dim">—</span>}</td>
+                  <td><span className="closed-cell" style={{ fontSize: 10, letterSpacing: "0.1em" }}>{(rc.reason && CLOSE_REASONS[rc.reason]) || "CLOSED"}</span></td>
+                  <td>
+                    <button className="del-btn" title="Aus dem nächsten Post entfernen"
+                      onClick={() => onClearRecentCloses && onClearRecentCloses(tab.id, rc.id)}>✕</button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -3173,6 +3249,8 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
 export default function App() {
   const [activeTab, setActiveTab] = useState("crypto");
   const [allPositions, setAllPositions] = useState(EMPTY_STATE);
+  // Geschlossene Positionen, die noch nicht auf Discord angekündigt wurden.
+  const [recentCloses, setRecentCloses] = useState([]);
   const [closedPositions, setClosedPositions] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState({});
@@ -3213,6 +3291,9 @@ export default function App() {
       }
       const closedStored = await loadClosedFromStorage();
       setClosedPositions(closedStored.list || []);
+      // Nur Schließungen der letzten 24 h vorhalten — gleiche TTL wie die Flags.
+      const recent = await loadRecentClosesFromStorage();
+      setRecentCloses((recent || []).filter(r => r && r.closedAt && (Date.now() - r.closedAt) < NEW_TTL));
       setIsLoading(false);
       // Directly trigger refresh for all tabs with positions
       if (stored) {
@@ -3282,6 +3363,19 @@ export default function App() {
   const handleClosePosition = (record, positionId, remainingQty) => {
     if (!record.isPartial) {
       postTrackRecordToDiscord(record); // ╔📊-track-record · full closes only
+      // Vollschließungen werden im nächsten "Post to Discord" als CLOSED
+      // markiert — dieselbe Mechanik wie bei den Flags.
+      setRecentCloses(prev => {
+        const next = [...prev, {
+          id: record.id, tabId: record.tabId, ticker: record.ticker, name: record.name,
+          direction: record.direction, qty: record.qty, entry: record.entry,
+          entryDate: record.entryDate, closeDate: record.closeDate,
+          closePriceDisplay: record.closePriceDisplay, pnlPct: record.pnlPct,
+          reason: record.reason, closedAt: record.closedAt,
+        }];
+        saveRecentClosesToStorage(next);
+        return next;
+      });
     }
     const newClosed = [...closedPositions, record];
     setClosedPositions(newClosed);
@@ -3300,6 +3394,18 @@ export default function App() {
       }
       const toSave = Object.fromEntries(Object.entries(next).map(([id, rows]) => [id, rows.map(({ currentPrice, loading, error, ...r }) => r)]));
       saveToStorage(toSave);
+      return next;
+    });
+  };
+
+  // tabId allein → alle Einträge dieses Tabs (nach erfolgreichem Post).
+  // tabId + id    → ein einzelner Eintrag (manuell per ✕ entfernt).
+  const handleClearRecentCloses = (tabId, id) => {
+    setRecentCloses(prev => {
+      const next = id != null
+        ? prev.filter(r => !(r.tabId === tabId && r.id === id))
+        : prev.filter(r => r.tabId !== tabId);
+      saveRecentClosesToStorage(next);
       return next;
     });
   };
@@ -3378,271 +3484,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
-        :root {
-          --black:#0a0a0a; --black2:#111111; --black3:#1a1a1a; --border:#222222; --border2:#2a2a2a;
-          --gold1:#b99c64; --gold2:#d4af37; --gold3:#c59958; --gold4:#f8e49b;
-          --white:#fdfdfd; --text:#ececec; --text-dim:#8a8a8a; --text-mute:#4a4a4a;
-          --green:#22c55e; --red:#ef4444;
-          --ease: cubic-bezier(0.22, 1, 0.36, 1);
-          --spring: cubic-bezier(0.34, 1.4, 0.64, 1);
-          --r-sm: 10px; --r-md: 16px; --r-lg: 22px;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        html { scroll-behavior: smooth; }
-        body { background: var(--black); }
-        ::selection { background: rgba(212,175,55,0.25); color: var(--gold4); }
-        ::-webkit-scrollbar { width: 10px; height: 10px; }
-        ::-webkit-scrollbar-track { background: var(--black); }
-        ::-webkit-scrollbar-thumb { background: #1e1e1e; border-radius: 6px; border: 2px solid var(--black); transition: background 0.3s; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(212,175,55,0.35); }
-        :focus-visible { outline: 2px solid rgba(212,175,55,0.6); outline-offset: 2px; border-radius: 4px; }
-
-        .app { min-height: 100vh; background: var(--black); font-family: 'Montserrat', sans-serif; color: var(--text); }
-        .app::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-          background:
-            radial-gradient(ellipse 900px 480px at 50% -10%, rgba(212,175,55,0.06), transparent 60%),
-            radial-gradient(ellipse 700px 500px at 85% 110%, rgba(185,156,100,0.04), transparent 65%); }
-        .app::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.5;
-          background-image:
-            linear-gradient(rgba(212,175,55,0.025) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(212,175,55,0.025) 1px, transparent 1px);
-          background-size: 56px 56px;
-          -webkit-mask-image: radial-gradient(ellipse 1100px 600px at 50% 0%, black, transparent 75%);
-          mask-image: radial-gradient(ellipse 1100px 600px at 50% 0%, black, transparent 75%); }
-
-        /* ── HEADER · frosted glass ───────────────────────────────── */
-        .header { min-height: 100px; padding: 16px 56px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
-          background: rgba(10,10,10,0.6); backdrop-filter: blur(32px) saturate(170%); -webkit-backdrop-filter: blur(32px) saturate(170%);
-          border-bottom: 1px solid rgba(255,255,255,0.06); position: sticky; top: 0; z-index: 100;
-          animation: headerIn 0.7s var(--ease) both; }
-        @keyframes headerIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
-        .logo-area { display: flex; align-items: center; gap: 16px; }
-        .logo-divider { width: 1px; height: 40px; background: linear-gradient(180deg, transparent, rgba(212,175,55,0.4), transparent); margin: 0 6px; }
-        .logo-name { font-family: 'Bebas Neue', sans-serif; font-size: 32px; letter-spacing: 0.25em; color: var(--gold2); line-height: 1;
-          background: linear-gradient(110deg, #b99c64 0%, #d4af37 30%, #f8e49b 50%, #d4af37 70%, #b99c64 100%);
-          background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-          animation: goldShimmer 8s var(--ease) infinite; }
-        @keyframes goldShimmer { 0%, 50% { background-position: 100% 0; } 92%, 100% { background-position: 0% 0; } }
-        .logo-sub { font-size: 8px; letter-spacing: 0.4em; color: var(--gold1); line-height: 1.6; font-weight: 500; text-transform: uppercase; }
-        .header-right { display: flex; align-items: center; gap: 0; }
-        .stat-block { padding: 0 24px; text-align: right; cursor: default;
-          border-left: 1px solid rgba(255,255,255,0.07);
-          transition: background 0.4s var(--ease); animation: statIn 0.7s var(--ease) both; }
-        .stat-block:hover { background: rgba(212,175,55,0.035); }
-        .stat-block:hover .stat-label { color: var(--gold1); }
-        .stat-block:hover .stat-val { transform: translateY(-1px); text-shadow: 0 0 18px currentColor; }
-        .stat-block:nth-child(1) { animation-delay: 0.08s; } .stat-block:nth-child(2) { animation-delay: 0.14s; }
-        .stat-block:nth-child(3) { animation-delay: 0.20s; } .stat-block:nth-child(4) { animation-delay: 0.26s; }
-        .stat-block:nth-child(5) { animation-delay: 0.32s; } .stat-block:nth-child(6) { animation-delay: 0.38s; }
-        @keyframes statIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-        .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 5px;
-          transition: color 0.4s var(--ease); }
-        .stat-val { font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 0.04em; line-height: 1; font-variant-numeric: tabular-nums;
-          transition: color 0.45s var(--ease), transform 0.35s var(--spring), text-shadow 0.45s var(--ease); }
-        .status-block { padding: 2px 0 2px 24px; border-left: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-        .live-badge { display: flex; align-items: center; gap: 9px; padding: 7px 18px; border: 1px solid rgba(34,197,94,0.35);
-          background: rgba(34,197,94,0.09); border-radius: 20px; font-size: 10px; font-weight: 700; letter-spacing: 0.24em; color: var(--green);
-          box-shadow: 0 0 22px rgba(34,197,94,0.12); transition: all 0.3s var(--ease); }
-        .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 12px var(--green); position: relative; animation: glow 2s ease-in-out infinite; }
-        .live-dot::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid rgba(34,197,94,0.5); animation: livePulse 2s var(--ease) infinite; }
-        @keyframes livePulse { 0% { transform: scale(0.6); opacity: 1; } 100% { transform: scale(1.9); opacity: 0; } }
-        @keyframes glow { 0%,100% { opacity: 1; box-shadow: 0 0 10px var(--green); } 50% { opacity: 0.3; box-shadow: 0 0 3px var(--green); } }
-        .save-flash { font-size: 8px; letter-spacing: 0.18em; color: var(--gold2); transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); font-weight: 500; }
-        .save-flash.on { opacity: 1; transform: translateY(0); } .save-flash.off { opacity: 0; transform: translateY(3px); }
-        .refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; }
-        .new-count-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 10px; border-radius: 20px;
-          background: rgba(212,175,55,0.12); color: var(--gold2); border: 1px solid rgba(212,175,55,0.3); animation: badgePop 0.5s var(--spring) both; }
-        @keyframes badgePop { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: scale(1); } }
-
-        /* ── TABS · animated gold indicator ─────────────────────── */
-        .tabs-wrap { display: flex; background: rgba(10,10,10,0.7); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%);
-          border-bottom: 1px solid var(--border); padding: 0 56px; gap: 4px; position: sticky; top: 100px; z-index: 90; }
-        .tab { padding: 18px 20px; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase;
-          color: var(--text-dim); cursor: pointer; border: none; background: transparent; position: relative;
-          transition: color 0.4s var(--ease), background 0.4s var(--ease); display: flex; align-items: center; gap: 9px; border-radius: 8px 8px 0 0; }
-        .tab::after { content: ""; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px; border-radius: 2px;
-          background: linear-gradient(90deg, var(--gold3), var(--gold2), var(--gold4));
-          transform: scaleX(0); transform-origin: center; transition: transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
-        .tab:hover { color: var(--text); background: rgba(255,255,255,0.025); }
-        .tab:hover::after { transform: scaleX(0.45); }
-        .tab.active { color: var(--gold4); }
-        .tab.active::after { transform: scaleX(1); box-shadow: 0 0 14px rgba(212,175,55,0.45); }
-        .tab:active { transform: scale(0.98); }
-        .tab-count { font-size: 9px; padding: 2px 8px; border: 1px solid var(--border2); border-radius: 20px; color: var(--text-dim);
-          font-family: 'DM Mono', monospace; background: var(--black3); transition: all 0.4s var(--ease); }
-        .tab.active .tab-count { border-color: rgba(212,175,55,0.3); color: var(--gold2); background: rgba(212,175,55,0.08); }
-        .live-pip { width: 4px; height: 4px; border-radius: 50%; background: var(--green); box-shadow: 0 0 5px var(--green); animation: glow 2s ease-in-out infinite; }
-
-        /* ── CONTENT · fluid tab transitions ─────────────────────── */
-        .content { padding: 36px 56px; animation: contentIn 0.5s var(--ease) both; position: relative; z-index: 1; }
-        @keyframes contentIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-        .hint-bar { display: flex; align-items: center; gap: 20px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.06em;
-          margin-bottom: 24px; padding: 12px 20px; border: 1px solid var(--border); background: rgba(17,17,17,0.7); backdrop-filter: blur(10px);
-          border-radius: var(--r-md); font-family: 'DM Mono', monospace; transition: border-color 0.5s var(--ease), transform 0.5s var(--ease), box-shadow 0.5s var(--ease); }
-        .hint-bar:hover { border-color: rgba(212,175,55,0.3); transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
-        .hint-label { font-size: 8px; font-weight: 700; letter-spacing: 0.25em; color: var(--gold2); white-space: nowrap; padding-right: 20px; border-right: 1px solid var(--border); }
-        .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-
-        /* ── BUTTONS · Apple-style press & lift ─────────────────── */
-        .btn { padding: 10px 22px; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; border: none; cursor: pointer;
-          text-transform: uppercase; border-radius: 12px; transition: all 0.4s var(--spring); will-change: transform;
-          position: relative; overflow: hidden; }
-        .btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: -80%; width: 50%;
-          background: linear-gradient(105deg, transparent, rgba(255,255,255,0.35), transparent);
-          transform: skewX(-20deg); transition: left 0.6s var(--ease); pointer-events: none; }
-        .btn-add:hover::after { left: 130%; }
-        .btn:active { transform: scale(0.96) !important; transition-duration: 0.1s; }
-        .btn-add { background: linear-gradient(135deg, var(--gold2), var(--gold3)); color: var(--black); box-shadow: 0 4px 20px rgba(212,175,55,0.2), inset 0 1px 0 rgba(255,255,255,0.25); }
-        .btn-add:hover { background: linear-gradient(135deg, var(--gold4), var(--gold2)); box-shadow: 0 8px 32px rgba(212,175,55,0.4), inset 0 1px 0 rgba(255,255,255,0.35); transform: translateY(-2px); }
-        .btn-refresh { background: rgba(255,255,255,0.02); color: var(--text-dim); border: 1px solid var(--border); }
-        .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: rgba(255,255,255,0.05); transform: translateY(-1px); }
-        .btn-refresh:disabled { opacity: 0.3; cursor: not-allowed; }
-        .search-inp { background: rgba(17,17,17,0.8); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace;
-          font-size: 11px; padding: 9px 16px; border-radius: 12px; outline: none; width: 220px; letter-spacing: 0.04em;
-          transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), width 0.4s var(--ease), background 0.3s var(--ease); }
-        .search-inp:focus { border-color: rgba(212,175,55,0.5); background: rgba(212,175,55,0.04); width: 280px;
-          box-shadow: 0 0 0 3px rgba(212,175,55,0.1); }
-        .search-inp::placeholder { color: var(--text-mute); }
-        .source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; }
-
-        /* ── TABLE · soft card, staggered rows ───────────────────── */
-        .table-wrap { overflow-x: auto; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-          border: 1px solid rgba(212,175,55,0.14); background: rgba(17,17,17,0.92);
-          border-radius: var(--r-lg); overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y; box-shadow: 0 8px 40px rgba(0,0,0,0.4); transition: box-shadow 0.4s var(--ease), border-color 0.4s var(--ease); }
-        .table-wrap:hover { border-color: rgba(212,175,55,0.24); box-shadow: 0 12px 48px rgba(0,0,0,0.5), 0 0 32px rgba(212,175,55,0.06); }
-        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
-        thead tr { background: rgba(26,26,26,0.9); border-bottom: 1px solid var(--border); }
-        th { padding: 16px 14px; font-size: 8px; font-weight: 700; letter-spacing: 0.28em; color: var(--text-dim); text-align: left; white-space: nowrap; transition: color 0.25s var(--ease); }
-        th:hover { color: var(--gold1); }
-        th:first-child { color: var(--gold1); }
-        tbody tr { border-bottom: 1px solid rgba(42,42,42,0.7); transition: background 0.35s var(--ease), box-shadow 0.35s var(--ease); animation: rowIn 0.55s var(--ease) both; }
-        tbody tr:nth-child(1) { animation-delay: 0.03s; } tbody tr:nth-child(2) { animation-delay: 0.07s; }
-        tbody tr:nth-child(3) { animation-delay: 0.11s; } tbody tr:nth-child(4) { animation-delay: 0.15s; }
-        tbody tr:nth-child(5) { animation-delay: 0.19s; } tbody tr:nth-child(6) { animation-delay: 0.23s; }
-        tbody tr:nth-child(7) { animation-delay: 0.27s; } tbody tr:nth-child(8) { animation-delay: 0.31s; }
-        tbody tr:nth-child(n+9) { animation-delay: 0.35s; }
-        @keyframes rowIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-        tbody tr:last-child { border-bottom: none; }
-        tbody tr:hover { background: rgba(212,175,55,0.035); box-shadow: inset 3px 0 0 rgba(212,175,55,0.55); }
-        tbody tr:hover .ticker-inp { color: var(--gold4); }
-        tbody tr:hover .pnl-pos { text-shadow: 0 0 14px rgba(34,197,94,0.5); }
-        tbody tr:hover .pnl-neg { text-shadow: 0 0 14px rgba(239,68,68,0.5); }
-        td { padding: 14px 14px; }
-        .cell-input { background: transparent; border: 1px solid transparent; color: var(--text); font-family: 'DM Mono', monospace; font-size: 13px;
-          outline: none; padding: 5px 7px; width: 100%; border-radius: 7px; transition: background 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
-        .cell-input:hover { background: rgba(255,255,255,0.03); }
-        .cell-input:focus { background: rgba(212,175,55,0.06); border-color: rgba(212,175,55,0.3); box-shadow: 0 0 0 3px rgba(212,175,55,0.08); }
-        .cell-input::placeholder { color: var(--text-mute); }
-        .ticker-inp { color: var(--gold4); letter-spacing: 0.06em; width: 80px; transition: color 0.25s var(--ease), background 0.25s var(--ease), border-color 0.25s var(--ease), box-shadow 0.25s var(--ease); }
-        .num-inp { width: 85px; } .qty-inp { color: var(--gold3); width: 75px; } .date-inp { width: 130px; color-scheme: dark; }
-        .dir-sel { border: none; font-size: 10px; font-weight: 700; letter-spacing: 0.15em; cursor: pointer; padding: 5px 12px;
-          outline: none; -webkit-appearance: none; text-transform: uppercase; border-radius: 7px; transition: all 0.3s var(--spring); }
-        .dir-sel:active { transform: scale(0.95); }
-        .dir-long { background: rgba(34,197,94,0.1); color: var(--green); } .dir-short { background: rgba(239,68,68,0.1); color: var(--red); }
-        .dir-long:hover { background: rgba(34,197,94,0.2); box-shadow: 0 0 14px rgba(34,197,94,0.15); }
-        .dir-short:hover { background: rgba(239,68,68,0.2); box-shadow: 0 0 14px rgba(239,68,68,0.15); }
-        .dist-val { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
-        .price-val { color: var(--white); font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: color 0.4s var(--ease); }
-        .px-up { animation: pxUp 1.2s var(--ease) both; }
-        .px-down { animation: pxDown 1.2s var(--ease) both; }
-        @keyframes pxUp { 0% { color: var(--green); text-shadow: 0 0 12px rgba(34,197,94,0.55); } 100% { color: var(--white); text-shadow: none; } }
-        @keyframes pxDown { 0% { color: var(--red); text-shadow: 0 0 12px rgba(239,68,68,0.55); } 100% { color: var(--white); text-shadow: none; } }
-        .value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
-        .fetching { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
-        .price-err { color: var(--red); font-size: 10px; } .price-dim { color: var(--text-mute); }
-        .pnl-pos { color: var(--green); font-weight: 700; font-size: 14px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
-        .pnl-neg { color: var(--red); font-weight: 700; font-size: 14px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; transition: text-shadow 0.3s var(--ease); }
-        .pnl-zero { color: var(--text-dim); font-family: 'DM Mono', monospace; }
-        .del-btn { background: none; border: none; color: var(--text-mute); cursor: pointer; font-size: 12px; padding: 6px 8px;
-          transition: all 0.25s var(--spring); border-radius: 7px; }
-        .del-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); transform: scale(1.12); }
-        .del-btn:active { transform: scale(0.92); }
-        .close-pos-btn { background: rgba(212,175,55,0.07); border: 1px solid rgba(212,175,55,0.2); color: var(--gold1); cursor: pointer;
-          font-size: 8px; font-weight: 700; letter-spacing: 0.14em; padding: 5px 9px; border-radius: 7px; white-space: nowrap;
-          transition: all 0.3s var(--spring); }
-        .close-pos-btn:hover { background: rgba(212,175,55,0.15); border-color: var(--gold2); color: var(--gold2); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(212,175,55,0.15); }
-        .close-pos-btn:active { transform: scale(0.95); }
-        .empty-cell { text-align: center; padding: 72px; color: var(--text-mute); font-size: 10px; letter-spacing: 0.3em; font-weight: 500; }
-        .spin { display: inline-block; animation: spin 0.7s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .flag-badge { font-size: 8px; font-weight: 700; letter-spacing: 0.16em; padding: 2px 7px; border-radius: 5px; border: 1px solid;
-          white-space: nowrap; animation: newpulse 2.5s ease-in-out infinite; }
-        @keyframes newpulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
-        .flag-sel { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; padding: 4px 8px; border-radius: 7px; cursor: pointer;
-          border: 1px solid var(--border2); background: transparent; color: var(--text-mute); outline: none;
-          -webkit-appearance: none; appearance: none; text-transform: uppercase; transition: all 0.3s var(--ease); }
-        .flag-sel:hover { border-color: rgba(212,175,55,0.3); background: rgba(212,175,55,0.04); }
-        .flag-sel option { background: var(--black3); color: var(--text); }
-
-        /* ── MODALS · scale-in with depth ─────────────────────────── */
-        .modal-overlay { animation: overlayIn 0.45s var(--ease) both; }
-        @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
-        .modal-card { animation: modalIn 0.6s var(--ease) both; box-shadow: 0 24px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(212,175,55,0.06), inset 0 1px 0 rgba(255,255,255,0.04) !important; }
-        @keyframes modalIn {
-          0% { opacity: 0; transform: scale(0.96) translateY(14px); filter: blur(6px); }
-          60% { filter: blur(0); }
-          100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); } }
-        .modal-card { overflow-anchor: none; overscroll-behavior: contain; }
-        .modal-card > * { animation: modalChild 0.5s var(--ease) 0.1s both; }
-        @keyframes modalChild { from { opacity: 0; } to { opacity: 1; } }
-
-        /* ── REPORT PANEL · slide from right ─────────────────────── */
-        .report-overlay { animation: overlayIn 0.45s var(--ease) both; }
-        .report-panel { animation: panelIn 0.7s var(--ease) both; box-shadow: -24px 0 80px rgba(0,0,0,0.6); overflow-anchor: none; overscroll-behavior: contain; }
-        @keyframes panelIn { from { transform: translateX(56px); opacity: 0; filter: blur(5px); } to { transform: none; opacity: 1; filter: blur(0); } }
-        .report-panel > * { animation: panelChild 0.6s var(--ease) both; }
-        .report-panel > *:nth-child(1) { animation-delay: 0.15s; }
-        .report-panel > *:nth-child(2) { animation-delay: 0.22s; }
-        .report-panel > *:nth-child(3) { animation-delay: 0.29s; }
-        .report-panel > *:nth-child(4) { animation-delay: 0.36s; }
-        .report-panel > *:nth-child(5) { animation-delay: 0.43s; }
-        .report-panel > *:nth-child(n+6) { animation-delay: 0.5s; }
-        @keyframes panelChild { from { opacity: 0; } to { opacity: 1; } }
-
-        /* ── MOBILE · responsive layout ───────────────────────────── */
-        @media (max-width: 900px) {
-          .header { height: auto; min-height: 0; padding: 14px 16px; flex-wrap: wrap; gap: 12px; position: static; }
-          .logo-area { gap: 10px; }
-          .logo-area img { width: 44px !important; height: 44px !important; }
-          .logo-name { font-size: 22px; letter-spacing: 0.18em; }
-          .logo-sub { font-size: 7px; letter-spacing: 0.28em; }
-          .logo-divider { display: none; }
-          .header-right { width: 100%; justify-content: flex-start; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; padding-bottom: 2px; }
-          .stat-block { padding: 0 14px; flex: 0 0 auto; text-align: left; animation: none; }
-          .stat-block:first-child { border-left: none; padding-left: 0; }
-          .stat-val { font-size: 18px; }
-          .status-block { padding: 0 0 0 14px; flex: 0 0 auto; align-items: flex-start; }
-          .tabs-wrap { padding: 0 8px; top: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-          .tabs-wrap::-webkit-scrollbar { display: none; }
-          .tab { padding: 14px 12px; font-size: 9px; letter-spacing: 0.12em; flex: 0 0 auto; }
-          .content { padding: 20px 14px; }
-          .hint-bar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; font-size: 9px; }
-          .hint-label { border-right: none; padding-right: 0; }
-          .toolbar { flex-wrap: wrap; }
-          .search-inp { width: 100%; flex: 1 1 100%; order: 10; }
-          .search-inp:focus { width: 100%; }
-          .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); }
-          .app::after { display: none; }
-          .logo-name { animation: none; background-position: 50% 0; }
-          .empty-cell { padding: 48px 20px; }
-          .report-panel { width: 100vw !important; max-width: 100vw !important; }
-          .modal-card { border-radius: 14px !important; }
-        }
-        @media (max-width: 480px) {
-          .header { padding: 12px 12px; }
-          .logo-name { font-size: 19px; }
-          .stat-label { font-size: 7px; }
-          .stat-val { font-size: 16px; }
-          .content { padding: 16px 10px; }
-          .btn { padding: 9px 16px; font-size: 9px; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
-        }
-      `}</style>
 
       {showReport && (
         <QuarterlyReportPanel closedPositions={closedPositions} allPositions={allPositions} perfSegments={perfSegments} equitySnapshots={equitySnapshots} onClose={() => setShowReport(false)} />
@@ -3748,6 +3589,8 @@ export default function App() {
           anyFocused={anyFocused}
           closedPositions={closedPositions}
           onClosePosition={handleClosePosition}
+          recentCloses={recentCloses.filter(r => r.tabId === activeTab)}
+          onClearRecentCloses={handleClearRecentCloses}
           onDeleteClosed={handleDeleteClosed}
           onDeleteQuarter={handleDeleteQuarter}
         />
