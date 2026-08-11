@@ -13,11 +13,12 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
 
 :root {
-  /* Warm charcoal — neutral grey next to gold reads as cheap plastic. */
-  --black:  #0B0908;
-  --black2: #141110;
-  --black3: #1B1715;
-  --black4: #241F1B;
+  /* Neutral charcoal per the VisionX brand spec. The warmth in this UI
+     comes from the gold, not from the surfaces. */
+  --black:  #0A0A0A;
+  --black2: #121212;
+  --black3: #191919;
+  --black4: #212121;
   --border:  rgba(223,182,60,0.14);
   --border2: rgba(223,182,60,0.30);
 
@@ -29,11 +30,11 @@
   --gold-fill: linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%);
   --gold-bevel: inset 0 1px 0 rgba(255,246,220,0.5), inset 0 -1px 0 #7B5F16;
 
-  /* Warm text ramp, higher contrast than before on the two lower steps. */
-  --white:    #FCF8F1;
-  --text:     #EDE8DF;
-  --text-dim: #BDB4A6;
-  --text-mute:#8B8175;
+  /* Neutral text ramp, higher contrast than before on the two lower steps. */
+  --white:    #FAFAFA;
+  --text:     #EAEAEA;
+  --text-dim: #B0B0B0;
+  --text-mute:#7E7E7E;
 
   --green: #3FCB7F;
   --red:   #E5624E;
@@ -48,10 +49,10 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; background: var(--black); }
 body { background: var(--black); }
-::selection { background: rgba(223,182,60,0.28); color: var(--black); }
+::selection { background: rgba(223,182,60,0.28); color: #0A0A0A; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #262019; border-radius: 999px; border: 2px solid var(--black); }
+::-webkit-scrollbar-thumb { background: #242424; border-radius: 999px; border: 2px solid var(--black); }
 ::-webkit-scrollbar-thumb:hover { background: rgba(223,182,60,0.4); }
 :focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; border-radius: 4px; }
 
@@ -59,7 +60,7 @@ body { background: var(--black); }
   min-height: 100vh;
   font-family: 'Montserrat', sans-serif;
   color: var(--text);
-  background: radial-gradient(120% 70% at 50% 0%, var(--black2) 0%, #100D0C 45%, var(--black) 100%);
+  background: radial-gradient(120% 70% at 50% 0%, var(--black2) 0%, #0F0F0F 45%, var(--black) 100%);
   background-attachment: fixed;
 }
 /* One wide gold source at the top. The grid overlay is gone — it competed
@@ -80,7 +81,7 @@ body { background: var(--black); }
 .header {
   min-height: 84px; padding: 14px 40px;
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
-  background: rgba(20,17,16,0.74);
+  background: rgba(18,18,18,0.74);
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 0; z-index: 100;
@@ -131,7 +132,7 @@ body { background: var(--black); }
 /* ── TABS ───────────────────────────────────────────────────────────── */
 .tabs-wrap {
   display: flex; gap: 2px; padding: 0 40px;
-  background: rgba(20,17,16,0.74);
+  background: rgba(18,18,18,0.74);
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid var(--border);
   position: sticky; top: 84px; z-index: 90;
@@ -182,7 +183,7 @@ body { background: var(--black); }
 .btn::after { content: none; }
 .btn:active { transform: scale(0.97) !important; transition-duration: 0.1s; }
 /* The one gold fill on the page: the primary action. */
-.btn-add { background: var(--gold-fill); box-shadow: var(--gold-bevel); color: #141110; border: 1px solid var(--gold1); }
+.btn-add { background: var(--gold-fill); box-shadow: var(--gold-bevel); color: #121212; border: 1px solid var(--gold1); }
 .btn-add:hover { transform: translateY(-1px); filter: brightness(1.06); }
 .btn-refresh { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
 .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: var(--black3); transform: translateY(-1px); }
@@ -328,7 +329,7 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 /* ── OVERLAYS ───────────────────────────────────────────────────────── */
 .modal-overlay, .report-overlay {
   animation: overlayIn 0.3s var(--ease) both;
-  background: rgba(8,7,6,0.82) !important;
+  background: rgba(9,9,9,0.84) !important;
 }
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 .modal-card, .report-panel { animation: cardIn 0.45s var(--ease) both; }
