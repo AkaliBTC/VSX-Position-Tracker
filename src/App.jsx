@@ -48,7 +48,19 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, l
     // Hide elements that look bad in screenshot
     const style = document.createElement("style");
     style.id = "screenshot-hide";
-    style.textContent = ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; } .flag-badge { font-size: 9px !important; padding: 3px 9px !important; animation: none !important; } .table-wrap, tbody tr { animation: none !important; backdrop-filter: none !important; } .table-wrap { background: #111 !important; border: 1px solid #222 !important; } .logo-name { animation: none !important; }";
+    style.textContent = [
+      // Bedienelemente raus — auf dem Blatt hat nur Information Platz.
+      "#" + elementId + " th:nth-last-child(-n+2), #" + elementId + " td:nth-last-child(-n+2) { display: none !important; }",
+      ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; }",
+      ".flag-badge { font-size: 9px !important; padding: 3px 9px !important; animation: none !important; }",
+      // html2canvas kann weder Blur noch Masken rastern.
+      ".capture-frame, .table-wrap, tbody tr { animation: none !important; backdrop-filter: none !important; }",
+      ".table-wrap { background: #121212 !important; border: none !important; border-radius: 0 !important; box-shadow: none !important; overflow: visible !important; }",
+      // Rahmen darf im Capture nicht clippen, sonst schneidet er breite Tabellen ab.
+      ".capture-frame { box-shadow: none !important; overflow: visible !important; border-color: rgba(223,182,60,0.22) !important; }",
+      ".cell-input { border-color: transparent !important; background: transparent !important; }",
+      ".logo-name { animation: none !important; }",
+    ].join(" ");
     document.head.appendChild(style);
 
     // Replace dir selects with readable divs
@@ -2983,6 +2995,17 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
     </th>
   );
 
+  // Kopfzeilen-Kennzahlen des Sheets — reine Ableitung aus den sichtbaren Zeilen.
+  const captureRows = positions.filter(p => p.ticker.trim());
+  const captureCounts = {
+    total: captureRows.length,
+    long:  captureRows.filter(p => p.direction === "LONG").length,
+    short: captureRows.filter(p => p.direction === "SHORT").length,
+  };
+  const captureStamp = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Berlin", day: "2-digit", month: "short", year: "numeric",
+  }).format(new Date()).toUpperCase();
+
   const filtered = positions.filter(p => {
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
@@ -3068,7 +3091,23 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
           {posting ? "⏳ POSTING..." : postResult === "ok" ? "✓ POSTED!" : postResult === "error" ? "✕ FAILED" : "📸 POST TO DISCORD"}
         </button>
       </div>
-      <div id={`table-capture-${tab.id}`} className="table-wrap">
+      <div id={`table-capture-${tab.id}`} className="capture-frame">
+        <div className="capture-head">
+          <div className="capture-brand">
+            <span className="capture-wordmark">VISIONX</span>
+            <span className="capture-sub">Market Analytics</span>
+          </div>
+          <div className="capture-title">
+            <span className="capture-desk">Proprietary Positioning Desk</span>
+            <span className="capture-pack">{tab.label} Pack</span>
+          </div>
+          <div className="capture-meta">
+            <div><span>As of</span><b>{captureStamp}</b></div>
+            <div><span>Open positions</span><b>{captureCounts.total}</b></div>
+            <div><span>Long / Short</span><b>{captureCounts.long} / {captureCounts.short}</b></div>
+          </div>
+        </div>
+        <div className="table-wrap">
         <table>
           <thead>
             <tr>
@@ -3239,6 +3278,11 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
             })}
           </tbody>
         </table>
+        </div>
+        <div className="capture-foot">
+          <span className="capture-foot-mark">VisionX Market Analytics · Proprietary capital only · No client funds</span>
+          <span className="capture-foot-note">Positions shown are the desk's own book, normalised for presentation. Not investment advice and not a recommendation. Past performance is not indicative of future results.</span>
+        </div>
       </div>
       <ClosedPositionsPanel closedPositions={closedPositions} tabId={tab.id} tabLabel={tab.label} onDelete={onDeleteClosed} onDeleteQuarter={onDeleteQuarter} />
     </div>

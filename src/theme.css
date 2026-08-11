@@ -201,15 +201,59 @@ body { background: var(--black); }
 /* ── TABLE ──────────────────────────────────────────────────────────────
    This block is the screenshot. Solid fills only, no blur, no masks.
    ------------------------------------------------------------------- */
-.table-wrap {
-  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
-  border: 1px solid var(--border);
+/* The capture frame is the deliverable. Everything inside it is composed as
+   a document — masthead, book, notice — because this is the only surface a
+   subscriber ever sees of the tracker. */
+.capture-frame {
   background: var(--black2);
+  border: 1px solid var(--border);
   border-radius: var(--r-lg);
   box-shadow: var(--amb);
+  overflow: hidden;
   transition: border-color 0.4s var(--ease);
 }
-.table-wrap:hover { border-color: var(--border2); }
+.capture-frame:hover { border-color: var(--border2); }
+
+.capture-head {
+  display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 24px;
+  padding: 22px 26px 18px;
+  background: var(--black2);
+  border-bottom: 1px solid var(--border2);
+}
+.capture-brand { display: flex; flex-direction: column; gap: 3px; }
+.capture-wordmark {
+  font-family: 'Bebas Neue', sans-serif; font-size: 30px; line-height: 1; letter-spacing: 0.14em;
+  /* Flat gold, not a clipped gradient: html2canvas cannot rasterise
+     background-clip:text and would drop the wordmark entirely. */
+  color: var(--gold2);
+}
+.capture-sub { font-size: 8px; font-weight: 600; letter-spacing: 0.34em; color: var(--text-mute); text-transform: uppercase; }
+
+.capture-title { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; flex: 1; min-width: 200px; padding-left: 26px; border-left: 1px solid var(--border); }
+.capture-desk { font-size: 8px; font-weight: 700; letter-spacing: 0.26em; color: var(--text-mute); text-transform: uppercase; }
+.capture-pack { font-family: 'Bebas Neue', sans-serif; font-size: 22px; line-height: 1; letter-spacing: 0.1em; color: var(--white); text-transform: uppercase; }
+
+.capture-meta { display: flex; gap: 26px; }
+.capture-meta > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.capture-meta span { font-size: 8px; font-weight: 600; letter-spacing: 0.2em; color: var(--text-mute); text-transform: uppercase; }
+.capture-meta b {
+  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums;
+  color: var(--text); letter-spacing: 0.04em;
+}
+
+.capture-foot {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 26px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--black2);
+}
+.capture-foot-mark { font-size: 8px; font-weight: 700; letter-spacing: 0.2em; color: var(--gold1); text-transform: uppercase; }
+.capture-foot-note { font-size: 9px; line-height: 1.6; color: var(--text-mute); max-width: 92ch; }
+
+.table-wrap {
+  overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; touch-action: pan-x pan-y;
+  background: var(--black2);
+}
 table { width: 100%; border-collapse: collapse; min-width: 1100px; }
 
 thead tr { background: var(--black3); border-bottom: 1px solid var(--border2); }
@@ -347,6 +391,10 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
   .content { padding: 24px 24px 64px; }
 }
 @media (max-width: 720px) {
+  .capture-head { padding: 16px 16px 14px; gap: 14px; }
+  .capture-title { padding-left: 0; border-left: none; }
+  .capture-meta { gap: 16px; }
+  .capture-foot { padding: 12px 16px 14px; }
   .header { min-height: 0; padding: 12px 16px; gap: 12px; }
   .header-right { gap: 16px; width: 100%; }
   .stat-block, .status-block { padding-left: 14px; }
