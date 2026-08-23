@@ -27,14 +27,14 @@
 
   /* Off-White statt Reinweiß — der Guide schreibt #FDFDFD. */
   --white:    #FDFDFD;
-  --text:     #E4E4E4;
-  --text-dim: #9A9A9A;
-  --text-mute:#6A6A6A;
+  --text:     #EDEDED;
+  --text-dim: #A8A8A8;
+  --text-mute:#808080;
 
   /* Gedeckte Signalfarben. Neon liest sich nach Retail-Dashboard,
      ein Fonds-Factsheet bleibt auch bei Gewinn und Verlust zurückhaltend. */
-  --green: #4E9E6A;
-  --red:   #C25A4A;
+  --green: #57AE76;
+  --red:   #CE6353;
 
   --ease:   cubic-bezier(0.16, 1, 0.3, 1);
   --spring: cubic-bezier(0.22, 1.3, 0.36, 1);
@@ -486,13 +486,17 @@ tbody tr:hover { background: rgba(214,214,214,0.022); }
 td { padding-top: 13px; padding-bottom: 13px; }
 
 /* Richtung: Wort mit farbiger Anlaufkante, kein gefülltes Etikett. */
+/* Richtung: flaches Feld mit farbiger Anlaufkante links. Ein <select> muss
+   seine natürliche Breite behalten, sonst schneidet es den Text ab ("SHOR"). */
 .dir-sel {
-  border-radius: 0; background: transparent !important; padding: 4px 0 4px 9px;
-  font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.2em;
-  border-left: 2px solid currentColor;
+  border-radius: 0; padding: 5px 12px 5px 10px; min-width: 76px; width: auto;
+  font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em;
+  border: 1px solid transparent; border-left-width: 2px;
 }
-.dir-long  { color: var(--green); }
-.dir-short { color: var(--red); }
+.dir-long  { color: var(--green); background: rgba(78,158,106,0.07);  border-left-color: var(--green); }
+.dir-short { color: var(--red);   background: rgba(194,90,74,0.07);   border-left-color: var(--red); }
+.dir-long:hover  { background: rgba(78,158,106,0.14); }
+.dir-short:hover { background: rgba(194,90,74,0.14); }
 
 /* Flags: schmale Marke, keine Vollton-Kapsel. */
 .flag-badge {
@@ -545,8 +549,12 @@ td { padding-top: 13px; padding-bottom: 13px; }
 .capture-foot-note { font-family: var(--sans); font-size: 8.5px; font-weight: 300; line-height: 1.75; color: var(--text-mute); }
 
 /* ── Zahlen · gedeckt, nie leuchtend ────────────────────────────────── */
+/* Kein Chip, keine Fläche — nur die Zahl, rechtsbündig auf der Ziffernachse.
+   Genau so setzt ein Factsheet eine Renditespalte. */
 .pnl-pos, .pnl-neg, .pnl-zero {
-  font-family: var(--mono); font-weight: 500; font-size: 13px;
+  display: inline-block; min-width: 76px; text-align: right;
+  padding: 0; background: none; border-radius: 0;
+  font-family: var(--mono); font-weight: 500; font-size: 13.5px;
   font-variant-numeric: tabular-nums; letter-spacing: 0;
 }
 .pnl-pos  { color: var(--green); }
@@ -568,5 +576,144 @@ tbody tr:hover .pnl-pos, tbody tr:hover .pnl-neg { text-shadow: none; }
 .hint-bar { border-radius: 0; border-color: var(--hairline); font-family: var(--mono); }
 .hint-label { font-family: var(--sans); letter-spacing: 0.26em; color: var(--gold1); }
 
-/* ── Zurückhaltung im Hintergrund ───────────────────────────────────── */
-.app::before, .app::after { opacity: 0.35; }
+/* ── Hintergrund ────────────────────────────────────────────────────────
+   Das Grain bleibt bei seiner Originaldeckkraft (0.03) — es soll Banding
+   auf dunklen Flächen brechen, nicht sichtbar sein. Nur der goldene
+   Deckenschein wird zurückgenommen, damit der Kopf ruhiger liegt. */
+.app::before {
+  background: radial-gradient(ellipse 1000px 520px at 50% -8%, rgba(212,175,55,0.04), transparent 62%);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PRESENTATION LAYER · zeitgenössisches Handwerk
+   ─────────────────────────────────────────────────────────────────────────
+   Was moderne Oberflächen 2026 von Templates unterscheidet, sind nicht
+   mehr Effekte, sondern Präzision: fluide Typo-Skalen, optisch korrigierte
+   Laufweiten, Bewegung, die aus dem Zeigergerät kommt statt aus einer
+   Endlosschleife, und Zustände, die man fühlt statt sieht.
+
+   Eine harte Grenze: alles hier greift AUSSERHALB von .capture-frame.
+   Das Blatt, das in Discord landet, bleibt frei von Verläufen, Masken und
+   backdrop-filter — html2canvas kann davon nichts rastern.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Fluide Typo-Skala. Die Kopfzeile atmet mit dem Viewport, statt an
+      drei Breakpoints zu springen. ─────────────────────────────────────── */
+:root {
+  --t-display: clamp(24px, 1.55vw + 16px, 34px);
+  --t-stat:    clamp(17px, 0.6vw + 13px, 22px);
+  --t-micro:   clamp(7.5px, 0.14vw + 7px, 8.5px);
+  --rhythm:    clamp(20px, 2.2vw, 40px);
+}
+
+/* ── Die Wortmarke als poliertes Metall ──────────────────────────────────
+   Ein Lichtstreifen wandert alle 9 Sekunden einmal über die Buchstaben —
+   nicht als Dauerschleife, sondern mit langer Ruhephase dazwischen. Das
+   liest sich nach gebürstetem Messing, nicht nach Ladebalken.
+   Nur hier zulässig: .logo-name steht nie im Capture. */
+.logo-name {
+  font-size: var(--t-display);
+  background: linear-gradient(100deg,
+    #FDFDFD 0%, #FDFDFD 38%, var(--gold4) 47%,
+    var(--gold2) 52%, #FDFDFD 62%, #FDFDFD 100%);
+  background-size: 260% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: vsxSheen 9s var(--ease) infinite;
+}
+@keyframes vsxSheen {
+  0%, 62%  { background-position: 100% 0; }
+  86%, 100% { background-position: 0% 0; }
+}
+
+/* ── Kopfzeile: Licht von oben, nicht Farbe von hinten ─────────────────── */
+/* Die Basisregel oben behält sticky + backdrop-filter. Hier kommt nur das
+   Licht dazu: ein feiner Lichtabfall von oben auf der bestehenden Fläche. */
+.header {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 72%),
+    rgba(18,18,18,0.74);
+}
+.header::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--hairline) 12%,
+    rgba(212,175,55,0.42) 50%, var(--hairline) 88%, transparent 100%);
+}
+
+/* Kennzahlen: der Wert steigt beim Überfahren minimal an — die einzige
+   Bewegung, die eine Zahl haben darf. */
+.stat-val { font-size: var(--t-stat); transition: transform 0.5s var(--ease), color 0.4s var(--ease); }
+.stat-block { transition: background 0.5s var(--ease); }
+.stat-block:hover { background: rgba(255,255,255,0.018); }
+.stat-block:hover .stat-val { transform: translateY(-1px); }
+.stat-label { font-size: var(--t-micro); }
+
+/* ── Reiter: die Unterlinie wächst aus der Mitte ───────────────────────── */
+.tab { position: relative; transition: color 0.35s var(--ease); }
+.tab::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
+  background: var(--gold2); transform: scaleX(0); transform-origin: center;
+  transition: transform 0.45s var(--ease);
+}
+.tab:hover::after  { transform: scaleX(0.4); }
+.tab.active::after { transform: scaleX(1); }
+
+/* ── Tabelle: Zeilen kommen gestaffelt herein, Spalten reagieren ───────── */
+tbody tr {
+  animation: rowRise 0.5s var(--ease) backwards;
+  transition: background 0.28s var(--ease), box-shadow 0.28s var(--ease);
+}
+@keyframes rowRise { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+tbody tr:nth-child(1) { animation-delay: 0.02s } tbody tr:nth-child(2) { animation-delay: 0.05s }
+tbody tr:nth-child(3) { animation-delay: 0.08s } tbody tr:nth-child(4) { animation-delay: 0.11s }
+tbody tr:nth-child(5) { animation-delay: 0.14s } tbody tr:nth-child(6) { animation-delay: 0.17s }
+tbody tr:nth-child(7) { animation-delay: 0.20s } tbody tr:nth-child(n+8) { animation-delay: 0.23s }
+
+/* Beim Überfahren fährt links eine goldene Haarlinie ein. */
+tbody tr:hover { box-shadow: inset 2px 0 0 var(--gold2); }
+
+/* Spaltenköpfe zeigen beim Sortieren Wirkung, ohne zu blinken. */
+th { transition: color 0.3s var(--ease); }
+th:hover { color: var(--gold1); }
+
+/* Eingabefelder in der Tabelle: unsichtbar, bis man sie braucht. */
+.cell-input {
+  border-radius: 0; border: 1px solid transparent;
+  border-bottom-color: transparent;
+  transition: border-color 0.3s var(--ease), background 0.3s var(--ease);
+}
+.cell-input:hover  { border-bottom-color: var(--hairline); }
+.cell-input:focus  { background: rgba(212,175,55,0.05); border-bottom-color: var(--gold2); }
+
+/* ── Aktionen: Gold füllt sich von links, statt zu leuchten ────────────── */
+.btn { position: relative; overflow: hidden; z-index: 0; transition: color 0.3s var(--ease); }
+.btn::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: rgba(212,175,55,0.12);
+  transform: scaleX(0); transform-origin: left;
+  transition: transform 0.42s var(--ease);
+}
+.btn:hover::before { transform: scaleX(1); }
+.btn-add:hover { color: var(--gold4); }
+
+/* Suchfeld: die Unterkante wird beim Fokus zur goldenen Linie. */
+.search-inp {
+  border: 1px solid transparent; border-bottom: 1px solid var(--hairline);
+  transition: border-color 0.35s var(--ease), background 0.35s var(--ease);
+}
+.search-inp:focus { border-bottom-color: var(--gold2); background: rgba(255,255,255,0.02); }
+
+/* ── Fokus: sichtbar, aber nicht laut ──────────────────────────────────── */
+:focus-visible { outline: 1px solid var(--gold2); outline-offset: 2px; border-radius: 0; }
+
+/* ── Rhythmus: Weißraum skaliert mit der Breite ────────────────────────── */
+.content { padding-left: var(--rhythm); padding-right: var(--rhythm); }
+
+/* ── Respekt vor Systemeinstellungen ───────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .logo-name { animation: none; -webkit-text-fill-color: var(--white); background: none; }
+  tbody tr { animation: none; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
+}

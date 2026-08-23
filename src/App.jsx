@@ -69,7 +69,7 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, l
     dirSelects.forEach(sel => {
       const isLong = sel.value === "LONG";
       const div = document.createElement("div");
-      div.style.cssText = "display:inline-block;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:0.15em;border-radius:4px;font-family:Montserrat,sans-serif;" + (isLong ? "background:rgba(78,158,106,0.12);color:#4E9E6A;" : "background:rgba(194,90,74,0.12);color:#C25A4A;");
+      div.style.cssText = "display:inline-block;padding:5px 12px;font-size:10px;font-weight:700;letter-spacing:0.15em;border-radius:4px;font-family:Montserrat,sans-serif;" + (isLong ? "background:rgba(87,174,118,0.12);color:#57AE76;" : "background:rgba(206,99,83,0.12);color:#CE6353;");
       div.textContent = isLong ? "LONG" : "SHORT";
       sel.parentNode.insertBefore(div, sel);
       sel.style.display = "none";
@@ -136,7 +136,7 @@ const PLACEHOLDERS = {
 const STOCK_HINT = "US: MSFT  ·  DE: BAS.DE  ·  IT: ENI.MI  ·  FR: MC.PA  ·  CH: NESN.SW  ·  JP: 7203.T";
 
 const FLAGS = {
-  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "78,158,106",  textColor: "#fff", solidBg: "#4E9E6A", solidBorder: "#4E9E6A" },
+  "new_position": { label: "NEW POSITION", short: "NEW POS",  color: "87,174,118",  textColor: "#fff", solidBg: "#57AE76", solidBorder: "#57AE76" },
   "stop_adjust":  { label: "STOP ADJUST",  short: "SL ADJ",   color: "212,175,55", textColor: "#fff", solidBg: "#D4AF37", solidBorder: "#D4AF37" },
   "added":        { label: "ADDED",        short: "ADDED",    color: "99,182,255", textColor: "#fff", solidBg: "#63b6ff", solidBorder: "#63b6ff" },
   "partials":     { label: "PARTIALS",     short: "PARTIALS", color: "168,85,247", textColor: "#fff", solidBg: "#a855f7", solidBorder: "#a855f7" },
@@ -431,7 +431,7 @@ const vsxArrowHTML = (win, idp) => {
 // tions. Whole body leans ~15° into the background. Result tint (green/red)
 // lives ONLY in rim glow + ground shadow — never as an overlay on the metal.
 const vsxArrow3D = (win, idp = "vxa") => {
-  const tint = win ? "78,158,106" : "194,90,74";
+  const tint = win ? "87,174,118" : "206,99,83";
   // Precomputed outlines (240×240 box) — verified: arms & shaft equal length/thickness
   const front = win
     ? "196,44 46,44 46,78 162,78 56,184 80,208 162,126 162,194 196,194"
@@ -587,7 +587,7 @@ const fmtDateDE = (iso) => { if (!iso) return "—"; const [y, m, d] = iso.split
 const buildCloseCardEl = (record) => {
   const pnl = record.pnlPct || 0;
   const win = pnl > 0.005, loss = pnl < -0.005;
-  const pnlColor = win ? "#4E9E6A" : loss ? "#C25A4A" : "#D4AF37";
+  const pnlColor = win ? "#57AE76" : loss ? "#CE6353" : "#D4AF37";
   const isLong = record.direction === "LONG";
   const exitLabel = CLOSE_REASONS[record.reason] || "Manual Close";
   const dispName = record.name || getTickerName(record.ticker);
@@ -612,7 +612,7 @@ const buildCloseCardEl = (record) => {
       <div style="display:flex;align-items:center;gap:12px;padding:24px 26px 0;position:relative;z-index:1">
         <span title="${record.ticker}" style="font-family:'Bodoni Moda',Didot,serif;font-size:${dispName ? "22px" : "30px"};letter-spacing:0.08em;color:#E3CE8F;line-height:1;max-width:290px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block">${dispName || record.ticker}</span>
         ${dispName ? `<span style="font-family:'DM Mono',monospace;font-size:11px;color:#8a8a8a">${record.ticker}</span>` : ""}
-        <span style="font-size:10px;font-weight:800;letter-spacing:0.16em;padding:4px 13px;border-radius:5px;background:${isLong ? "rgba(78,158,106,0.14)" : "rgba(194,90,74,0.14)"};border:1px solid ${isLong ? "rgba(78,158,106,0.4)" : "rgba(194,90,74,0.4)"};color:${isLong ? "#4E9E6A" : "#C25A4A"}">${record.direction}</span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:0.16em;padding:4px 13px;border-radius:5px;background:${isLong ? "rgba(87,174,118,0.14)" : "rgba(206,99,83,0.14)"};border:1px solid ${isLong ? "rgba(87,174,118,0.4)" : "rgba(206,99,83,0.4)"};color:${isLong ? "#57AE76" : "#CE6353"}">${record.direction}</span>
         <span style="font-size:9px;font-weight:700;letter-spacing:0.14em;color:#B99C64;text-transform:uppercase">${(record.tabLabel || "").toUpperCase()}</span>
       </div>
       <div style="padding:14px 26px 4px">
@@ -648,7 +648,7 @@ const postTrackRecordToDiscord = async (record) => {
     const dirEmoji = record.direction === "LONG" ? "📈" : "📉";
     const exitEmoji = EXIT_EMOJI[record.reason] || "✋";
     const exitLabel = CLOSE_REASONS[record.reason] || "Manual Close";
-    const embedColor = win ? 0x4E9E6A : loss ? 0xC25A4A : 0xd4af37;
+    const embedColor = win ? 0x57AE76 : loss ? 0xCE6353 : 0xd4af37;
 
     // 1. Card off-screen rendern & capturen
     let fileBlob = null;
@@ -915,11 +915,11 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
     chart = { d, X, Y, t0, t1, gridVals, lastIdx: prevIdx };
   }
 
-  const greenRed = (v) => v > 0.005 ? "#4E9E6A" : v < -0.005 ? "#C25A4A" : "#D4AF37";
+  const greenRed = (v) => v > 0.005 ? "#57AE76" : v < -0.005 ? "#CE6353" : "#D4AF37";
   const inputStyle = { background: "#0d0d0d", border: "1px solid #2a2a2a", color: "#e8e8e8", fontFamily: "'DM Mono', monospace", fontSize: 12, padding: "9px 12px", borderRadius: 8, outline: "none", width: "100%" };
   const postBtn = (key, onClick) => (
     <button className="free-no-capture" onClick={onClick} disabled={posting[key]}
-      style={{ background: postResult[key] === true ? "rgba(78,158,106,0.15)" : postResult[key] === false ? "rgba(194,90,74,0.15)" : "rgba(88,101,242,0.12)", border: "1px solid " + (postResult[key] === true ? "rgba(78,158,106,0.5)" : postResult[key] === false ? "rgba(194,90,74,0.5)" : "rgba(88,101,242,0.4)"), color: postResult[key] === true ? "#4E9E6A" : postResult[key] === false ? "#C25A4A" : "#8b96f8", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", padding: "9px 18px", borderRadius: 8, cursor: posting[key] ? "wait" : "pointer", textTransform: "uppercase", transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}>
+      style={{ background: postResult[key] === true ? "rgba(87,174,118,0.15)" : postResult[key] === false ? "rgba(206,99,83,0.15)" : "rgba(88,101,242,0.12)", border: "1px solid " + (postResult[key] === true ? "rgba(87,174,118,0.5)" : postResult[key] === false ? "rgba(206,99,83,0.5)" : "rgba(88,101,242,0.4)"), color: postResult[key] === true ? "#57AE76" : postResult[key] === false ? "#CE6353" : "#8b96f8", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.16em", padding: "9px 18px", borderRadius: 8, cursor: posting[key] ? "wait" : "pointer", textTransform: "uppercase", transition: "all 0.3s cubic-bezier(0.22, 1, 0.36, 1)" }}>
       {posting[key] ? "POSTING…" : postResult[key] === true ? "✓ POSTED" : postResult[key] === false ? "✕ FAILED" : "🎮 POST TO DISCORD"}
     </button>
   );
@@ -1026,9 +1026,9 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
                 {hasCurve && (
                   <div style={{ display: "flex", gap: 22 }}>
                     {[
-                      ["INDEX", curve.index.toFixed(2), curve.index >= 100 ? "#4E9E6A" : "#C25A4A"],
+                      ["INDEX", curve.index.toFixed(2), curve.index >= 100 ? "#57AE76" : "#CE6353"],
                       ["QTD", fmtSignedPct(curve.qtdPct), greenRed(curve.qtdPct)],
-                      ["MAX DD", "-" + curve.maxDrawdownPct.toFixed(2) + "%", "#C25A4A"],
+                      ["MAX DD", "-" + curve.maxDrawdownPct.toFixed(2) + "%", "#CE6353"],
                       ["CLOSES", String(curve.totalCloses), "#D4AF37"],
                     ].map(([l, v, c]) => (
                       <div key={l} style={{ textAlign: "right" }}>
@@ -1064,7 +1064,7 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
                   {curve.points.length === 0 && (
                     <text x={CW / 2} y={CH / 2 - 6} textAnchor="middle" style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 11, letterSpacing: "0.24em", fill: "#555" }}>LIVE SINCE {new Date(segStartMs([...perfSegments].sort((a, b) => segStartMs(a) - segStartMs(b))[0])).toLocaleDateString("en-GB")} — INDEX 100.00</text>
                   )}
-                  <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 16, fill: chart.lastIdx >= 100 ? "#4E9E6A" : "#C25A4A" }}>{chart.lastIdx.toFixed(2)}</text>
+                  <text x={CW - PAD.r} y={PAD.t + 4} textAnchor="end" style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 16, fill: chart.lastIdx >= 100 ? "#57AE76" : "#CE6353" }}>{chart.lastIdx.toFixed(2)}</text>
                   <line x1={PAD.l} x2={CW - PAD.r} y1={CH - PAD.b} y2={CH - PAD.b} stroke="#2a2a2a" strokeWidth="1" />
                   <text x={PAD.l} y={CH - 12} style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{new Date(chart.t0).toLocaleDateString("en-GB")}</text>
                   <text x={CW - PAD.r} y={CH - 12} textAnchor="end" style={{ fontFamily: "'DM Mono', monospace", fontSize: 8.5, fill: "#555" }}>{new Date(chart.t1).toLocaleDateString("en-GB")}</text>
@@ -1087,7 +1087,7 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
                     <div style={{ fontFamily: "'DM Mono', monospace", color: "#666", width: 90 }}>{s.startDate}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", color: "#8a8a8a", flex: 1 }}>${Number(s.startCapitalUsd).toLocaleString("en-US")}</div>
                     {s.rebaseNote && <div style={{ fontSize: 8, color: "#B99C64", fontStyle: "italic", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.rebaseNote}</div>}
-                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", padding: "3px 9px", borderRadius: 4, background: s.status === "active" ? "rgba(78,158,106,0.1)" : "rgba(255,255,255,0.04)", color: s.status === "active" ? "#4E9E6A" : "#666" }}>{s.status.toUpperCase()}</div>
+                    <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.14em", padding: "3px 9px", borderRadius: 4, background: s.status === "active" ? "rgba(87,174,118,0.1)" : "rgba(255,255,255,0.04)", color: s.status === "active" ? "#57AE76" : "#666" }}>{s.status.toUpperCase()}</div>
                     {s.status === "closed" && s.finalReturnPct != null && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: greenRed(s.finalReturnPct), width: 64, textAlign: "right" }}>{fmtSignedPct(s.finalReturnPct)}</div>}
                   </div>
                 ))}
@@ -1217,7 +1217,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
 
   const generatePDF = () => {
     const win = window.open("", "_blank");
-    const gc  = (v) => v >= 0 ? "#4E9E6A" : "#C25A4A";
+    const gc  = (v) => v >= 0 ? "#57AE76" : "#CE6353";
     const fu  = (v) => { if (v == null) return "—"; const a = Math.abs(v); return (v >= 0 ? "+" : "-") + "$" + a.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     const fp  = (p) => { if (p == null) return "—"; if (p < 0.01) return p.toFixed(6); if (p < 1) return p.toFixed(4); if (p < 100) return p.toFixed(3); return p.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     const GOLD = "#D4AF37"; const GOLD2 = "#E3CE8F"; const GOLD3 = "#B99C64";
@@ -1320,12 +1320,12 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px">
-          <div style="background:${BG2};border:1px solid ${totalPnL >= 0 ? "rgba(78,158,106,0.25)" : "rgba(194,90,74,0.25)"};border-left:4px solid ${gc(totalPnL)};border-radius:12px;padding:24px 28px">
+          <div style="background:${BG2};border:1px solid ${totalPnL >= 0 ? "rgba(87,174,118,0.25)" : "rgba(206,99,83,0.25)"};border-left:4px solid ${gc(totalPnL)};border-radius:12px;padding:24px 28px">
             <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Realised P&L · ${qLabel}</div>
             <div style="font-family:'Bodoni Moda',Didot,serif;font-size:52px;color:${gc(totalPnL)};line-height:1">${fu(totalPnL)}</div>
             ${avgPnLPct !== null ? `<div style="font-family:'DM Mono',monospace;font-size:11px;color:${gc(avgPnLPct)};margin-top:6px">Avg ${avgPnLPct >= 0 ? "+" : ""}${avgPnLPct.toFixed(2)}% per trade</div>` : ""}
           </div>
-          <div style="background:${BG2};border:1px solid ${totalFloatUSD >= 0 ? "rgba(78,158,106,0.15)" : "rgba(194,90,74,0.15)"};border-left:4px solid ${gc(totalFloatUSD)};border-radius:12px;padding:24px 28px">
+          <div style="background:${BG2};border:1px solid ${totalFloatUSD >= 0 ? "rgba(87,174,118,0.15)" : "rgba(206,99,83,0.15)"};border-left:4px solid ${gc(totalFloatUSD)};border-radius:12px;padding:24px 28px">
             <div style="font-size:8px;font-weight:700;letter-spacing:0.26em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">Floating P&L · Open Positions</div>
             <div style="font-family:'Bodoni Moda',Didot,serif;font-size:52px;color:${gc(totalFloatUSD)};line-height:1">${fu(totalFloatUSD)}</div>
             <div style="font-family:'DM Mono',monospace;font-size:11px;color:${MUTE};margin-top:6px">${allOpenFull.filter(p => p.currentPrice).length} positions with live price</div>
@@ -1333,16 +1333,16 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         </div>
 
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px">
-          ${statCard("Win Rate", winRate != null ? winRate.toFixed(0) + "%" : "—", `${winners.length}W / ${totalTrades - winners.length}L`, winRate != null ? (winRate >= 50 ? "#4E9E6A" : "#C25A4A") : MUTE)}
-          ${statCard("Win/Loss Ratio", profitFactor || (avgWinPct && !avgLossPct ? "∞" : "—"), avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : (avgWinPct ? `+${avgWinPct.toFixed(1)}% avg win · no losses` : "—"), (profitFactor >= 1 || (avgWinPct && !avgLossPct)) ? "#4E9E6A" : "#C25A4A")}
+          ${statCard("Win Rate", winRate != null ? winRate.toFixed(0) + "%" : "—", `${winners.length}W / ${totalTrades - winners.length}L`, winRate != null ? (winRate >= 50 ? "#57AE76" : "#CE6353") : MUTE)}
+          ${statCard("Win/Loss Ratio", profitFactor || (avgWinPct && !avgLossPct ? "∞" : "—"), avgWinPct && avgLossPct ? `+${avgWinPct.toFixed(1)}% avg win · -${avgLossPct.toFixed(1)}% avg loss` : (avgWinPct ? `+${avgWinPct.toFixed(1)}% avg win · no losses` : "—"), (profitFactor >= 1 || (avgWinPct && !avgLossPct)) ? "#57AE76" : "#CE6353")}
           ${statCard("Avg Hold Time", avgHold != null ? avgHold + "D" : "—", "per closed trade", GOLD)}
-          ${statCard("Risk / Reward", rrDisplay, rrSub, pRiskReward === null ? MUTE : (pRiskReward === Infinity || pRiskReward >= 1) ? "#4E9E6A" : "#C25A4A")}
+          ${statCard("Risk / Reward", rrDisplay, rrSub, pRiskReward === null ? MUTE : (pRiskReward === Infinity || pRiskReward >= 1) ? "#57AE76" : "#CE6353")}
         </div>
 
         <div style="margin-bottom:28px">
           ${sectionHdr("Adjusted Trade Average — Excluding Break-Even Trades")}
           <div style="display:grid;grid-template-columns:200px 1fr;gap:16px">
-            <div style="background:${BG2};border:1px solid ${avgPnLPctExBE === null ? BORDER : avgPnLPctExBE >= 0 ? 'rgba(78,158,106,0.25)' : 'rgba(194,90,74,0.25)'};border-left:4px solid ${avgPnLPctExBE === null ? MUTE : gc(avgPnLPctExBE)};border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;justify-content:center">
+            <div style="background:${BG2};border:1px solid ${avgPnLPctExBE === null ? BORDER : avgPnLPctExBE >= 0 ? 'rgba(87,174,118,0.25)' : 'rgba(206,99,83,0.25)'};border-left:4px solid ${avgPnLPctExBE === null ? MUTE : gc(avgPnLPctExBE)};border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;justify-content:center">
               <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:8px">Avg per Trade · Ex BE</div>
               <div style="font-family:'Bodoni Moda',Didot,serif;font-size:42px;line-height:1;color:${avgPnLPctExBE === null ? MUTE : gc(avgPnLPctExBE)}">${avgPnLPctExBE !== null ? (avgPnLPctExBE >= 0 ? "+" : "") + avgPnLPctExBE.toFixed(2) + "%" : "—"}</div>
               <div style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE};margin-top:6px">${significantTrades.length} of ${totalTrades} trades counted</div>
@@ -1360,12 +1360,12 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
               <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:12px">Direction Split</div>
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-                <div style="flex:${longPct};height:6px;background:#4E9E6A;border-radius:3px"></div>
-                <div style="flex:${shortPct};height:6px;background:#C25A4A;border-radius:3px"></div>
+                <div style="flex:${longPct};height:6px;background:#57AE76;border-radius:3px"></div>
+                <div style="flex:${shortPct};height:6px;background:#CE6353;border-radius:3px"></div>
               </div>
               <div style="display:flex;justify-content:space-between">
-                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#4E9E6A">LONG ${longPct}%</div>
-                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#C25A4A">SHORT ${shortPct}%</div>
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#57AE76">LONG ${longPct}%</div>
+                <div style="font-family:'DM Mono',monospace;font-size:10px;color:#CE6353">SHORT ${shortPct}%</div>
               </div>
             </div>
             <div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:18px 20px">
@@ -1386,14 +1386,14 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
             ${[{ label: "BEST TRADE", trade: bestTrade }, { label: "WORST TRADE", trade: worstTrade }].map(({ label, trade }) => {
               if (!trade) return `<div style="background:${BG2};border:1px solid ${BORDER};border-radius:10px;padding:20px 22px"><div style="font-size:7px;letter-spacing:0.24em;color:${DIM};text-transform:uppercase;margin-bottom:8px">${label}</div><div style="color:${DIM};font-size:13px;font-family:'DM Mono',monospace">—</div></div>`;
-              const tc = trade.pnlPct >= 0 ? "#4E9E6A" : "#C25A4A";
-              const trgb = trade.pnlPct >= 0 ? "78,158,106" : "194,90,74";
+              const tc = trade.pnlPct >= 0 ? "#57AE76" : "#CE6353";
+              const trgb = trade.pnlPct >= 0 ? "87,174,118" : "206,99,83";
               return `<div style="background:${BG2};border:1px solid rgba(${trgb},0.25);border-left:3px solid ${tc};border-radius:10px;padding:20px 22px">
                 <div style="font-size:7px;font-weight:700;letter-spacing:0.24em;color:${MUTE};text-transform:uppercase;margin-bottom:10px">${label}</div>
                 <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
                   <span style="font-family:'Bodoni Moda',Didot,serif;font-size:${displayName(trade).length > 18 ? "17px" : "24px"};color:${GOLD};letter-spacing:0.06em">${displayName(trade)}</span>
                   <span style="font-family:'DM Mono',monospace;font-size:9px;color:${MUTE}">${trade.ticker}</span>
-                  <span style="font-size:8px;padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${trade.direction === "LONG" ? "rgba(78,158,106,0.1)" : "rgba(194,90,74,0.1)"};color:${trade.direction === "LONG" ? "#4E9E6A" : "#C25A4A"}">${trade.direction}</span>
+                  <span style="font-size:8px;padding:2px 8px;border-radius:3px;font-weight:700;letter-spacing:0.1em;background:${trade.direction === "LONG" ? "rgba(87,174,118,0.1)" : "rgba(206,99,83,0.1)"};color:${trade.direction === "LONG" ? "#57AE76" : "#CE6353"}">${trade.direction}</span>
                   <span style="font-size:8px;color:${GOLD3};font-family:'Montserrat',sans-serif;font-weight:600">${trade.tabLabel || ""}</span>
                 </div>
                 <div style="font-family:'Bodoni Moda',Didot,serif;font-size:32px;color:${tc};margin-bottom:4px">${trade.pnlPct != null ? (trade.pnlPct >= 0 ? "+" : "") + trade.pnlPct.toFixed(2) + "%" : "—"}</div>
@@ -1431,7 +1431,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
       return `<tr style="background:${rowBg}">
         <td style="padding:9px 11px;color:${GOLD};font-family:'Bodoni Moda',Didot,serif;font-size:15px;letter-spacing:0.06em">${displayName(p)}<div style="font-family:'DM Mono',monospace;font-size:8px;color:${MUTE};letter-spacing:0.04em">${p.ticker}</div></td>
         <td style="padding:9px 11px;font-size:9px;font-weight:700;letter-spacing:0.08em;color:${GOLD3};font-family:'Montserrat',sans-serif">${p.tabLabel}</td>
-        <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${p.direction === "LONG" ? "rgba(78,158,106,0.12)" : "rgba(194,90,74,0.12)"};color:${p.direction === "LONG" ? "#4E9E6A" : "#C25A4A"}">${p.direction}</span></td>
+        <td style="padding:9px 11px"><span style="font-size:8px;font-weight:700;letter-spacing:0.1em;padding:3px 8px;border-radius:3px;background:${p.direction === "LONG" ? "rgba(87,174,118,0.12)" : "rgba(206,99,83,0.12)"};color:${p.direction === "LONG" ? "#57AE76" : "#CE6353"}">${p.direction}</span></td>
         <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.qty || "—"}</td>
         <td style="padding:9px 11px;color:#888;font-family:'DM Mono',monospace;font-size:11px">${p.entry ? fp(ep) : "—"}</td>
         <td style="padding:9px 11px;color:${TEXT};font-family:'DM Mono',monospace;font-size:11px">${p.currentPrice ? fp(p.currentPrice) : "—"}</td>
@@ -1447,14 +1447,14 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         <td style="padding:7px 8px;color:${DIM};font-size:9px;font-family:'DM Mono',monospace">${String(i + 1).padStart(2, "0")}</td>
         <td style="padding:7px 8px;color:${GOLD};font-family:'Bodoni Moda',Didot,serif;font-size:13px">${displayName(c)}${c.partialPct ? ` <span style="font-size:8px;color:${GOLD3}">[${c.partialPct}%]</span>` : ""}<div style="font-family:'DM Mono',monospace;font-size:8px;color:${MUTE};letter-spacing:0.04em">${c.ticker}</div></td>
         <td style="padding:7px 8px;font-size:8px;font-weight:700;color:${GOLD3};font-family:'Montserrat',sans-serif">${c.tabLabel || "—"}</td>
-        <td style="padding:7px 8px"><span style="font-size:7px;font-weight:700;padding:2px 6px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(78,158,106,0.12)" : "rgba(194,90,74,0.12)"};color:${c.direction === "LONG" ? "#4E9E6A" : "#C25A4A"}">${c.direction}</span></td>
+        <td style="padding:7px 8px"><span style="font-size:7px;font-weight:700;padding:2px 6px;border-radius:3px;background:${c.direction === "LONG" ? "rgba(87,174,118,0.12)" : "rgba(206,99,83,0.12)"};color:${c.direction === "LONG" ? "#57AE76" : "#CE6353"}">${c.direction}</span></td>
         <td style="padding:7px 8px;color:#888;font-family:'DM Mono',monospace;font-size:10px">${c.qty || "—"}</td>
         <td style="padding:7px 8px;color:#888;font-family:'DM Mono',monospace;font-size:10px">${c.entry ? fp(parseFloat(c.entry)) : "—"}</td>
         <td style="padding:7px 8px;color:${TEXT};font-family:'DM Mono',monospace;font-size:10px">${fp(c.closePrice)}</td>
         <td style="padding:7px 8px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.closeDate || "—"}</td>
         <td style="padding:7px 8px;color:${MUTE};font-family:'DM Mono',monospace;font-size:10px">${c.daysHeld != null ? c.daysHeld + "d" : "—"}</td>
-        <td style="padding:7px 8px;color:${isWin(c) ? "#4E9E6A" : isLoss(c) ? "#C25A4A" : GOLD};font-family:'DM Mono',monospace;font-size:10px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
-        <td style="padding:7px 8px;color:${isWin(c) ? "#4E9E6A" : isLoss(c) ? "#C25A4A" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
+        <td style="padding:7px 8px;color:${isWin(c) ? "#57AE76" : isLoss(c) ? "#CE6353" : GOLD};font-family:'DM Mono',monospace;font-size:10px">${c.pnlPct != null ? (c.pnlPct >= 0 ? "+" : "") + c.pnlPct.toFixed(2) + "%" : "—"}</td>
+        <td style="padding:7px 8px;color:${isWin(c) ? "#57AE76" : isLoss(c) ? "#CE6353" : GOLD};font-weight:700;font-family:'DM Mono',monospace;font-size:11px">${fu(c.pnlUSD)}</td>
       </tr>`;
     });
 
@@ -1640,7 +1640,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               </button>
               <button onClick={onClose}
                 style={{ background: "none", border: "1px solid #222", color: "#444", cursor: "pointer", fontSize: 14, padding: "7px 12px", borderRadius: 8, transition: `all 0.25s ${EASE}` }}
-                onMouseEnter={e => { e.currentTarget.style.color = "#C25A4A"; e.currentTarget.style.borderColor = "rgba(194,90,74,0.3)"; e.currentTarget.style.transform = "rotate(90deg)"; }}
+                onMouseEnter={e => { e.currentTarget.style.color = "#CE6353"; e.currentTarget.style.borderColor = "rgba(206,99,83,0.3)"; e.currentTarget.style.transform = "rotate(90deg)"; }}
                 onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.borderColor = "#222"; e.currentTarget.style.transform = "none"; }}>✕</button>
             </div>
           </div>
@@ -1661,16 +1661,16 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
         ) : (<>
           <div style={S.section}>
             <div style={S.sectionTitle}>Executive Summary</div>
-            <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(78,158,106,0.2)" : "rgba(194,90,74,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#4E9E6A" : "#C25A4A"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ background: "#111", border: `1px solid ${totalPnL >= 0 ? "rgba(87,174,118,0.2)" : "rgba(206,99,83,0.2)"}`, borderLeft: `3px solid ${totalPnL >= 0 ? "#57AE76" : "#CE6353"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div>
                 <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 8 }}>Total Realised P&L · {qLabel}</div>
-                <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 42, letterSpacing: "0.04em", color: totalPnL >= 0 ? "#4E9E6A" : "#C25A4A", lineHeight: 1 }}>{fmtUSD(totalPnL)}</div>
-                {avgPnLPct !== null && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: totalPnL >= 0 ? "#4E9E6A" : "#C25A4A", marginTop: 5, opacity: 0.7 }}>Avg {avgPnLPct >= 0 ? "+" : ""}{avgPnLPct.toFixed(2)}% per trade</div>}
+                <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 42, letterSpacing: "0.04em", color: totalPnL >= 0 ? "#57AE76" : "#CE6353", lineHeight: 1 }}>{fmtUSD(totalPnL)}</div>
+                {avgPnLPct !== null && <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: totalPnL >= 0 ? "#57AE76" : "#CE6353", marginTop: 5, opacity: 0.7 }}>Avg {avgPnLPct >= 0 ? "+" : ""}{avgPnLPct.toFixed(2)}% per trade</div>}
               </div>
               <div style={{ textAlign: "right" }}>
                 {qoqChange !== null && <div style={{ marginBottom: 8 }}>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 3 }}>vs {getQuarterLabel(prevQ)}</div>
-                  <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 20, color: qoqChange >= 0 ? "#4E9E6A" : "#C25A4A" }}>{qoqChange >= 0 ? "+" : ""}{fmtUSD(qoqChange).slice(1)}</div>
+                  <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 20, color: qoqChange >= 0 ? "#57AE76" : "#CE6353" }}>{qoqChange >= 0 ? "+" : ""}{fmtUSD(qoqChange).slice(1)}</div>
                 </div>}
                 <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 3 }}>Closed Trades</div>
                 <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 28, color: "#D4AF37" }}>{totalTrades}</div>
@@ -1678,10 +1678,10 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 10 }}>
               {[
-                { label: "Win Rate", val: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners.length}W / ${totalTrades - winners.length}L`, color: winRate !== null ? (winRate >= 50 ? "#4E9E6A" : "#C25A4A") : "#555" },
-                { label: "Win/Loss Ratio", val: pProfitFactor !== null ? pProfitFactor.toFixed(2) : (pAvgWinPct && !pAvgLossPct ? "∞" : "—"), sub: pAvgWinPct && pAvgLossPct ? `+${pAvgWinPct.toFixed(1)}% / -${pAvgLossPct.toFixed(1)}%` : (pAvgWinPct ? `+${pAvgWinPct.toFixed(1)}% avg win · no losses` : "avg win / avg loss"), color: pProfitFactor === null ? (pAvgWinPct ? "#4E9E6A" : "#555") : pProfitFactor >= 1 ? "#4E9E6A" : "#C25A4A" },
+                { label: "Win Rate", val: winRate !== null ? `${winRate.toFixed(0)}%` : "—", sub: `${winners.length}W / ${totalTrades - winners.length}L`, color: winRate !== null ? (winRate >= 50 ? "#57AE76" : "#CE6353") : "#555" },
+                { label: "Win/Loss Ratio", val: pProfitFactor !== null ? pProfitFactor.toFixed(2) : (pAvgWinPct && !pAvgLossPct ? "∞" : "—"), sub: pAvgWinPct && pAvgLossPct ? `+${pAvgWinPct.toFixed(1)}% / -${pAvgLossPct.toFixed(1)}%` : (pAvgWinPct ? `+${pAvgWinPct.toFixed(1)}% avg win · no losses` : "avg win / avg loss"), color: pProfitFactor === null ? (pAvgWinPct ? "#57AE76" : "#555") : pProfitFactor >= 1 ? "#57AE76" : "#CE6353" },
                 { label: "Avg Hold Time", val: avgHold !== null ? `${avgHold}D` : "—", sub: "per trade", color: "#D4AF37" },
-                { label: "Risk / Reward", val: rrDisplay, sub: rrSub, color: pRiskReward === null ? "#555" : pRiskReward === Infinity || pRiskReward >= 1 ? "#4E9E6A" : "#C25A4A" },
+                { label: "Risk / Reward", val: rrDisplay, sub: rrSub, color: pRiskReward === null ? "#555" : pRiskReward === Infinity || pRiskReward >= 1 ? "#57AE76" : "#CE6353" },
                 { label: "Open Positions", val: String(allOpen.length), sub: "across all packs", color: "#D4AF37" },
               ].map(({ label, val, sub, color }) => (
                 <div key={label} style={S.statCard}>
@@ -1697,9 +1697,9 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           <div style={S.section}>
             <div style={S.sectionTitle}>Adjusted Trade Average · Ex Break-Even</div>
             <div style={{ display: "grid", gridTemplateColumns: "minmax(170px,210px) 1fr", gap: 12, alignItems: "stretch" }}>
-              <div style={{ background: "#111", border: `1px solid ${avgPnLPctExBE === null ? "rgba(255,255,255,0.08)" : avgPnLPctExBE >= 0 ? "rgba(78,158,106,0.2)" : "rgba(194,90,74,0.2)"}`, borderLeft: `3px solid ${avgPnLPctExBE === null ? "#555" : avgPnLPctExBE >= 0 ? "#4E9E6A" : "#C25A4A"}`, borderRadius: 12, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+              <div style={{ background: "#111", border: `1px solid ${avgPnLPctExBE === null ? "rgba(255,255,255,0.08)" : avgPnLPctExBE >= 0 ? "rgba(87,174,118,0.2)" : "rgba(206,99,83,0.2)"}`, borderLeft: `3px solid ${avgPnLPctExBE === null ? "#555" : avgPnLPctExBE >= 0 ? "#57AE76" : "#CE6353"}`, borderRadius: 12, padding: "18px 20px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>Avg per Trade · Ex BE</div>
-                <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 40, letterSpacing: "0.04em", lineHeight: 1, color: avgPnLPctExBE === null ? "#555" : avgPnLPctExBE >= 0 ? "#4E9E6A" : "#C25A4A" }}>{avgPnLPctExBE !== null ? `${avgPnLPctExBE >= 0 ? "+" : ""}${avgPnLPctExBE.toFixed(2)}%` : "—"}</div>
+                <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 40, letterSpacing: "0.04em", lineHeight: 1, color: avgPnLPctExBE === null ? "#555" : avgPnLPctExBE >= 0 ? "#57AE76" : "#CE6353" }}>{avgPnLPctExBE !== null ? `${avgPnLPctExBE >= 0 ? "+" : ""}${avgPnLPctExBE.toFixed(2)}%` : "—"}</div>
                 <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555", marginTop: 6 }}>{significantTrades.length} of {totalTrades} trades counted</div>
               </div>
               <div style={{ background: "#0f0f0f", border: "1px solid #1a1a1a", borderRadius: 12, padding: "16px 18px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -1723,7 +1723,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 70 }}>{closed.length} trade{closed.length !== 1 ? "s" : ""}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 60 }}>{closed.length > 0 ? `${((wins / closed.length) * 100).toFixed(0)}% WR` : "—"}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flex: 1 }}>{open.length} open</div>
-                    <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 18, color: closed.length > 0 ? (pnl >= 0 ? "#4E9E6A" : "#C25A4A") : "#333" }}>{closed.length > 0 ? fmtUSD(pnl) : "—"}</div>
+                    <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 18, color: closed.length > 0 ? (pnl >= 0 ? "#57AE76" : "#CE6353") : "#333" }}>{closed.length > 0 ? fmtUSD(pnl) : "—"}</div>
                   </div>
                 ))}
               </div>
@@ -1734,8 +1734,8 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
             <div style={S.sectionTitle}>Long vs Short Breakdown</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               {[{ label: "Long Positions", trades: longTrades, pnl: longPnL }, { label: "Short Positions", trades: shortTrades, pnl: shortPnL }].map(({ label, trades, pnl }) => {
-                const pnlColor = trades.length === 0 ? "#555" : pnl >= 0 ? "#4E9E6A" : "#C25A4A";
-                const borderRgb = trades.length === 0 ? "255,255,255" : pnl >= 0 ? "78,158,106" : "194,90,74";
+                const pnlColor = trades.length === 0 ? "#555" : pnl >= 0 ? "#57AE76" : "#CE6353";
+                const borderRgb = trades.length === 0 ? "255,255,255" : pnl >= 0 ? "87,174,118" : "206,99,83";
                 return (
                   <div key={label} style={{ background: "#111", border: `1px solid rgba(${borderRgb},0.12)`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 10, padding: "14px 16px" }}>
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
@@ -1752,15 +1752,15 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
               <div style={S.sectionTitle}>Trade Highlights</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {[{ label: "Best Trade", trade: bestTrade }, { label: "Worst Trade", trade: worstTrade }].map(({ label, trade }) => {
-                  const _tc   = trade ? (trade.pnlUSD >= 0 ? "#4E9E6A" : "#C25A4A") : "#C25A4A";
-                  const _trgb = trade ? (trade.pnlUSD >= 0 ? "78,158,106" : "194,90,74") : "194,90,74";
+                  const _tc   = trade ? (trade.pnlUSD >= 0 ? "#57AE76" : "#CE6353") : "#CE6353";
+                  const _trgb = trade ? (trade.pnlUSD >= 0 ? "87,174,118" : "206,99,83") : "206,99,83";
                   return (
                     <div key={label} style={{ background: "#111", border: `1px solid rgba(${_trgb},0.15)`, borderLeft: `3px solid ${_tc}`, borderRadius: 10, padding: "14px 16px" }}>
                       <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 7, fontWeight: 700, letterSpacing: "0.22em", color: "#444", textTransform: "uppercase", marginBottom: 8 }}>{label}</div>
                       {trade ? (<>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                           <span title={trade.ticker} style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: displayName(trade).length > 18 ? 15 : 22, color: "#D4AF37", letterSpacing: "0.06em" }}>{displayName(trade)}</span>
-                          <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 3, background: trade.direction === "LONG" ? "rgba(78,158,106,0.1)" : "rgba(194,90,74,0.1)", color: trade.direction === "LONG" ? "#4E9E6A" : "#C25A4A", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{trade.direction}</span>
+                          <span style={{ fontSize: 8, padding: "2px 8px", borderRadius: 3, background: trade.direction === "LONG" ? "rgba(87,174,118,0.1)" : "rgba(206,99,83,0.1)", color: trade.direction === "LONG" ? "#57AE76" : "#CE6353", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{trade.direction}</span>
                           <span style={{ fontSize: 8, color: "#B99C64", fontFamily: "'Montserrat', sans-serif", fontWeight: 600, letterSpacing: "0.1em" }}>{trade.tabLabel}</span>
                         </div>
                         <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 26, color: _tc, marginBottom: 4 }}>{fmtUSD(trade.pnlUSD)}</div>
@@ -1776,10 +1776,10 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
           {hasFloatData && allOpen.length > 0 && (
             <div style={S.section}>
               <div style={S.sectionTitle}>Floating P&L — Open Positions</div>
-              <div style={{ background: "#111", border: `1px solid ${totalFloatUSD >= 0 ? "rgba(78,158,106,0.2)" : "rgba(194,90,74,0.2)"}`, borderLeft: `3px solid ${totalFloatUSD >= 0 ? "#4E9E6A" : "#C25A4A"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ background: "#111", border: `1px solid ${totalFloatUSD >= 0 ? "rgba(87,174,118,0.2)" : "rgba(206,99,83,0.2)"}`, borderLeft: `3px solid ${totalFloatUSD >= 0 ? "#57AE76" : "#CE6353"}`, borderRadius: 12, padding: "20px 22px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <div>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 8 }}>Total Floating P&L — All Packs</div>
-                  <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 42, letterSpacing: "0.04em", color: totalFloatUSD >= 0 ? "#4E9E6A" : "#C25A4A", lineHeight: 1 }}>{fmtUSD(totalFloatUSD)}</div>
+                  <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 42, letterSpacing: "0.04em", color: totalFloatUSD >= 0 ? "#57AE76" : "#CE6353", lineHeight: 1 }}>{fmtUSD(totalFloatUSD)}</div>
                   <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", marginTop: 5 }}>Unrealised · {allOpen.filter(p => p.currentPrice).length} positions with live price</div>
                 </div>
                 <div style={{ textAlign: "right" }}>
@@ -1793,7 +1793,7 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                     <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 16, color: "#D4AF37", letterSpacing: "0.02em", width: 110 }}>{tab.label.toUpperCase()}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", width: 80 }}>{positions.length} position{positions.length !== 1 ? "s" : ""}</div>
                     <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#555", flex: 1 }}>{winners}↑ / {positions.length - winners}↓</div>
-                    <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 18, color: pnl >= 0 ? "#4E9E6A" : "#C25A4A" }}>{fmtUSD(pnl)}</div>
+                    <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 18, color: pnl >= 0 ? "#57AE76" : "#CE6353" }}>{fmtUSD(pnl)}</div>
                   </div>
                 ))}
               </div>
@@ -1820,12 +1820,12 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                       <tr key={p.id} style={{ borderBottom: "1px solid #0f0f0f" }}>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#D4AF37" }}>{displayName(p)}<div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555" }}>{p.ticker}</div></td>
                         <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#B99C64", letterSpacing: "0.08em" }}>{p.tabLabel}</td>
-                        <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", padding: "2px 7px", borderRadius: 3, background: p.direction === "LONG" ? "rgba(78,158,106,0.1)" : "rgba(194,90,74,0.1)", color: p.direction === "LONG" ? "#4E9E6A" : "#C25A4A" }}>{p.direction}</span></td>
+                        <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", padding: "2px 7px", borderRadius: 3, background: p.direction === "LONG" ? "rgba(87,174,118,0.1)" : "rgba(206,99,83,0.1)", color: p.direction === "LONG" ? "#57AE76" : "#CE6353" }}>{p.direction}</span></td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{p.qty || "—"}</td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{p.entry ? fmtPrice(ep) : "—"}</td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{p.currentPrice ? fmtPrice(p.currentPrice) : "—"}</td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: upct != null ? (upct >= 0 ? "#4E9E6A" : "#C25A4A") : "#333" }}>{upct != null ? `${upct >= 0 ? "+" : ""}${upct.toFixed(2)}%` : "—"}</td>
-                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: uusd != null ? (uusd >= 0 ? "#4E9E6A" : "#C25A4A") : "#333" }}>{fmtUSD(uusd)}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: upct != null ? (upct >= 0 ? "#57AE76" : "#CE6353") : "#333" }}>{upct != null ? `${upct >= 0 ? "+" : ""}${upct.toFixed(2)}%` : "—"}</td>
+                        <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: uusd != null ? (uusd >= 0 ? "#57AE76" : "#CE6353") : "#333" }}>{fmtUSD(uusd)}</td>
                         <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{p.date || "—"}</td>
                       </tr>
                     );
@@ -1856,14 +1856,14 @@ function QuarterlyReportPanel({ closedPositions, allPositions, perfSegments, equ
                         <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: "#555" }}>{c.ticker}</div>
                       </td>
                       <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 600, color: "#B99C64", letterSpacing: "0.08em" }}>{c.tabLabel}</td>
-                      <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: c.direction === "LONG" ? "rgba(78,158,106,0.1)" : "rgba(194,90,74,0.1)", color: c.direction === "LONG" ? "#4E9E6A" : "#C25A4A", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{c.direction}</span></td>
+                      <td style={{ padding: "9px 8px" }}><span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 3, background: c.direction === "LONG" ? "rgba(87,174,118,0.1)" : "rgba(206,99,83,0.1)", color: c.direction === "LONG" ? "#57AE76" : "#CE6353", fontFamily: "'Montserrat', sans-serif", fontWeight: 700, letterSpacing: "0.12em" }}>{c.direction}</span></td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.entry ? fmtPrice(parseFloat(c.entry)) : "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{fmtPrice(c.closePrice)}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{c.closeDate || "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#555" }}>{c.daysHeld != null ? `${c.daysHeld}d` : "—"}</td>
-                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct != null ? (c.pnlPct >= 0 ? "#4E9E6A" : "#C25A4A") : "#555" }}>{c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}</td>
-                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isWin(c) ? "#4E9E6A" : isLoss(c) ? "#C25A4A" : "#D4AF37" }}>{c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct != null ? (c.pnlPct >= 0 ? "#57AE76" : "#CE6353") : "#555" }}>{c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}</td>
+                      <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isWin(c) ? "#57AE76" : isLoss(c) ? "#CE6353" : "#D4AF37" }}>{c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}</td>
                       <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#444", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.note || "—"}</td>
                     </tr>
                   ))}
@@ -1960,14 +1960,14 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
             </div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#444", cursor: "pointer", fontSize: 18, padding: "4px 8px", borderRadius: 4, transition: `all 0.25s ${EASE}` }}
-            onMouseEnter={e => { e.currentTarget.style.color = "#C25A4A"; e.currentTarget.style.transform = "rotate(90deg)"; }}
+            onMouseEnter={e => { e.currentTarget.style.color = "#CE6353"; e.currentTarget.style.transform = "rotate(90deg)"; }}
             onMouseLeave={e => { e.currentTarget.style.color = "#444"; e.currentTarget.style.transform = "none"; }}>✕</button>
         </div>
 
         <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 10, padding: "14px 16px", marginBottom: 16, display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px 12px" }}>
           {[
             { label: "Ticker", val: position.ticker, color: "#D4AF37" },
-            { label: "Direction", val: position.direction, color: position.direction === "LONG" ? "#4E9E6A" : "#C25A4A" },
+            { label: "Direction", val: position.direction, color: position.direction === "LONG" ? "#57AE76" : "#CE6353" },
             { label: "Total Qty", val: position.qty || "—", color: "#e8e8e8" },
             { label: "Entry Price", val: fmtPrice(parseFloat(position.entry)), color: "#e8e8e8" },
             { label: "Entry Date", val: position.date || "—", color: "#666" },
@@ -2103,12 +2103,12 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
             onBlur={e => { e.target.style.borderColor = "#222"; e.target.style.boxShadow = "none"; }} />
         </div>
 
-        <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(78,158,106,0.3)" : "rgba(194,90,74,0.3)"}`, borderRadius: 10, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", transition: `border-color 0.4s ${EASE}` }}>
+        <div style={{ background: "#0a0a0a", border: `1px solid ${isPos === null ? "#1a1a1a" : isPos ? "rgba(87,174,118,0.3)" : "rgba(206,99,83,0.3)"}`, borderRadius: 10, padding: "14px 16px", marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between", transition: `border-color 0.4s ${EASE}` }}>
           <div>
             <div style={{ fontSize: 9, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 5 }}>
               {isPartial ? `Realised P&L (${effectivePct.toFixed(1)}%)` : "Realised P&L"}
             </div>
-            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: isPos === null ? "#444" : isPos ? "#4E9E6A" : "#C25A4A", transition: `color 0.4s ${EASE}` }}>
+            <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: isPos === null ? "#444" : isPos ? "#57AE76" : "#CE6353", transition: `color 0.4s ${EASE}` }}>
               {pnlPct !== null ? `${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%` : "—"}
             </div>
             {isPartial && effectiveQty > 0 && (
@@ -2117,7 +2117,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               </div>
             )}
           </div>
-          <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 30, letterSpacing: "0.04em", color: isPos === null ? "#333" : isPos ? "#4E9E6A" : "#C25A4A", transition: `color 0.4s ${EASE}` }}>
+          <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 30, letterSpacing: "0.04em", color: isPos === null ? "#333" : isPos ? "#57AE76" : "#CE6353", transition: `color 0.4s ${EASE}` }}>
             {pnlUSD !== null ? fmtUSD(pnlUSD) : "—"}
           </div>
         </div>
@@ -2172,8 +2172,8 @@ const DISCORD_PRESETS = [
     label: "New Position",
     icon: "NEW",
     emoji: "🟢",
-    color: "78,158,106",
-    textColor: "#4E9E6A",
+    color: "87,174,118",
+    textColor: "#57AE76",
     generate: (ticker, pack) => "🟢 " + (ticker ? "New position opened on **" + ticker + "**." : "New position opened."),
   },
   {
@@ -2181,8 +2181,8 @@ const DISCORD_PRESETS = [
     label: "Position Closed",
     icon: "CLOSED",
     emoji: "🔴",
-    color: "194,90,74",
-    textColor: "#C25A4A",
+    color: "206,99,83",
+    textColor: "#CE6353",
     generate: (ticker, pack) => "🔴 " + (ticker ? "Position closed on **" + ticker + "**." : "Position closed."),
   },
   {
@@ -2302,7 +2302,7 @@ function DiscordPostModal({ tab, positions, recentCloses, onClose, onConfirm }) 
                 return (
                   <div key={idx} style={{ background: "#0a0a0a", border: "1px solid rgba(" + (preset?.color || "255,255,255") + ",0.15)", borderLeft: "3px solid " + (preset?.textColor || "#555"), borderRadius: 7, padding: "12px 14px", position: "relative" }}>
                     <button onClick={() => removeLine(idx)} style={{ position: "absolute", top: 8, right: 10, background: "none", border: "none", color: "#333", cursor: "pointer", fontSize: 11, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }}
-                      onMouseEnter={e => e.currentTarget.style.color = "#C25A4A"}
+                      onMouseEnter={e => e.currentTarget.style.color = "#CE6353"}
                       onMouseLeave={e => e.currentTarget.style.color = "#333"}>✕</button>
                     <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.2em", color: preset?.textColor || "#555", textTransform: "uppercase", marginBottom: 6 }}>{preset?.label} <span style={{ color: "#444", letterSpacing: 0, textTransform: "none", fontWeight: 500 }}>· editierbar</span></div>
                     <input value={line.text} onChange={(e) => editLine(idx, e.target.value)}
@@ -2394,7 +2394,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
             <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
               {["LONG", "SHORT"].map(d => (
                 <button key={d} onClick={() => setDirection(d)}
-                  style={{ flex: 1, padding: "10px", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", borderRadius: 6, cursor: "pointer", border: `1px solid ${direction === d ? (d === "LONG" ? "rgba(78,158,106,0.5)" : "rgba(194,90,74,0.5)") : "#222"}`, background: direction === d ? (d === "LONG" ? "rgba(78,158,106,0.12)" : "rgba(194,90,74,0.12)") : "transparent", color: direction === d ? (d === "LONG" ? "#4E9E6A" : "#C25A4A") : "#444", transition: "all 0.15s" }}>
+                  style={{ flex: 1, padding: "10px", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", borderRadius: 6, cursor: "pointer", border: `1px solid ${direction === d ? (d === "LONG" ? "rgba(87,174,118,0.5)" : "rgba(206,99,83,0.5)") : "#222"}`, background: direction === d ? (d === "LONG" ? "rgba(87,174,118,0.12)" : "rgba(206,99,83,0.12)") : "transparent", color: direction === d ? (d === "LONG" ? "#57AE76" : "#CE6353") : "#444", transition: "all 0.15s" }}>
                   {d}
                 </button>
               ))}
@@ -2421,7 +2421,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
         {slDist !== null && !isNaN(slDist) && (
           <div style={{ background: "#0a0a0a", border: "1px solid #1a1a1a", borderRadius: 6, padding: "8px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 8, letterSpacing: "0.2em", color: "#555", textTransform: "uppercase" }}>SL Distance</span>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: slDist >= 0 ? "#B99C64" : "#C25A4A" }}>{slDist.toFixed(2)}%</span>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, color: slDist >= 0 ? "#B99C64" : "#CE6353" }}>{slDist.toFixed(2)}%</span>
           </div>
         )}
 
@@ -2484,7 +2484,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
         <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 8, letterSpacing: "0.18em", color: "#444", textTransform: "uppercase", marginBottom: 2 }}>Total Realised P&L</div>
-            <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 18, letterSpacing: "0.06em", color: totalPnL >= 0 ? "#4E9E6A" : "#C25A4A" }}>{fmtUSD(totalPnL)}</div>
+            <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 18, letterSpacing: "0.06em", color: totalPnL >= 0 ? "#57AE76" : "#CE6353" }}>{fmtUSD(totalPnL)}</div>
           </div>
           <div style={{ fontSize: 8, letterSpacing: "0.18em", color: "#444", textTransform: "uppercase" }}>{winners}/{totalTrades} WIN · {expanded ? "▲" : "▼"}</div>
         </div>
@@ -2506,7 +2506,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                     <span style={{ fontSize: 9, color: "#444", fontFamily: "'DM Mono', monospace" }}>{qTrades.length} trades · {qWin}/{qTrades.length} win</span>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: qPnL >= 0 ? "#4E9E6A" : "#C25A4A" }}>{fmtUSD(qPnL)}</span>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 600, color: qPnL >= 0 ? "#57AE76" : "#CE6353" }}>{fmtUSD(qPnL)}</span>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -2515,9 +2515,9 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                         }
                       }}
                       title={`Clear ${getQuarterLabel(q)}`}
-                      style={{ background: "rgba(194,90,74,0.06)", border: "1px solid rgba(194,90,74,0.15)", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 10px", borderRadius: 4, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}
-                      onMouseEnter={e => { e.currentTarget.style.color = "#C25A4A"; e.currentTarget.style.borderColor = "rgba(194,90,74,0.35)"; e.currentTarget.style.background = "rgba(194,90,74,0.1)"; }}
-                      onMouseLeave={e => { e.currentTarget.style.color = "#555"; e.currentTarget.style.borderColor = "rgba(194,90,74,0.15)"; e.currentTarget.style.background = "rgba(194,90,74,0.06)"; }}>
+                      style={{ background: "rgba(206,99,83,0.06)", border: "1px solid rgba(206,99,83,0.15)", color: "#555", fontFamily: "'Montserrat', sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.1em", padding: "4px 10px", borderRadius: 4, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                      onMouseEnter={e => { e.currentTarget.style.color = "#CE6353"; e.currentTarget.style.borderColor = "rgba(206,99,83,0.35)"; e.currentTarget.style.background = "rgba(206,99,83,0.1)"; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = "#555"; e.currentTarget.style.borderColor = "rgba(206,99,83,0.15)"; e.currentTarget.style.background = "rgba(206,99,83,0.06)"; }}>
                       ✕ CLEAR QUARTER
                     </button>
                     <span onClick={() => setExpandedQ(isExpQ ? null : q)} style={{ fontSize: 10, color: "#333", cursor: "pointer" }}>{isExpQ ? "▲" : "▼"}</span>
@@ -2541,7 +2541,7 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                               {c.ticker}
                               {c.partialPct && <span style={{ fontSize: 9, color: "#D4AF37", marginLeft: 4 }}>[{c.partialPct}%]</span>}
                             </td>
-                            <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: c.direction === "LONG" ? "#4E9E6A" : "#C25A4A" }}>{c.direction}</td>
+                            <td style={{ padding: "9px 8px", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", color: c.direction === "LONG" ? "#57AE76" : "#CE6353" }}>{c.direction}</td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.qty || "—"}</td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#888" }}>{c.entry ? fmtPrice(parseFloat(c.entry)) : "—"}</td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: "#e8e8e8" }}>{fmtPrice(c.closePrice)}</td>
@@ -2549,16 +2549,16 @@ function ClosedPositionsPanel({ closedPositions, tabId, tabLabel, onDelete, onDe
                             <td style={{ padding: "9px 8px" }}>
                               <span style={{ fontSize: 8, padding: "2px 7px", borderRadius: 4, background: "#1a1a1a", border: "1px solid #222", color: "#555", letterSpacing: "0.1em", fontFamily: "'Montserrat', sans-serif", fontWeight: 600 }}>{CLOSE_REASONS[c.reason] || c.reason}</span>
                             </td>
-                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct >= 0 ? "#4E9E6A" : "#C25A4A" }}>
+                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", color: c.pnlPct >= 0 ? "#57AE76" : "#CE6353" }}>
                               {c.pnlPct != null ? `${c.pnlPct >= 0 ? "+" : ""}${c.pnlPct.toFixed(2)}%` : "—"}
                             </td>
-                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isWin(c) ? "#4E9E6A" : isLoss(c) ? "#C25A4A" : "#D4AF37" }}>
+                            <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontWeight: 600, color: isWin(c) ? "#57AE76" : isLoss(c) ? "#CE6353" : "#D4AF37" }}>
                               {c.pnlUSD != null ? fmtUSD(c.pnlUSD) : "—"}
                             </td>
                             <td style={{ padding: "9px 8px", fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#444", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.note || "—"}</td>
                             <td style={{ padding: "9px 8px" }}>
                               <button onClick={() => onDelete(c.id)} style={{ background: "none", border: "none", color: "#333", cursor: "pointer", fontSize: 11, padding: "3px 6px", borderRadius: 3 }}
-                                onMouseEnter={e => e.target.style.color = "#C25A4A"} onMouseLeave={e => e.target.style.color = "#333"}>✕</button>
+                                onMouseEnter={e => e.target.style.color = "#CE6353"} onMouseLeave={e => e.target.style.color = "#333"}>✕</button>
                             </td>
                           </tr>
                         ))}
@@ -2587,7 +2587,7 @@ function PnLShareModal({ position, tab, onClose }) {
   const days = p.date ? daysBetween(p.date, new Date().toISOString().split("T")[0]) : null;
   const isLong = p.direction === "LONG";
   const win = pnlPct != null && pnlPct >= 0;
-  const pnlColor = win ? "#4E9E6A" : "#C25A4A";
+  const pnlColor = win ? "#57AE76" : "#CE6353";
 
   // Toggles — defaults follow VSX public rules: percentages yes, sizes/USD no
   const [showUSD, setShowUSD] = useState(false);
@@ -2680,7 +2680,7 @@ function PnLShareModal({ position, tab, onClose }) {
                 {dispName && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#8a8a8a" }}>{p.ticker}</span>}
               </>);
             })()}
-            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", padding: "4px 13px", borderRadius: 5, background: isLong ? "rgba(78,158,106,0.14)" : "rgba(194,90,74,0.14)", border: `1px solid ${isLong ? "rgba(78,158,106,0.4)" : "rgba(194,90,74,0.4)"}`, color: isLong ? "#4E9E6A" : "#C25A4A" }}>{p.direction}</span>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.16em", padding: "4px 13px", borderRadius: 5, background: isLong ? "rgba(87,174,118,0.14)" : "rgba(206,99,83,0.14)", border: `1px solid ${isLong ? "rgba(87,174,118,0.4)" : "rgba(206,99,83,0.4)"}`, color: isLong ? "#57AE76" : "#CE6353" }}>{p.direction}</span>
             {days != null && <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: "#555" }}>{days}d</span>}
           </div>
 
@@ -2733,7 +2733,7 @@ function PnLShareModal({ position, tab, onClose }) {
             {toggle("Quantity", showQty, setShowQty)}
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
-            {result && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: result === "err" ? "#C25A4A" : "#4E9E6A", marginRight: "auto" }}>{result === "err" ? "✕ FAILED" : result === "copy-ok" ? "✓ COPIED" : result === "dl-ok" ? "✓ SAVED" : "✓ POSTED"}</span>}
+            {result && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.12em", color: result === "err" ? "#CE6353" : "#57AE76", marginRight: "auto" }}>{result === "err" ? "✕ FAILED" : result === "copy-ok" ? "✓ COPIED" : result === "dl-ok" ? "✓ SAVED" : "✓ POSTED"}</span>}
             <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 16px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", marginRight: "auto" }}>CLOSE</button>
             {shareBtn("⧉ COPY", "copy", doCopy)}
             {shareBtn("⬇ PNG", "download", doDownload, true)}
@@ -2760,8 +2760,8 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
   const posValue = calcPositionValue(p.direction, p.qty, p.entry, live);
   const days = p.date ? daysBetween(p.date, new Date().toISOString().split("T")[0]) : null;
   const isLong = p.direction === "LONG";
-  const dirColor = isLong ? "#4E9E6A" : "#C25A4A";
-  const pnlColor = pnlPct == null ? "#555" : pnlPct > 0.005 ? "#4E9E6A" : pnlPct < -0.005 ? "#C25A4A" : "#D4AF37";
+  const dirColor = isLong ? "#57AE76" : "#CE6353";
+  const pnlColor = pnlPct == null ? "#555" : pnlPct > 0.005 ? "#57AE76" : pnlPct < -0.005 ? "#CE6353" : "#D4AF37";
   const flagged = isFlagged(p);
   const activeFlags = flagged ? getFlags(p) : [];
 
@@ -2785,7 +2785,7 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
               <span style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 34, letterSpacing: "0.02em", color: "#E3CE8F", lineHeight: 1 }}>{p.ticker || "—"}</span>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", padding: "4px 12px", borderRadius: 5, background: isLong ? "rgba(78,158,106,0.12)" : "rgba(194,90,74,0.12)", color: dirColor }}>{p.direction}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.15em", padding: "4px 12px", borderRadius: 5, background: isLong ? "rgba(87,174,118,0.12)" : "rgba(206,99,83,0.12)", color: dirColor }}>{p.direction}</span>
               {activeFlags.map(k => {
                 const f = FLAGS[k];
                 return <span key={k} style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.14em", padding: "3px 10px", borderRadius: 5, background: f.solidBg, color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.8)" }}>{f.short}</span>;
@@ -2802,7 +2802,7 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
         </div>
 
         {/* PNL HERO */}
-        <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${pnlPct == null ? "rgba(255,255,255,0.06)" : pnlPct >= 0 ? "rgba(78,158,106,0.25)" : "rgba(194,90,74,0.25)"}`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 14, padding: "16px 20px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
+        <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${pnlPct == null ? "rgba(255,255,255,0.06)" : pnlPct >= 0 ? "rgba(87,174,118,0.25)" : "rgba(206,99,83,0.25)"}`, borderLeft: `3px solid ${pnlColor}`, borderRadius: 14, padding: "16px 20px", marginBottom: 14, display: "flex", alignItems: "center", justifyContent: "space-between", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.05)" }}>
           <div>
             <div style={{ fontSize: 8, fontWeight: 700, letterSpacing: "0.22em", color: "#555", textTransform: "uppercase", marginBottom: 6 }}>Unrealized PnL</div>
             <div style={{ fontFamily: "'Bodoni Moda', Didot, serif", fontSize: 36, letterSpacing: "0.04em", color: pnlColor, lineHeight: 1, textShadow: "none" }}>{pnlUSD != null ? fmtUSD(pnlUSD) : "—"}</div>
@@ -2823,10 +2823,10 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
           {cell("Entry Date", p.date || "—", "#8a8a8a")}
           {cell("Stop Loss", !isNaN(sl) ? fmtPrice(sl) : "—")}
           {cell("SL Distance", dist != null && !isNaN(dist) ? `${dist.toFixed(2)}%` : "—",
-            slLock == null ? "#B99C64" : slLock > 1e-9 ? "#B99C64" : slLock < -1e-9 ? "#C25A4A" : "#8a8a8a",
+            slLock == null ? "#B99C64" : slLock > 1e-9 ? "#B99C64" : slLock < -1e-9 ? "#CE6353" : "#8a8a8a",
             slLock == null ? null : slLock > 1e-9 ? "profit locked" : slLock < -1e-9 ? "open risk" : "break-even")}
           {cell("Risk to Stop", riskUSD != null ? (riskUSD > 0 ? "-" + fmtUSD(riskUSD).slice(1) : "locked " + fmtUSD(-riskUSD)) : "—",
-            riskUSD == null ? "#555" : riskUSD > 0 ? "#C25A4A" : "#4E9E6A",
+            riskUSD == null ? "#555" : riskUSD > 0 ? "#CE6353" : "#57AE76",
             "if stopped out")}
           {cell("Breakeven", !isNaN(entry) ? fmtPrice(entry) : "—", "#8a8a8a", "excl. fees")}
         </div>
@@ -2848,8 +2848,8 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
         {/* ACTIONS */}
         <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", borderTop: "1px solid #1a1a1a", paddingTop: 18 }}>
           <button onClick={() => { onDelete(p.id); }}
-            style={{ background: "transparent", border: "1px solid rgba(194,90,74,0.25)", color: "#C25A4A", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", marginRight: "auto", transition: `all 0.25s ${EASE}` }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(194,90,74,0.1)"; }}
+            style={{ background: "transparent", border: "1px solid rgba(206,99,83,0.25)", color: "#CE6353", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", marginRight: "auto", transition: `all 0.25s ${EASE}` }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(206,99,83,0.1)"; }}
             onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}>
             ✕ DELETE
           </button>
@@ -3087,7 +3087,7 @@ function PositionTable({ tab, positions, setPositions, onRefresh, isRefreshing, 
         <input className="search-inp" placeholder="Search ticker, date, direction…" value={search} onChange={e => setSearch(e.target.value)} />
         <span className="source-badge">{tab.source === "binance" ? "BINANCE · 15s AUTO" : "YAHOO FINANCE · 60s AUTO"}</span>
         <button className="btn btn-discord" onClick={() => setShowDiscordModal(true)} disabled={posting}
-          style={{ marginLeft: "auto", background: posting ? "#1a1a1a" : postResult === "ok" ? "rgba(78,158,106,0.15)" : postResult === "error" ? "rgba(194,90,74,0.15)" : "rgba(88,101,242,0.15)", border: `1px solid ${postResult === "ok" ? "rgba(78,158,106,0.4)" : postResult === "error" ? "rgba(194,90,74,0.4)" : "rgba(88,101,242,0.4)"}`, color: postResult === "ok" ? "#4E9E6A" : postResult === "error" ? "#C25A4A" : "#8b9cf4", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "8px 16px", borderRadius: 6, cursor: posting ? "not-allowed" : "pointer", textTransform: "uppercase", transition: "all 0.2s", opacity: posting ? 0.5 : 1 }}>
+          style={{ marginLeft: "auto", background: posting ? "#1a1a1a" : postResult === "ok" ? "rgba(87,174,118,0.15)" : postResult === "error" ? "rgba(206,99,83,0.15)" : "rgba(88,101,242,0.15)", border: `1px solid ${postResult === "ok" ? "rgba(87,174,118,0.4)" : postResult === "error" ? "rgba(206,99,83,0.4)" : "rgba(88,101,242,0.4)"}`, color: postResult === "ok" ? "#57AE76" : postResult === "error" ? "#CE6353" : "#8b9cf4", fontFamily: "'Montserrat',sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "8px 16px", borderRadius: 6, cursor: posting ? "not-allowed" : "pointer", textTransform: "uppercase", transition: "all 0.2s", opacity: posting ? 0.5 : 1 }}>
           {posting ? "⏳ POSTING..." : postResult === "ok" ? "✓ POSTED!" : postResult === "error" ? "✕ FAILED" : "📸 POST TO DISCORD"}
         </button>
       </div>
