@@ -1103,7 +1103,7 @@ function FreeContentPanel({ allPositions, closedPositions, perfSegments, onSaveS
                 <input value={rebaseNote} onChange={e => setRebaseNote(e.target.value)} placeholder="Reason for intra-quarter rebase" style={inputStyle} />
               </div>
               <button onClick={() => startSegment(false)}
-                style={{ background: "linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%)", border: "none", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "11px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                style={{ background: "linear-gradient(135deg, #d4af37, #c59958)", border: "none", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "11px 18px", borderRadius: 8, cursor: "pointer", textTransform: "uppercase", whiteSpace: "nowrap" }}>
                 {activeSeg ? "▸ NEW QUARTER" : "▸ START FIRST QUARTER"}
               </button>
               {activeSeg && (
@@ -2155,7 +2155,7 @@ function ClosePositionModal({ position, tabId, tabLabel, onClose, onConfirm }) {
               onConfirm(record, isPartial ? qtyDisplay(remainingQty) : null);
             }}
             disabled={!closePrice || isNaN(cp) || cp <= 0}
-            style={{ background: closePrice && !isNaN(cp) && cp > 0 ? "linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%)" : "#1a1a1a", color: closePrice && !isNaN(cp) && cp > 0 ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 8, cursor: closePrice && !isNaN(cp) && cp > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase", transition: `all 0.3s ${SPRING}`, boxShadow: closePrice && !isNaN(cp) && cp > 0 ? "inset 0 1px 0 rgba(255,246,220,0.5), inset 0 -1px 0 #7B5F16, 0 8px 22px -10px rgba(223,182,60,0.55)" : "none" }}>
+            style={{ background: closePrice && !isNaN(cp) && cp > 0 ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: closePrice && !isNaN(cp) && cp > 0 ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 8, cursor: closePrice && !isNaN(cp) && cp > 0 ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase", transition: `all 0.3s ${SPRING}`, boxShadow: closePrice && !isNaN(cp) && cp > 0 ? "0 4px 18px rgba(212,175,55,0.25)" : "none" }}>
             {isPartial ? `CLOSE ${partialPct}%` : "CONFIRM CLOSE"}
           </button>
         </div>
@@ -2320,7 +2320,7 @@ function DiscordPostModal({ tab, positions, recentCloses, onClose, onConfirm }) 
           <div style={{ background: "#1e1f22", border: "1px solid #2a2a2a", borderRadius: 8, padding: "14px 16px", marginBottom: 22 }}>
             <div style={{ fontSize: 8, letterSpacing: "0.2em", color: "#444", textTransform: "uppercase", marginBottom: 10 }}>Discord Preview</div>
             <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#000", flexShrink: 0 }}>V</div>
+              <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg, #d4af37, #c59958)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Bebas Neue', sans-serif", fontSize: 16, color: "#000", flexShrink: 0 }}>V</div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                   <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: 12, fontWeight: 700, color: "#d4af37" }}>VisionX</span>
@@ -2450,7 +2450,7 @@ function AddPositionModal({ tab, onClose, onConfirm }) {
           <button onClick={onClose} style={{ background: "transparent", border: "1px solid #222", color: "#666", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 20px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}>CANCEL</button>
           <button onClick={() => canConfirm && onConfirm({ ...newRow(), ticker, direction, qty, entry, sl, date, flags: flag ? [flag] : [], flaggedAt: flag ? Date.now() : null })}
             disabled={!canConfirm}
-            style={{ background: canConfirm ? "linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%)" : "#1a1a1a", color: canConfirm ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: canConfirm ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
+            style={{ background: canConfirm ? "linear-gradient(135deg, #d4af37, #c59958)" : "#1a1a1a", color: canConfirm ? "#0a0a0a" : "#333", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 24px", borderRadius: 6, cursor: canConfirm ? "pointer" : "not-allowed", border: "none", textTransform: "uppercase" }}>
             + ADD POSITION
           </button>
         </div>
@@ -2637,7 +2637,7 @@ function PnLShareModal({ position, tab, onClose }) {
 
   const shareBtn = (label, key, onClick, primary = false) => (
     <button onClick={onClick} disabled={!!busy}
-      style={{ background: primary ? "linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%)" : "rgba(255,255,255,0.03)", border: primary ? "none" : "1px solid rgba(255,255,255,0.1)", color: primary ? "#0a0a0a" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 18px", borderRadius: 8, cursor: busy ? "wait" : "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}`, boxShadow: primary ? "0 4px 18px rgba(212,175,55,0.25)" : "none" }}>
+      style={{ background: primary ? "linear-gradient(135deg, #d4af37, #c59958)" : "rgba(255,255,255,0.03)", border: primary ? "none" : "1px solid rgba(255,255,255,0.1)", color: primary ? "#0a0a0a" : "#b99c64", fontFamily: "'Montserrat', sans-serif", fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 18px", borderRadius: 8, cursor: busy ? "wait" : "pointer", textTransform: "uppercase", transition: `all 0.25s ${EASE}`, boxShadow: primary ? "0 4px 18px rgba(212,175,55,0.25)" : "none" }}>
       {busy === key ? "…" : label}
     </button>
   );
@@ -2864,7 +2864,7 @@ function PositionDetailPanel({ position, tab, onClose, onRequestClose, onDelete,
             ⇪ SHARE PNL
           </button>
           <button onClick={onRequestClose}
-            style={{ background: "linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%)", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 26px", borderRadius: 8, cursor: "pointer", border: "none", textTransform: "uppercase", boxShadow: "inset 0 1px 0 rgba(255,246,220,0.5), inset 0 -1px 0 #7B5F16, 0 8px 22px -10px rgba(223,182,60,0.55)", transition: `all 0.3s ${SPRING}` }}>
+            style={{ background: "linear-gradient(135deg, #d4af37, #c59958)", color: "#0a0a0a", fontFamily: "'Montserrat', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", padding: "10px 26px", borderRadius: 8, cursor: "pointer", border: "none", textTransform: "uppercase", boxShadow: "0 4px 18px rgba(212,175,55,0.25)", transition: `all 0.3s ${SPRING}` }}>
             ◼ CLOSE POSITION
           </button>
         </div>
