@@ -1,49 +1,54 @@
-/* VSX Position Tracker — design system ==================================
-   Same material language as the VisionX Order Desk: warm charcoal, gold as
-   light rather than paint, one accent per region.
-
-   Two constraints shaped this file:
-   1. The table is the product. Customers see the Discord screenshot, not
-      this UI, so /table-wrap/ and everything inside it is tuned for
-      legibility at 2x capture: solid fills, no backdrop-filter, no masks,
-      no effects html2canvas cannot rasterise.
-   2. Every class name from the previous stylesheet is preserved. Nothing
-      in App.jsx needs to know this file was rewritten.
-   ---------------------------------------------------------------------- */
-@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Bebas+Neue&family=DM+Mono:wght@300;400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;0,6..96,600;0,6..96,700;1,6..96,400&family=Playfair+Display:ital,wght@1,400;1,500&family=Montserrat:wght@300;400;500;600;700&family=DM+Mono:wght@300;400;500&display=swap');
 
 :root {
-  /* Neutral charcoal per the VisionX brand spec. The warmth in this UI
-     comes from the gold, not from the surfaces. */
-  --black:  #0A0A0A;
-  --black2: #121212;
-  --black3: #191919;
-  --black4: #212121;
-  --border:  rgba(223,182,60,0.14);
-  --border2: rgba(223,182,60,0.30);
+  /* ── VisionX Brand Guidelines ──────────────────────────────────────────
+     Charcoal #121212 · Off-White #FDFDFD · Hairline #D6D6D6
+     Gold #D4AF37 (luxurious detail) · Logo-Gold #B99C64
+     Dark mode is the canvas: charcoal surfaces, off-white type, gold used
+     as light on an edge — never as a fill, never as a glow. */
+  --black:  #0D0D0D;   /* Seitengrund, eine Stufe unter Charcoal */
+  --black2: #121212;   /* Charcoal · Flächen, Tabellen, Karten */
+  --black3: #171717;   /* Zebra-Zeile, Eingabefelder */
+  --black4: #1E1E1E;   /* Hover, gehobene Flächen */
 
-  /* Gold as a ramp, not a two-stop fill. */
-  --gold1: #B78F2C;
-  --gold2: #DFB63C;
-  --gold3: #D3A945;
-  --gold4: #F2D98A;
-  --gold-fill: linear-gradient(165deg, #B78F2C 0%, #DFB63C 38%, #F2D98A 62%, #B78F2C 100%);
-  --gold-bevel: inset 0 1px 0 rgba(255,246,220,0.5), inset 0 -1px 0 #7B5F16;
+  /* Haarlinien statt Kästen. #D6D6D6 in sehr niedriger Deckkraft ergibt die
+     graue Feinlinie aus dem Brand Guide, ohne den Kontrast zu zerreißen. */
+  --border:  rgba(214,214,214,0.10);
+  --border2: rgba(214,214,214,0.20);
+  --hairline: rgba(214,214,214,0.14);
 
-  /* Neutral text ramp, higher contrast than before on the two lower steps. */
-  --white:    #FAFAFA;
-  --text:     #EAEAEA;
-  --text-dim: #B0B0B0;
-  --text-mute:#7E7E7E;
+  /* Gold: zwei Werte aus dem Guide, dazwischen nichts erfunden. */
+  --gold1: #B99C64;    /* Logo-Gold · ruhige Flächen, Labels */
+  --gold2: #D4AF37;    /* Luxus-Gold · Akzent, Kanten */
+  --gold3: #C4A44E;    /* Zwischenwert für Zahlen */
+  --gold4: #E3CE8F;    /* Licht auf der Kante */
+  --gold-fill: none;              /* keine Farbverläufe mehr */
+  --gold-bevel: none;
 
-  --green: #3FCB7F;
-  --red:   #E5624E;
+  /* Off-White statt Reinweiß — der Guide schreibt #FDFDFD. */
+  --white:    #FDFDFD;
+  --text:     #E4E4E4;
+  --text-dim: #9A9A9A;
+  --text-mute:#6A6A6A;
+
+  /* Gedeckte Signalfarben. Neon liest sich nach Retail-Dashboard,
+     ein Fonds-Factsheet bleibt auch bei Gewinn und Verlust zurückhaltend. */
+  --green: #4E9E6A;
+  --red:   #C25A4A;
 
   --ease:   cubic-bezier(0.16, 1, 0.3, 1);
   --spring: cubic-bezier(0.22, 1.3, 0.36, 1);
 
-  --r-sm: 8px; --r-md: 12px; --r-lg: 16px;
-  --amb: 0 24px 60px -24px rgba(0,0,0,0.85);
+  /* Kanten fast rechtwinklig. Runde Ecken sind das Erkennungszeichen
+     generischer Dashboards; Druckerzeugnisse haben keine. */
+  --r-sm: 2px; --r-md: 3px; --r-lg: 4px;
+  --amb: 0 20px 48px -28px rgba(0,0,0,0.9);
+
+  /* Schriftrollen aus dem Brand Guide. */
+  --serif:  'Bodoni Moda', 'Didot', 'Bodoni MT', serif;
+  --script: 'Playfair Display', Georgia, serif;
+  --sans:   var(--sans);
+  --mono:   'DM Mono', 'SFMono-Regular', monospace;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,13 +57,13 @@ body { background: var(--black); }
 ::selection { background: rgba(223,182,60,0.28); color: #0A0A0A; }
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #242424; border-radius: 999px; border: 2px solid var(--black); }
+::-webkit-scrollbar-thumb { background: #242424; border-radius: 0; border: 2px solid var(--black); }
 ::-webkit-scrollbar-thumb:hover { background: rgba(223,182,60,0.4); }
 :focus-visible { outline: 2px solid var(--gold2); outline-offset: 2px; border-radius: 4px; }
 
 .app {
   min-height: 100vh;
-  font-family: 'Montserrat', sans-serif;
+  font-family: var(--sans);
   color: var(--text);
   background: radial-gradient(120% 70% at 50% 0%, var(--black2) 0%, #0F0F0F 45%, var(--black) 100%);
   background-attachment: fixed;
@@ -90,8 +95,8 @@ body { background: var(--black); }
 .logo-area img { display: block; }
 .logo-divider { width: 1px; height: 30px; background: var(--border); }
 .logo-name {
-  font-family: 'Bebas Neue', sans-serif; font-size: 25px; letter-spacing: 0.14em; line-height: 1;
-  background: var(--gold-fill); -webkit-background-clip: text; background-clip: text; color: transparent;
+  font-family: var(--serif); font-size: 25px; letter-spacing: 0.01em; line-height: 1;
+  background: transparent; -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .logo-sub { font-size: 9px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-mute); text-transform: uppercase; margin-top: 4px; }
 .header-right { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
@@ -101,7 +106,7 @@ body { background: var(--black); }
 .stat-block:first-child { border-left: none; padding-left: 0; }
 .stat-label { font-size: 8px; font-weight: 600; letter-spacing: 0.22em; color: var(--text-mute); text-transform: uppercase; }
 .stat-val {
-  font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 0.03em; line-height: 1;
+  font-family: var(--serif); font-size: 24px; letter-spacing: 0.01em; line-height: 1;
   font-variant-numeric: tabular-nums; color: var(--white);
   transition: color 0.4s var(--ease);
 }
@@ -111,7 +116,7 @@ body { background: var(--black); }
 .live-badge {
   display: flex; align-items: center; gap: 8px; padding: 6px 14px;
   border: 1px solid rgba(63,203,127,0.32); background: rgba(63,203,127,0.08);
-  border-radius: 999px; font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: var(--green);
+  border-radius: 2px; font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: var(--green);
 }
 .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); position: relative; }
 .live-dot::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid rgba(63,203,127,0.5); animation: livePulse 2.4s var(--ease) infinite; }
@@ -121,9 +126,9 @@ body { background: var(--black); }
 .save-flash { font-size: 8px; letter-spacing: 0.18em; color: var(--gold2); font-weight: 600; transition: opacity 0.5s var(--ease), transform 0.5s var(--ease); }
 .save-flash.on { opacity: 1; transform: translateY(0); }
 .save-flash.off { opacity: 0; transform: translateY(3px); }
-.refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; font-family: 'DM Mono', monospace; }
+.refresh-ts { font-size: 9px; color: var(--text-mute); letter-spacing: 0.06em; font-variant-numeric: tabular-nums; font-family: var(--mono); }
 .new-count-badge {
-  font-size: 9px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 10px; border-radius: 999px;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.14em; padding: 3px 10px; border-radius: 2px;
   background: rgba(223,182,60,0.12); color: var(--gold2); border: 1px solid var(--border2);
   animation: badgePop 0.5s var(--spring) both;
 }
@@ -145,7 +150,7 @@ body { background: var(--black); }
 }
 .tab::after {
   content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 2px;
-  background: var(--gold-fill); transform: scaleX(0); transform-origin: center;
+  background: transparent; transform: scaleX(0); transform-origin: center;
   transition: transform 0.45s var(--ease);
 }
 .tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
@@ -154,8 +159,8 @@ body { background: var(--black); }
 .tab.active::after { transform: scaleX(1); }
 .tab:active { transform: scale(0.98); }
 .tab-count {
-  font-size: 9px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px;
-  color: var(--text-mute); font-family: 'DM Mono', monospace; background: var(--black3);
+  font-size: 9px; padding: 2px 8px; border: 1px solid var(--border); border-radius: 2px;
+  color: var(--text-mute); font-family: var(--mono); background: var(--black3);
   transition: all 0.3s var(--ease);
 }
 .tab.active .tab-count { border-color: var(--border2); color: var(--gold2); background: rgba(223,182,60,0.08); }
@@ -167,7 +172,7 @@ body { background: var(--black); }
 .hint-bar {
   display: flex; align-items: center; gap: 18px; font-size: 10px; color: var(--text-dim); letter-spacing: 0.05em;
   margin-bottom: 20px; padding: 11px 18px; border: 1px solid var(--border); background: var(--black2);
-  border-radius: var(--r-md); font-family: 'DM Mono', monospace;
+  border-radius: var(--r-md); font-family: var(--mono);
   transition: border-color 0.4s var(--ease);
 }
 .hint-bar:hover { border-color: var(--border2); }
@@ -183,20 +188,20 @@ body { background: var(--black); }
 .btn::after { content: none; }
 .btn:active { transform: scale(0.97) !important; transition-duration: 0.1s; }
 /* The one gold fill on the page: the primary action. */
-.btn-add { background: var(--gold-fill); box-shadow: var(--gold-bevel); color: #121212; border: 1px solid var(--gold1); }
+.btn-add { background: transparent; box-shadow: none; color: #121212; border: 1px solid var(--gold1); }
 .btn-add:hover { transform: translateY(-1px); filter: brightness(1.06); }
 .btn-refresh { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
 .btn-refresh:hover:not(:disabled) { color: var(--text); border-color: var(--border2); background: var(--black3); transform: translateY(-1px); }
 .btn-refresh:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .search-inp {
-  background: var(--black2); border: 1px solid var(--border); color: var(--text); font-family: 'DM Mono', monospace;
+  background: var(--black2); border: 1px solid var(--border); color: var(--text); font-family: var(--mono);
   font-size: 11px; padding: 9px 14px; border-radius: var(--r-sm); outline: none; width: 220px; letter-spacing: 0.03em;
   transition: border-color 0.3s var(--ease), width 0.4s var(--ease), background 0.3s var(--ease);
 }
 .search-inp:focus { border-color: var(--gold2); background: var(--black3); width: 280px; }
 .search-inp::placeholder { color: var(--text-mute); }
-.source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; font-family: 'DM Mono', monospace; }
+.source-badge { font-size: 9px; color: var(--text-mute); letter-spacing: 0.12em; font-weight: 500; margin-left: 4px; font-family: var(--mono); }
 
 /* ── TABLE ──────────────────────────────────────────────────────────────
    This block is the screenshot. Solid fills only, no blur, no masks.
@@ -222,7 +227,7 @@ body { background: var(--black); }
 }
 .capture-brand { display: flex; flex-direction: column; gap: 3px; }
 .capture-wordmark {
-  font-family: 'Bebas Neue', sans-serif; font-size: 30px; line-height: 1; letter-spacing: 0.14em;
+  font-family: var(--serif); font-size: 30px; line-height: 1; letter-spacing: 0.01em;
   /* Flat gold, not a clipped gradient: html2canvas cannot rasterise
      background-clip:text and would drop the wordmark entirely. */
   color: var(--gold2);
@@ -231,13 +236,13 @@ body { background: var(--black); }
 
 .capture-title { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; flex: 1; min-width: 200px; padding-left: 26px; border-left: 1px solid var(--border); }
 .capture-desk { font-size: 8px; font-weight: 700; letter-spacing: 0.26em; color: var(--text-mute); text-transform: uppercase; }
-.capture-pack { font-family: 'Bebas Neue', sans-serif; font-size: 22px; line-height: 1; letter-spacing: 0.1em; color: var(--white); text-transform: uppercase; }
+.capture-pack { font-family: var(--serif); font-size: 22px; line-height: 1; letter-spacing: 0.01em; color: var(--white); text-transform: uppercase; }
 
 .capture-meta { display: flex; gap: 26px; }
 .capture-meta > div { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .capture-meta span { font-size: 8px; font-weight: 600; letter-spacing: 0.2em; color: var(--text-mute); text-transform: uppercase; }
 .capture-meta b {
-  font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums;
+  font-family: var(--mono); font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums;
   color: var(--text); letter-spacing: 0.04em;
 }
 
@@ -284,7 +289,7 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 
 .cell-input {
   background: transparent; border: 1px solid transparent; color: var(--text);
-  font-family: 'DM Mono', monospace; font-size: 13px; font-variant-numeric: tabular-nums;
+  font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums;
   outline: none; padding: 5px 7px; width: 100%; border-radius: 6px;
   transition: background 0.2s var(--ease), border-color 0.2s var(--ease);
 }
@@ -299,7 +304,7 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 .dir-sel {
   border: 1px solid transparent; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; cursor: pointer;
   padding: 5px 11px; outline: none; -webkit-appearance: none; appearance: none; text-transform: uppercase;
-  border-radius: 999px; transition: all 0.25s var(--ease);
+  border-radius: 2px; transition: all 0.25s var(--ease);
 }
 .dir-sel:active { transform: scale(0.96); }
 .dir-long  { background: rgba(63,203,127,0.10); color: var(--green); border-color: rgba(63,203,127,0.28); }
@@ -307,13 +312,13 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 .dir-long:hover  { background: rgba(63,203,127,0.2); }
 .dir-short:hover { background: rgba(229,98,78,0.2); }
 
-.dist-val  { color: var(--gold3); font-size: 12px; font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
-.price-val { color: var(--white); font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; font-size: 13px; }
+.dist-val  { color: var(--gold3); font-size: 12px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.price-val { color: var(--white); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 13px; }
 .px-up   { animation: pxUp 1.2s var(--ease) both; }
 .px-down { animation: pxDown 1.2s var(--ease) both; }
 @keyframes pxUp   { 0% { color: var(--green); } 100% { color: var(--white); } }
 @keyframes pxDown { 0% { color: var(--red);   } 100% { color: var(--white); } }
-.value-val { color: var(--gold2); font-family: 'DM Mono', monospace; font-size: 12px; font-variant-numeric: tabular-nums; }
+.value-val { color: var(--gold2); font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .fetching  { color: var(--text-mute); font-size: 10px; letter-spacing: 0.1em; animation: glow 1.5s infinite; }
 .price-err { color: var(--red); font-size: 10px; }
 .price-dim { color: var(--text-mute); }
@@ -322,7 +327,7 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 .pnl-pos, .pnl-neg, .pnl-zero {
   display: inline-block; min-width: 76px; text-align: right;
   padding: 4px 9px; border-radius: 6px;
-  font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
   font-size: 13px; font-weight: 500;
 }
 .pnl-pos  { color: var(--green); background: rgba(63,203,127,0.10); }
@@ -331,11 +336,11 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 
 .flag-badge {
   display: inline-block; font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
-  padding: 3px 8px; border-radius: 999px; border: 1px solid; text-transform: uppercase; white-space: nowrap;
+  padding: 3px 8px; border-radius: 2px; border: 1px solid; text-transform: uppercase; white-space: nowrap;
 }
 .flag-sel {
   background: var(--black3); border: 1px solid var(--border); color: var(--text-mute);
-  font-family: 'Montserrat', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
+  font-family: var(--sans); font-size: 8px; font-weight: 700; letter-spacing: 0.1em;
   padding: 4px 8px; border-radius: 6px; cursor: pointer; outline: none; text-transform: uppercase;
   transition: border-color 0.25s var(--ease);
 }
@@ -347,12 +352,12 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
 .row-closed { background: rgba(229,98,78,0.05) !important; }
 .row-closed:hover { background: rgba(229,98,78,0.08) !important; box-shadow: inset 2px 0 0 var(--red) !important; }
 .row-closed td { color: var(--text-mute); }
-.closed-cell { font-family: 'DM Mono', monospace; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-dim); padding: 5px 7px; }
+.closed-cell { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; color: var(--text-dim); padding: 5px 7px; }
 .closed-ticker { color: var(--text-dim); letter-spacing: 0.05em; font-weight: 500; text-decoration: line-through; text-decoration-color: rgba(229,98,78,0.6); }
 
 .close-pos-btn {
   background: transparent; border: 1px solid var(--border); color: var(--text-mute);
-  font-family: 'Montserrat', sans-serif; font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
+  font-family: var(--sans); font-size: 8px; font-weight: 700; letter-spacing: 0.12em;
   padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap;
   transition: all 0.25s var(--ease);
 }
@@ -423,3 +428,145 @@ input[type="number"]::-webkit-inner-spin-button {
 /* Datumsfeld: Kalender-Icon erscheint erst, wenn die Zeile berührt wird. */
 input[type="date"]::-moz-calendar-picker-indicator { opacity: 0; cursor: pointer; }
 tbody tr:hover input[type="date"]::-moz-calendar-picker-indicator { opacity: 0.45; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EDITORIAL LAYER · was VisionX von einem generierten Dashboard trennt
+   ─────────────────────────────────────────────────────────────────────────
+   Vier Entscheidungen tragen den Unterschied:
+   1. Didone-Serife (Bodoni) für alle Überschriften. Kondensierte Grotesk
+      wie Bebas ist die Signatur jedes zweiten Krypto-Dashboards; eine
+      hochkontrastige Antiqua liest sich nach Geschäftsbericht.
+   2. Haarlinien statt Kästen. Ein Factsheet gliedert mit Linien, nicht mit
+      Karten, Schatten und Radien.
+   3. Kein Leuchten. Gold sitzt auf einer Kante, nicht als Farbe in einer
+      Fläche; Grün und Rot sind gedeckt statt neon.
+   4. Luft. Großzügiger Weißraum ist teuer und lässt sich nicht faken —
+      generierte Layouts füllen jede Fläche.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Kopfzeile · Wortmarke als Antiqua, Subline als Playfair-Kursive ─── */
+.logo-name {
+  font-family: var(--serif); font-weight: 700; font-size: 27px;
+  letter-spacing: 0.02em; color: var(--white); text-transform: none;
+}
+.logo-sub {
+  font-family: var(--script); font-style: italic; font-size: 12px;
+  letter-spacing: 0.02em; color: var(--gold1); text-transform: none;
+}
+.logo-divider { background: var(--hairline); }
+
+/* Kennzahlen: Mikro-Label gesperrt, Wert als Mono mit Tabellenziffern.
+   Mono statt Display-Schrift, weil Zahlen untereinander fluchten müssen. */
+.stat-label {
+  font-family: var(--sans); font-size: 8px; font-weight: 600;
+  letter-spacing: 0.24em; text-transform: uppercase; color: var(--text-mute);
+}
+.stat-val {
+  font-family: var(--mono); font-weight: 500; font-size: 19px;
+  letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
+.stat-block { border-left: 1px solid var(--hairline); }
+
+/* ── Reiter · Linie statt Pille ─────────────────────────────────────── */
+.tab { border-radius: 0; font-family: var(--sans); letter-spacing: 0.18em; }
+.tab-count {
+  border-radius: 0; font-family: var(--mono); border-color: var(--hairline);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Tabelle · das eigentliche Produkt ──────────────────────────────── */
+thead tr { border-bottom: 1px solid var(--border2); }
+th {
+  font-family: var(--sans); font-size: 7.5px; font-weight: 600;
+  letter-spacing: 0.26em; text-transform: uppercase; color: var(--text-mute);
+  padding-top: 14px; padding-bottom: 14px;
+}
+tbody tr { border-bottom: 1px solid rgba(214,214,214,0.055); }
+tbody tr:hover { background: rgba(214,214,214,0.022); }
+td { padding-top: 13px; padding-bottom: 13px; }
+
+/* Richtung: Wort mit farbiger Anlaufkante, kein gefülltes Etikett. */
+.dir-sel {
+  border-radius: 0; background: transparent !important; padding: 4px 0 4px 9px;
+  font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.2em;
+  border-left: 2px solid currentColor;
+}
+.dir-long  { color: var(--green); }
+.dir-short { color: var(--red); }
+
+/* Flags: schmale Marke, keine Vollton-Kapsel. */
+.flag-badge {
+  border-radius: 0; font-family: var(--sans); font-size: 7.5px; font-weight: 700;
+  letter-spacing: 0.18em; padding: 3px 7px; animation: none;
+}
+.flag-sel { border-radius: 0; font-family: var(--sans); letter-spacing: 0.14em; }
+
+/* ── Aktionen · Gold als Kante, nicht als Fläche ────────────────────── */
+.btn {
+  border-radius: 0; font-family: var(--sans); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.22em; text-transform: uppercase;
+}
+.btn-add {
+  background: transparent; color: var(--gold2);
+  border: 1px solid var(--gold2); box-shadow: none;
+}
+.btn-add:hover { background: rgba(212,175,55,0.08); color: var(--gold4); box-shadow: none; }
+.btn-refresh { border-radius: 0; border-color: var(--hairline); }
+.search-inp  { border-radius: 0; border-color: var(--hairline); font-family: var(--mono); }
+.source-badge { font-family: var(--sans); font-size: 8px; letter-spacing: 0.2em; text-transform: uppercase; }
+
+/* ── Tear Sheet · das Blatt, das der Kunde sieht ────────────────────── */
+.capture-frame { border-radius: 0; border-color: var(--border2); box-shadow: none; }
+.capture-head  { border-bottom: 1px solid var(--border2); padding: 26px 28px 20px; }
+.capture-wordmark {
+  font-family: var(--serif); font-weight: 700; font-size: 30px;
+  letter-spacing: 0.02em; color: var(--white); text-transform: none;
+}
+.capture-sub {
+  font-family: var(--script); font-style: italic; font-size: 11px;
+  letter-spacing: 0.02em; color: var(--gold1); text-transform: none;
+}
+.capture-title { border-left: 1px solid var(--hairline); }
+.capture-desk {
+  font-family: var(--sans); font-size: 7.5px; font-weight: 600;
+  letter-spacing: 0.3em; color: var(--text-mute);
+}
+.capture-pack {
+  font-family: var(--serif); font-weight: 500; font-size: 23px;
+  letter-spacing: 0.01em; color: var(--gold2); text-transform: none;
+}
+.capture-meta span { font-family: var(--sans); font-size: 7.5px; letter-spacing: 0.24em; }
+.capture-meta b {
+  font-family: var(--mono); font-weight: 400; font-size: 13px;
+  font-variant-numeric: tabular-nums; color: var(--white);
+}
+.capture-foot { border-top: 1px solid var(--border2); padding: 16px 28px 20px; }
+.capture-foot-mark { font-family: var(--sans); font-size: 7.5px; letter-spacing: 0.24em; color: var(--gold1); }
+.capture-foot-note { font-family: var(--sans); font-size: 8.5px; font-weight: 300; line-height: 1.75; color: var(--text-mute); }
+
+/* ── Zahlen · gedeckt, nie leuchtend ────────────────────────────────── */
+.pnl-pos, .pnl-neg, .pnl-zero {
+  font-family: var(--mono); font-weight: 500; font-size: 13px;
+  font-variant-numeric: tabular-nums; letter-spacing: 0;
+}
+.pnl-pos  { color: var(--green); }
+.pnl-neg  { color: var(--red); }
+.pnl-zero { color: var(--text-dim); }
+tbody tr:hover .pnl-pos, tbody tr:hover .pnl-neg { text-shadow: none; }
+.px-up, .px-down { animation: none; }
+.price-val { transition: color 0.5s var(--ease); }
+
+/* ── Statusleiste ───────────────────────────────────────────────────── */
+.live-badge {
+  border-radius: 0; background: transparent; border: 1px solid rgba(78,158,106,0.35);
+  font-family: var(--sans); font-size: 8px; letter-spacing: 0.24em; box-shadow: none;
+}
+.live-dot { box-shadow: none; animation: none; }
+.new-count-badge { border-radius: 0; font-family: var(--sans); letter-spacing: 0.2em; }
+.save-flash { font-family: var(--sans); font-size: 8px; letter-spacing: 0.22em; }
+.refresh-ts { font-family: var(--mono); }
+.hint-bar { border-radius: 0; border-color: var(--hairline); font-family: var(--mono); }
+.hint-label { font-family: var(--sans); letter-spacing: 0.26em; color: var(--gold1); }
+
+/* ── Zurückhaltung im Hintergrund ───────────────────────────────────── */
+.app::before, .app::after { opacity: 0.35; }
