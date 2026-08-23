@@ -404,3 +404,11 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
   .search-inp, .search-inp:focus { width: 100%; }
   .btn { min-height: 40px; }
 }
+
+/* ── Firefox / Floorp · Zahlenfeld-Spinner ausblenden ─────────────────────
+   Chrome zeigt die Pfeile nur beim Überfahren, Firefox dauerhaft — dadurch
+   stehen sie in jeder Zelle für Qty, Entry und Stop Loss. Rein kosmetisch,
+   Tippen und Scrollen bleiben unverändert. */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
