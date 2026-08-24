@@ -31,6 +31,23 @@ const DISCORD_WEBHOOKS = {
 const EASE   = "cubic-bezier(0.22, 1, 0.36, 1)";
 const SPRING = "cubic-bezier(0.34, 1.4, 0.64, 1)";
 
+// ── CAPTURE-STYLE · Ein-/Ausblenden während einer Aufnahme ───────────────
+// Jede Aufnahme bekommt ein eigenes <style>-Tag mit eindeutiger ID. Vorher
+// wird jedes verwaiste Tag aus einem abgebrochenen Lauf entfernt — sonst
+// bliebe dessen "display:none" hängen und die Buttons wären dauerhaft weg.
+let vsxCaptureStyleSeq = 0;
+const addCaptureStyle = (css) => {
+  document.querySelectorAll("style[data-vsx-capture]").forEach(el => el.remove());
+  const style = document.createElement("style");
+  style.setAttribute("data-vsx-capture", String(++vsxCaptureStyleSeq));
+  style.textContent = css;
+  document.head.appendChild(style);
+  return style;
+};
+const clearCaptureStyles = () => {
+  document.querySelectorAll("style[data-vsx-capture]").forEach(el => el.remove());
+};
+
 const loadHtml2Canvas = () => new Promise((resolve, reject) => {
   if (window.html2canvas) { resolve(window.html2canvas); return; }
   const s = document.createElement("script");
@@ -43,12 +60,11 @@ const loadHtml2Canvas = () => new Promise((resolve, reject) => {
 const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, lines = []) => {
   const el = document.getElementById(elementId);
   if (!el) return { ok: false, error: "Element not found" };
+  let replacements = [];   // außerhalb des try, damit finally sie zurückbauen kann
   try {
     const html2canvas = await loadHtml2Canvas();
     // Hide elements that look bad in screenshot
-    const style = document.createElement("style");
-    style.id = "screenshot-hide";
-    style.textContent = [
+    const captureCss = [
       // Bedienelemente raus — auf dem Blatt hat nur Information Platz.
       "#" + elementId + " th:nth-last-child(-n+2), #" + elementId + " td:nth-last-child(-n+2) { display: none !important; }",
       ".flag-sel, .del-btn, .close-pos-btn { visibility: hidden !important; }",
@@ -61,11 +77,11 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, l
       ".cell-input { border-color: transparent !important; background: transparent !important; }",
       ".logo-name { animation: none !important; }",
     ].join(" ");
-    document.head.appendChild(style);
+    addCaptureStyle(captureCss);
 
     // Replace dir selects with readable divs
     const dirSelects = el.querySelectorAll(".dir-sel");
-    const replacements = [];
+    replacements = [];
     dirSelects.forEach(sel => {
       const isLong = sel.value === "LONG";
       const div = document.createElement("div");
@@ -82,8 +98,9 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, l
       useCORS: true,
       logging: false,
     });
-    document.getElementById("screenshot-hide")?.remove();
+    clearCaptureStyles();
     replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
+    replacements = [];
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const fileName = `vsx-${tabId}-${Date.now()}.png`;
 
@@ -124,9 +141,11 @@ const postScreenshotToDiscord = async (elementId, tabId, tabLabel, webhookUrl, l
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
   } catch (e) {
-    document.getElementById("screenshot-hide")?.remove();
-    if (typeof replacements !== "undefined") replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
     return { ok: false, error: e.message };
+  } finally {
+    // Läuft in jedem Fall: Style weg, Direction-Felder zurück an ihren Platz.
+    clearCaptureStyles();
+    replacements.forEach(({ div, sel }) => { sel.style.display = ""; div.remove(); });
   }
 };
 
@@ -699,12 +718,9 @@ const postFreeContentScreenshot = async (elementId, webhookUrl, title, fileTag) 
   if (!el) return { ok: false, error: "Element not found" };
   try {
     const html2canvas = await loadHtml2Canvas();
-    const style = document.createElement("style");
-    style.id = "screenshot-hide";
-    style.textContent = ".free-no-capture { display: none !important; } * { animation: none !important; transition: none !important; }";
-    document.head.appendChild(style);
+    addCaptureStyle(".free-no-capture { display: none !important; } * { animation: none !important; transition: none !important; }");
     const canvas = await html2canvas(el, { backgroundColor: "#0a0a0a", scale: 2, useCORS: true, logging: false });
-    document.getElementById("screenshot-hide")?.remove();
+    clearCaptureStyles();
     const blob = await new Promise(r => canvas.toBlob(r, "image/png"));
     const form = new FormData();
     const now = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
@@ -713,8 +729,10 @@ const postFreeContentScreenshot = async (elementId, webhookUrl, title, fileTag) 
     const res = await fetch(webhookUrl, { method: "POST", body: form });
     return { ok: res.ok };
   } catch (e) {
-    document.getElementById("screenshot-hide")?.remove();
     return { ok: false, error: e.message };
+  } finally {
+    // Läuft in jedem Fall — auch wenn html2canvas oder der Webhook wirft.
+    clearCaptureStyles();
   }
 };
 
