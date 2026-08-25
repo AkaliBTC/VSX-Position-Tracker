@@ -300,6 +300,10 @@ td:nth-child(3) .cell-input, td:nth-child(4) .cell-input, td:nth-child(5) .cell-
   border: 1px solid transparent; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; cursor: pointer;
   padding: 5px 11px; outline: none; -webkit-appearance: none; appearance: none; text-transform: uppercase;
   border-radius: 999px; transition: all 0.25s var(--ease);
+  /* Firefox/Floorp misst die Breite eines <select> knapper als Chrome und
+     schneidet sonst den letzten Buchstaben ab ("SHOR"). Feste Mindestbreite
+     plus zentrierter Text hält beide Engines auf demselben Ergebnis. */
+  min-width: 82px; width: auto; text-align: center; text-align-last: center;
 }
 .dir-sel:active { transform: scale(0.96); }
 .dir-long  { background: rgba(63,203,127,0.10); color: var(--green); border-color: rgba(63,203,127,0.28); }
